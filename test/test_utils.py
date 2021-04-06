@@ -15,7 +15,7 @@ import unittest
 import numpy as np
 import math
 from oflibpytorch.utils import get_valid_ref, get_valid_padding, validate_shape, get_valid_device, to_numpy, \
-    flow_from_matrix, matrix_from_transform
+    flow_from_matrix, matrix_from_transform, matrix_from_transforms
 
 
 class TestValidityChecks(unittest.TestCase):
@@ -136,6 +136,20 @@ class TestFlowFromMatrix(unittest.TestCase):
         for dev, expected_dev in zip(device, expected_device):
             flow = flow_from_matrix(matrix.to(dev), shape)
             self.assertEqual(flow.device.type, expected_dev)
+
+
+class TestMatrixFromTransforms(unittest.TestCase):
+    # All numerical values in desired_matrix calculated manually
+    def test_combined_transforms(self):
+        transforms = [
+            ['translation', -100, -100],
+            ['rotation', 0, 0, 30],
+            ['translation', 100, 100]
+        ]
+        actual_matrix = matrix_from_transforms(transforms)
+        desired_matrix = matrix_from_transform('rotation', [100, 100, 30])
+        self.assertIsInstance(matrix_from_transforms(transforms), torch.Tensor)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(actual_matrix), to_numpy(desired_matrix)))
 
 
 class TestMatrixFromTransform(unittest.TestCase):
