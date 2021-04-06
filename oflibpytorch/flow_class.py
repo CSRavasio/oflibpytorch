@@ -335,3 +335,9 @@ class Flow(object):
         ref = get_valid_ref(ref)
         matrix = matrix_from_transforms(transform_list)
         return cls.from_matrix(matrix, shape, ref, mask, device)
+
+    def __str__(self):
+        """Enhanced string representation of the flow object"""
+        info_string = "Flow object, reference {}, shape {}*{}, device {}; ".format(self.ref, *self.shape, self.device)
+        info_string += self.__repr__()
+        return info_string
