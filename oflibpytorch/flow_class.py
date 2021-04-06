@@ -14,7 +14,7 @@ from __future__ import annotations
 import torch
 import numpy as np
 from typing import Union
-from .utils import get_valid_ref, get_valid_device, validate_shape
+from .utils import get_valid_ref, get_valid_device, validate_shape, to_numpy
 
 
 class Flow(object):
@@ -82,6 +82,16 @@ class Flow(object):
         if not torch.isfinite(input_vecs).all():
             raise ValueError("Error setting flow vectors: Input contains NaN, Inf or -Inf values")
         self._vecs = input_vecs
+
+    @property
+    def vecs_numpy(self) -> np.ndarray:
+        """Gets the flow vectors as a numpy array of shape H-W-2, rather than the internal representation of a torch
+        tensor of shape 2-H-W
+
+        :return: flow vectors as a numpy array of shape H-W-2
+        """
+        np_vecs = np.moveaxis(to_numpy(self._vecs), 0, -1)
+        return np_vecs
 
     @property
     def ref(self) -> str:
