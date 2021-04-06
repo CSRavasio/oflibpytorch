@@ -223,6 +223,9 @@ class Flow(object):
 
         # Check shape validity
         validate_shape(shape)
+        # Get valid device
+        if device is not None:
+            device = get_valid_device(device)
         # Check matrix validity
         if not isinstance(matrix, (np.ndarray, torch.Tensor)):
             raise TypeError("Error creating flow from matrix: Matrix needs to be a numpy array or a torch tensor")
