@@ -229,6 +229,11 @@ class FlowTest(unittest.TestCase):
         self.assertIsNone(np.testing.assert_equal(flow.shape, shape))
         self.assertEqual(flow.ref, 't')
 
+    def test_str(self):
+        flow = Flow.zero(shape=(100, 200), ref='s', device='cuda')
+        self.assertEqual(str(flow)[:54],
+                         "Flow object, reference s, shape 100*200, device cuda; ")
+
 
 if __name__ == '__main__':
     unittest.main()
