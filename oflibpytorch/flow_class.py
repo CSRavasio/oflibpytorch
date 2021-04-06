@@ -10,10 +10,11 @@
 #
 # This file is part of oflibpytorch
 
+from __future__ import annotations
 import torch
 import numpy as np
 from typing import Union
-from .utils import get_valid_ref, get_valid_device
+from .utils import get_valid_ref, get_valid_device, validate_shape
 
 
 class Flow(object):
@@ -167,3 +168,25 @@ class Flow(object):
         """
 
         return tuple(self.vecs.shape[1:])
+
+    @classmethod
+    def zero(
+            cls,
+            shape: Union[list, tuple],
+            ref: str = None,
+            mask: Union[np.ndarray, torch.Tensor] = None,
+            device: str = None,
+    ) -> Flow:
+        """Flow object constructor, zero everywhere
+
+        :param shape: List or tuple [H, W] of flow field shape
+        :param ref: Flow referencce, 't'arget or 's'ource. Defaults to 't'
+        :param mask: Numpy array or torch tensor H-W containing a boolean mask indicating where the flow vectors are
+            valid. Defaults to True everywhere
+        :param device: Tensor device, 'cpu' or 'cuda' (if available). Defaults to 'cpu'
+        :return: Flow object
+        """
+
+        # Check shape validity
+        validate_shape(shape)
+        return cls(torch.zeros(2, shape[0], shape[1]), ref, mask, device)
