@@ -36,6 +36,7 @@ class FlowTest(unittest.TestCase):
                     for device, device_expected in zip(['cpu', 'cuda', None], expected_device_list):
                         flow = Flow(vecs, ref=ref, mask=mask, device=device)
                         self.assertIsNone(np.testing.assert_equal(to_numpy(flow.vecs), vecs_np_2hw))
+                        self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, vecs_np_hw2))
                         self.assertEqual(flow.ref, ref_expected)
                         self.assertIsNone(np.testing.assert_equal(to_numpy(flow.mask), mask_np))
                         self.assertEqual(flow.device, device_expected)
@@ -53,6 +54,7 @@ class FlowTest(unittest.TestCase):
                 for device, device_expected in zip(['cpu', 'cuda', None], expected_device_list):
                     flow = Flow(vecs_pt_cuda, ref=ref, mask=mask, device=device)
                     self.assertIsNone(np.testing.assert_equal(to_numpy(flow.vecs), vecs_np_2hw))
+                    self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, vecs_np_hw2))
                     self.assertEqual(flow.ref, ref_expected)
                     self.assertIsNone(np.testing.assert_equal(to_numpy(flow.mask), mask_np))
                     self.assertEqual(flow.device, device_expected)
@@ -107,7 +109,7 @@ class FlowTest(unittest.TestCase):
         shape = [200, 300]
         zero_flow = Flow.zero(shape)
         self.assertIsNone(np.testing.assert_equal(zero_flow.shape, shape))
-        self.assertIsNone(np.testing.assert_equal(to_numpy(zero_flow.vecs), 0))
+        self.assertIsNone(np.testing.assert_equal(zero_flow.vecs_numpy, 0))
         self.assertIs(zero_flow.ref, 't')
         zero_flow = Flow.zero(shape, 's')
         self.assertIs(zero_flow.ref, 's')
