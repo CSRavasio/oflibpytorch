@@ -234,6 +234,25 @@ class FlowTest(unittest.TestCase):
         self.assertEqual(str(flow)[:54],
                          "Flow object, reference s, shape 100*200, device cuda; ")
 
+    def test_getitem(self):
+        vectors = np.random.rand(200, 200, 2)
+        flow = Flow(vectors)
+        indices = np.random.randint(0, 150, size=(20, 2))
+        for i in indices:
+            # Cutting a number of elements
+            self.assertIsNone(np.testing.assert_allclose(flow[i].vecs_numpy, vectors[i]))
+            # Cutting a specific item
+            self.assertIsNone(np.testing.assert_allclose(flow[i[0]:i[0] + 1, i[1]:i[1] + 1].vecs_numpy,
+                                                         vectors[i[0]:i[0] + 1, i[1]:i[1] + 1]))
+            # Cutting an area
+            self.assertIsNone(np.testing.assert_allclose(flow[i[0]:i[0] + 40, i[1]:i[1] + 40].vecs_numpy,
+                                                         vectors[i[0]:i[0] + 40, i[1]:i[1] + 40]))
+        # Make sure the device hasn't changed
+        for device in ['cpu', 'cuda']:
+            flow = Flow(vectors, device=device)
+            expected_device = device if torch.cuda.is_available() else 'cpu'
+            self.assertEqual(flow[10:20].device, expected_device)
+
 
 if __name__ == '__main__':
     unittest.main()
