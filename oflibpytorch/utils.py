@@ -11,6 +11,7 @@
 # This file is part of oflibpytorch
 
 import torch
+import numpy as np
 from typing import Any, Union
 
 
@@ -77,3 +78,13 @@ def validate_shape(shape: Any) -> Union[tuple, list]:
         raise ValueError("Error creating flow from matrix: Dims need to be a list or a tuple of length 2")
     if any((item <= 0 or not isinstance(item, int)) for item in shape):
         raise ValueError("Error creating flow from matrix: Dims need to be a list or a tuple of integers above zero")
+
+
+def to_numpy(tensor: torch.Tensor) -> np.ndarray:
+    """Tensor to numpy, calls .cpu() if necessary"""
+    with torch.no_grad():
+        if tensor.device.type == 'cuda':
+            tensor = tensor.cpu()
+        else:
+            tensor = tensor.detach()
+        return tensor.numpy()
