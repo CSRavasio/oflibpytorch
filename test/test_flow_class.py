@@ -91,6 +91,19 @@ class FlowTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             Flow(vecs, mask=torch.ones(100, 200) * 10)
 
+    def test_zero(self):
+        shape = [200, 300]
+        zero_flow = Flow.zero(shape)
+        self.assertIsNone(np.testing.assert_equal(zero_flow.shape, shape))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(zero_flow.vecs), 0))
+        self.assertIs(zero_flow.ref, 't')
+        zero_flow = Flow.zero(shape, 's')
+        self.assertIs(zero_flow.ref, 's')
+        for device in ['cpu', 'cuda']:
+            flow = Flow.zero(shape, device=device)
+            self.assertEqual(flow.vecs.device.type, device)
+            self.assertEqual(flow.mask.device.type, device)
+
 
 if __name__ == '__main__':
     unittest.main()
