@@ -341,3 +341,17 @@ class Flow(object):
         info_string = "Flow object, reference {}, shape {}*{}, device {}; ".format(self.ref, *self.shape, self.device)
         info_string += self.__repr__()
         return info_string
+
+    def __getitem__(self, item: Union[int, list, slice]) -> Flow:
+        """Mimics __getitem__ of a torch tensor, returning a flow object cut accordingly
+
+        Will throw an error if mask.__getitem__(item) or vecs.__getitem__(item) throw an error. Also throws an error if
+        sliced vecs (or masks) don't fulfil the conditions to construct a flow object (e.g. have shape H-W-2 for vecs)
+
+        :param item: Slice used to select a part of the flow
+        :return: New flow cut as a corresponding torch tensor would be cut
+        """
+
+        vecs = self._vecs.unsqueeze(-1).transpose(-1, 0).squeeze(0).__getitem__(item)
+        # Above line is to avoid having to parse item properly to deal with first dim of 2: move this dim to the back
+        return Flow(vecs, self._ref, self._mask.__getitem__(item), self._device)
