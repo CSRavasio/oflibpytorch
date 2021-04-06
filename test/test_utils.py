@@ -15,7 +15,7 @@ import unittest
 import numpy as np
 import math
 from oflibpytorch.utils import get_valid_ref, get_valid_padding, validate_shape, get_valid_device, to_numpy, \
-    flow_from_matrix
+    flow_from_matrix, matrix_from_transform
 
 
 class TestValidityChecks(unittest.TestCase):
@@ -136,6 +136,100 @@ class TestFlowFromMatrix(unittest.TestCase):
         for dev, expected_dev in zip(device, expected_device):
             flow = flow_from_matrix(matrix.to(dev), shape)
             self.assertEqual(flow.device.type, expected_dev)
+
+
+class TestMatrixFromTransform(unittest.TestCase):
+    # All numerical values in desired_matrix calculated manually
+    def test_translation(self):
+        # Translation of 15 horizontally, 10 vertically
+        desired_matrix = np.eye(3)
+        transform = 'translation'
+        values = [15, 10]
+        desired_matrix[0, 2] = 15
+        desired_matrix[1, 2] = 10
+        self.assertIsInstance(matrix_from_transform(transform, values), torch.Tensor)
+        self.assertIsNone(np.testing.assert_equal(desired_matrix, matrix_from_transform(transform, values)))
+
+    def test_rotation(self):
+        # Rotation of 30 degrees counter-clockwise
+        desired_matrix = np.eye(3)
+        transform = 'rotation'
+        values = [0, 0, 30]
+        desired_matrix[:2, :2] = [[math.sqrt(3) / 2, .5], [-.5, math.sqrt(3) / 2]]
+        self.assertIsInstance(matrix_from_transform(transform, values), torch.Tensor)
+        self.assertIsNone(np.testing.assert_allclose(desired_matrix, matrix_from_transform(transform, values)))
+
+        # Rotation of 45 degrees clockwise
+        desired_matrix = np.eye(3)
+        transform = 'rotation'
+        values = [0, 0, -45]
+        desired_matrix[:2, :2] = [[1 / math.sqrt(2), -1 / math.sqrt(2)], [1 / math.sqrt(2), 1 / math.sqrt(2)]]
+        self.assertIsInstance(matrix_from_transform(transform, values), torch.Tensor)
+        self.assertIsNone(np.testing.assert_allclose(desired_matrix, matrix_from_transform(transform, values)))
+
+    def test_rotation_with_shift(self):
+        # Rotation of 30 degrees clockwise around point [10, 50] (hor, ver)
+        desired_matrix = np.eye(3)
+        transform = 'rotation'
+        values = [10, 50, -30]
+        desired_matrix[:2, :2] = [[math.sqrt(3) / 2, -.5], [.5, math.sqrt(3) / 2]]
+        desired_matrix[0, 2] = 26.3397459622
+        desired_matrix[1, 2] = 1.69872981078
+        self.assertIsInstance(matrix_from_transform(transform, values), torch.Tensor)
+        self.assertIsNone(np.testing.assert_allclose(desired_matrix, matrix_from_transform(transform, values),
+                                                     rtol=1e-6))
+
+        # Rotation of 45 degrees counter-clockwise around point [-20, -30] (hor, ver)
+        desired_matrix = np.eye(3)
+        transform = 'rotation'
+        values = [-20, -30, 45]
+        desired_matrix[:2, :2] = [[1 / math.sqrt(2), 1 / math.sqrt(2)], [-1 / math.sqrt(2), 1 / math.sqrt(2)]]
+        desired_matrix[0, 2] = 15.3553390593
+        desired_matrix[1, 2] = -22.9289321881
+        self.assertIsInstance(matrix_from_transform(transform, values), torch.Tensor)
+        self.assertIsNone(np.testing.assert_allclose(desired_matrix, matrix_from_transform(transform, values)))
+
+    def test_scaling(self):
+        # Scaling factor 0.8
+        desired_matrix = np.eye(3)
+        transform = 'scaling'
+        values = [0, 0, 0.8]
+        desired_matrix[0, 0] = 0.8
+        desired_matrix[1, 1] = 0.8
+        self.assertIsInstance(matrix_from_transform(transform, values), torch.Tensor)
+        self.assertIsNone(np.testing.assert_allclose(desired_matrix, matrix_from_transform(transform, values)))
+
+        # Scaling factor 2
+        desired_matrix = np.eye(3)
+        transform = 'scaling'
+        values = [0, 0, 2]
+        desired_matrix[0, 0] = 2
+        desired_matrix[1, 1] = 2
+        self.assertIsInstance(matrix_from_transform(transform, values), torch.Tensor)
+        self.assertIsNone(np.testing.assert_allclose(desired_matrix, matrix_from_transform(transform, values)))
+
+    def test_scaling_with_shift(self):
+        # Scaling factor 0.8 around point [10, 50] (hor, ver)
+        desired_matrix = np.eye(3)
+        transform = 'scaling'
+        values = [10, 50, 0.8]
+        desired_matrix[0, 0] = 0.8
+        desired_matrix[1, 1] = 0.8
+        desired_matrix[0, 2] = 2
+        desired_matrix[1, 2] = 10
+        self.assertIsInstance(matrix_from_transform(transform, values), torch.Tensor)
+        self.assertIsNone(np.testing.assert_allclose(desired_matrix, matrix_from_transform(transform, values)))
+
+        # Scaling factor 2 around point [20, 30] (hor, ver)
+        desired_matrix = np.eye(3)
+        transform = 'scaling'
+        values = [20, 30, 2]
+        desired_matrix[0, 0] = 2
+        desired_matrix[1, 1] = 2
+        desired_matrix[0, 2] = -20
+        desired_matrix[1, 2] = -30
+        self.assertIsInstance(matrix_from_transform(transform, values), torch.Tensor)
+        self.assertIsNone(np.testing.assert_allclose(desired_matrix, matrix_from_transform(transform, values)))
 
 
 if __name__ == '__main__':
