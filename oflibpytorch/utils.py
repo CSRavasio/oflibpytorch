@@ -88,3 +88,30 @@ def to_numpy(tensor: torch.Tensor) -> np.ndarray:
         else:
             tensor = tensor.detach()
         return tensor.numpy()
+
+
+def flow_from_matrix(matrix: torch.Tensor, shape: Union[list, tuple]) -> torch.Tensor:
+    """Flow calculated from a transformation matrix
+
+    NOTE: This corresponds to a flow with reference 's': based on meshgrid in image 1, warped to image 2, flow vectors
+      at each meshgrid point in image 1 corresponding to (warped end points in image 2 - start points in image 1)
+
+    :param matrix: Transformation matrix, torch tensor of shape 3-3
+    :param shape: List or tuple [H, W] containing required size of the flow field
+    :return: Flow field according to cv2 standards, torch tensor 2-H-W
+    """
+
+    # Make default vector field and populate it with homogeneous coordinates
+    h, w = shape
+    device = matrix.device
+    ones = torch.ones(shape).to(device)
+    grid_x, grid_y = torch.meshgrid(torch.arange(0, h), torch.arange(0, w))
+    default_vec_hom = torch.stack((grid_y.to(torch.float).to(device),
+                                   grid_x.to(torch.float).to(device),
+                                   ones), dim=-1)
+
+    # Calculate the flow from the difference of the transformed default vectors, and the original default vector field
+    transformed_vec_hom = torch.matmul(matrix.to(torch.float), default_vec_hom.unsqueeze(-1)).squeeze(-1)
+    transformed_vec = transformed_vec_hom[..., 0:2] / transformed_vec_hom[..., 2:3]
+    transformed_vec = (transformed_vec - default_vec_hom[..., 0:2]).unsqueeze(0).transpose(0, -1).squeeze(-1)
+    return transformed_vec
