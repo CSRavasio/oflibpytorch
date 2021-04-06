@@ -13,6 +13,7 @@
 import unittest
 import torch
 import numpy as np
+import math
 from oflibpytorch.flow_class import Flow
 from oflibpytorch.utils import to_numpy
 
@@ -117,6 +118,47 @@ class FlowTest(unittest.TestCase):
             flow = Flow.zero(shape, device=device)
             self.assertEqual(flow.vecs.device.type, expected_device)
             self.assertEqual(flow.mask.device.type, expected_device)
+
+    def test_from_matrix(self):
+        # With reference 's', this simply corresponds to using flow_from_matrix, tested in test_utils.
+        # With reference 't':
+        # Rotation of 30 degrees clockwise around point [10, 50] (hor, ver)
+        matrix_np = np.array([[math.sqrt(3) / 2, -.5, 26.3397459622],
+                              [.5, math.sqrt(3) / 2, 1.69872981078],
+                              [0, 0, 1]])
+        matrix_pt = torch.tensor([[math.sqrt(3) / 2, -.5, 26.3397459622],
+                                  [.5, math.sqrt(3) / 2, 1.69872981078],
+                                  [0, 0, 1]])
+        shape = [200, 300]
+        matrix_device_list = ['cpu', 'cuda']
+        flow_device_list = ['cpu', 'cuda', None]
+        if torch.cuda.is_available():
+            flow_expected_device_list = ['cpu', 'cuda', None]
+        else:
+            flow_expected_device_list = ['cpu', 'cpu', 'cpu']
+        for matrix in [matrix_pt, matrix_np]:
+            for matrix_device in matrix_device_list:
+                for flow_device, flow_expected_device in zip(flow_device_list, flow_expected_device_list):
+                    if isinstance(matrix, torch.Tensor):
+                        matrix = matrix.to(matrix_device)
+                    flow = Flow.from_matrix(matrix, shape, 't', device=flow_device)
+                    if flow_expected_device is None:  # If no device passed, expect same device as the matrix passed in
+                        flow_expected_device = matrix.device.type if isinstance(matrix, torch.Tensor) else 'cpu'
+                    self.assertEqual(flow.device, flow_expected_device)
+                    self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[50, 10], [0, 0], atol=1e-4))
+                    self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[50, 299], [38.7186583063, 144.5],
+                                                                 atol=1e-4, rtol=1e-4))
+                    self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[199, 10], [-74.5, 19.9622148361],
+                                                                 atol=1e-4, rtol=1e-4))
+                    self.assertIsNone(np.testing.assert_equal(flow.shape, shape))
+
+        # Invalid input
+        with self.assertRaises(TypeError):
+            Flow.from_matrix('test', [10, 10])
+        with self.assertRaises(ValueError):
+            Flow.from_matrix(np.eye(4), [10, 10])
+        with self.assertRaises(ValueError):
+            Flow.from_matrix(torch.eye(4), [10, 10])
 
 
 if __name__ == '__main__':
