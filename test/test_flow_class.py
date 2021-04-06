@@ -19,6 +19,10 @@ from oflibpytorch.utils import to_numpy
 
 class FlowTest(unittest.TestCase):
     def test_flow(self):
+        if torch.cuda.is_available():
+            expected_device_list = ['cpu', 'cuda', 'cpu']
+        else:
+            expected_device_list = ['cpu', 'cpu', 'cpu']
         vecs_np_2hw = np.zeros((2, 100, 200))
         vecs_np_hw2 = np.zeros((100, 200, 2))
         vecs_pt_2hw = torch.zeros((2, 100, 200))
@@ -29,7 +33,7 @@ class FlowTest(unittest.TestCase):
         for vecs in [vecs_np_2hw, vecs_np_hw2, vecs_pt_2hw, vecs_pt_hw2]:
             for ref, ref_expected in zip(['t', 's', None], ['t', 's', 't']):
                 for mask in [mask_empty, mask_np, mask_pt]:
-                    for device, device_expected in zip(['cpu', 'cuda', None], ['cpu', 'cuda', 'cpu']):
+                    for device, device_expected in zip(['cpu', 'cuda', None], expected_device_list):
                         flow = Flow(vecs, ref=ref, mask=mask, device=device)
                         self.assertIsNone(np.testing.assert_equal(to_numpy(flow.vecs), vecs_np_2hw))
                         self.assertEqual(flow.ref, ref_expected)
@@ -39,10 +43,14 @@ class FlowTest(unittest.TestCase):
                         self.assertEqual(flow.mask.device.type, device_expected)
 
         # tensor to cuda, test cuda
+        if torch.cuda.is_available():
+            expected_device_list = ['cpu', 'cuda', 'cuda']
+        else:
+            expected_device_list = ['cpu', 'cpu', 'cpu']
         vecs_pt_cuda = torch.zeros((2, 100, 200)).to('cuda')
         for ref, ref_expected in zip(['t', 's', None], ['t', 's', 't']):
             for mask in [mask_empty, mask_np, mask_pt]:
-                for device, device_expected in zip(['cpu', 'cuda', None], ['cpu', 'cuda', 'cuda']):
+                for device, device_expected in zip(['cpu', 'cuda', None], expected_device_list):
                     flow = Flow(vecs_pt_cuda, ref=ref, mask=mask, device=device)
                     self.assertIsNone(np.testing.assert_equal(to_numpy(flow.vecs), vecs_np_2hw))
                     self.assertEqual(flow.ref, ref_expected)
@@ -92,6 +100,10 @@ class FlowTest(unittest.TestCase):
             Flow(vecs, mask=torch.ones(100, 200) * 10)
 
     def test_zero(self):
+        if torch.cuda.is_available():
+            expected_device_list = ['cpu', 'cuda']
+        else:
+            expected_device_list = ['cpu', 'cpu']
         shape = [200, 300]
         zero_flow = Flow.zero(shape)
         self.assertIsNone(np.testing.assert_equal(zero_flow.shape, shape))
@@ -99,10 +111,10 @@ class FlowTest(unittest.TestCase):
         self.assertIs(zero_flow.ref, 't')
         zero_flow = Flow.zero(shape, 's')
         self.assertIs(zero_flow.ref, 's')
-        for device in ['cpu', 'cuda']:
+        for device, expected_device in zip(['cpu', 'cuda'], expected_device_list):
             flow = Flow.zero(shape, device=device)
-            self.assertEqual(flow.vecs.device.type, device)
-            self.assertEqual(flow.mask.device.type, device)
+            self.assertEqual(flow.vecs.device.type, expected_device)
+            self.assertEqual(flow.mask.device.type, expected_device)
 
 
 if __name__ == '__main__':
