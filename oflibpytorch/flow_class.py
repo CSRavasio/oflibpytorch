@@ -14,7 +14,7 @@ from __future__ import annotations
 import torch
 import numpy as np
 from typing import Union
-from .utils import get_valid_ref, get_valid_device, validate_shape, to_numpy, flow_from_matrix
+from .utils import get_valid_ref, get_valid_device, validate_shape, to_numpy, flow_from_matrix, matrix_from_transforms
 
 
 class Flow(object):
@@ -247,3 +247,91 @@ class Flow(object):
             # meshgrid in the warped image, are subtracted from the start points to yield flow vectors.
             flow_vectors = -flow_from_matrix(torch.pinverse(matrix), shape)
             return cls(flow_vectors, ref, mask, device)
+
+    @classmethod
+    def from_transforms(
+        cls,
+        transform_list: list,
+        shape: Union[list, tuple],
+        ref: str = None,
+        mask: Union[np.ndarray, torch.Tensor] = None,
+        device: str = None,
+    ) -> Flow:
+        """Flow object constructor, based on list of transforms
+
+        :param transform_list: List of transforms to be turned into a flow field, where each transform is expressed as
+            a list of [transform name, transform value 1, ... , transform value n]. Supported options:
+                ['translation', horizontal shift in px, vertical shift in px]
+                ['rotation', horizontal centre in px, vertical centre in px, angle in degrees, counter-clockwise]
+                ['scaling', horizontal centre in px, vertical centre in px, scaling fraction]
+        :param shape: List or tuple [H, W] of flow field shape
+        :param ref: Flow referencce, 't'arget or 's'ource. Defaults to 't'
+        :param mask: Numpy array or torch tensor H-W containing a boolean mask indicating where the flow vectors are
+            valid. Defaults to True everywhere
+        :param device: Tensor device, 'cpu' or 'cuda' (if available). Defaults to 'cpu'
+        :return: Flow object
+        """
+
+        # Check shape validity
+        validate_shape(shape)
+        # Get valid device
+        device = get_valid_device(device)
+        # Check transform_list validity
+        if not isinstance(transform_list, list):
+            raise TypeError("Error creating flow from transforms: Transform_list needs to be a list")
+        if not all(isinstance(item, list) for item in transform_list):
+            raise TypeError("Error creating flow from transforms: Transform_list needs to be a list of lists")
+        if not all(len(item) > 1 for item in transform_list):
+            raise ValueError("Error creating flow from transforms: Invalid transforms passed")
+        for t in transform_list:
+            if t[0] == 'translation':
+                if not len(t) == 3:
+                    raise ValueError("Error creating flow from transforms: Not enough transform values passed for "
+                                     "'translation' - expected 2, got {}".format(len(t) - 1))
+            elif t[0] == 'rotation':
+                if not len(t) == 4:
+                    raise ValueError("Error creating flow from transforms: Not enough transform values passed for "
+                                     "'rotation' - expected 3, got {}".format(len(t) - 1))
+            elif t[0] == 'scaling':
+                if not len(t) == 4:
+                    raise ValueError("Error creating flow from transforms: Not enough transform values passed for "
+                                     "'scaling' - expected 3, got {}".format(len(t) - 1))
+            else:
+                raise ValueError("Error creating flow from transforms: Transform '{}' not recognised".format(t[0]))
+            if not all(isinstance(item, (float, int)) for item in t[1:]):
+                raise ValueError("Error creating flow from transforms: "
+                                 "Transform values for '{}' need to be integers or floats".format(t[0]))
+
+        # Process for flow reference 's' is straightforward: get the transformation matrix for each given transform in
+        #   the transform_list, and get the final transformation matrix by multiplying the transformation matrices for
+        #   each individual transform sequentially. Finally, call flow_from_matrix to get the corresponding flow field,
+        #   which works by applying that final transformation matrix to a meshgrid of vector locations, and subtracting
+        #   the start points from the end points.
+        #   flow_s = transformed_coords - coords
+        #          = final_transform * coords - coords
+        #          = t_1 * ... * t_n * coords - coords
+        #
+        # Process for flow reference 't' can be done in two ways:
+        #   1) get the transformation matrix for each given transform in the transform_list, and get the final
+        #     transformation matrix by multiplying the transformation matrices for each individual transform in inverse
+        #     order. Then, call flow_from_matrix on the *inverse* of this final transformation matrix to get the
+        #     negative of the corresponding flow field, which means applying the inverse of that final transformation
+        #     matrix to a meshgrid of vector locations, and subtracting the end points from the start points.
+        #     flow_t = coords - transformed_coords
+        #            = coords - inv(final_transform) * coords
+        #            = coords - inv(t_1 * ... * t_n) * coords
+        #   2) get the transformation matrix for the reverse of each given transform in the "inverse inverse order",
+        #     i.e. in the given order of the transform_list, and get the final transformation matrix by multiplying the
+        #     results sequentially. Then, call flow_from_matrix on this final transformation matrix (already
+        #     corresponding to the inverse as in method 1)) to get the negative of the corresponding flow field as
+        #     before. This method is more complicated, but avoids any numerical issues potentially arising from
+        #     calculating the inverse of a matrix.
+        #     flow_t = coords - transformed_coords
+        #            = coords - final_transform * coords
+        #            = coords - inv(t_n) * ... * inv(t_1) * coords
+        #     ... because: inv(t_n) * ... * inv(t_1) = inv(t_1 * ... * t_n)
+
+        # Here implemented: method 1, via calling from_matrix where the inverse of the matrix is used if reference 't'
+        ref = get_valid_ref(ref)
+        matrix = matrix_from_transforms(transform_list)
+        return cls.from_matrix(matrix, shape, ref, mask, device)
