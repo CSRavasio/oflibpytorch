@@ -355,3 +355,11 @@ class Flow(object):
         vecs = self._vecs.unsqueeze(-1).transpose(-1, 0).squeeze(0).__getitem__(item)
         # Above line is to avoid having to parse item properly to deal with first dim of 2: move this dim to the back
         return Flow(vecs, self._ref, self._mask.__getitem__(item), self._device)
+
+    def __copy__(self) -> Flow:
+        """Returns a copy of the flow object
+
+        :return: Copy of the flow object
+        """
+
+        return Flow(self._vecs, self._ref, self._mask, self._device)
