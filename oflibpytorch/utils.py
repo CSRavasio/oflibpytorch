@@ -19,6 +19,40 @@ from typing import Any, Union
 DEFAULT_THRESHOLD = 1e-3
 
 
+def get_valid_vecs(vecs: Any, error_string: str = None) -> torch.Tensor:
+    """Checks array or tensor input for validity and returns 2-H-W tensor for use as flow vectors
+
+    :param vecs: Valid if numpy array or torch tensor, either shape 2-H-W (assumed first) or H-W-2
+    :param error_string: Optional string to be added before the error message if input is invalid
+    :return: Tensor valid for flow vectors, shape 2-H-W
+    """
+
+    error_string = '' if error_string is None else error_string
+
+    # Check type and dimensions
+    if not isinstance(vecs, (np.ndarray, torch.Tensor)):
+        raise TypeError(error_string + "Input is not a numpy array or a torch tensor")
+    if vecs.ndim != 3:
+        raise ValueError(error_string + "Input is not 3-dimensional")
+
+    # Transform to tensor if necessary
+    if isinstance(vecs, np.ndarray):
+        vecs = torch.tensor(vecs, dtype=torch.float, device='cpu')
+
+    # Check channels, transpose if necessary
+    if vecs.shape[0] != 2:  # Check if input shape can be interpreted as 2-H-W
+        if vecs.shape[2] == 2:  # Input shape is H-W-2
+            vecs = vecs.unsqueeze(0).transpose(0, -1).squeeze(-1)
+        else:  # Input shape is neither H-W-2 nor 2-H-W
+            raise ValueError(error_string + "Input needs to be shape H-W-2 or 2-H-W")
+
+    # Check for invalid values
+    if not torch.isfinite(vecs).all():
+        raise ValueError(error_string + "Input contains NaN, Inf or -Inf values")
+
+    return vecs
+
+
 def get_valid_ref(ref: Any) -> str:
     """Checks flow reference input for validity
 
