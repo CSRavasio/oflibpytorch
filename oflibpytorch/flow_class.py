@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 import torch
+import torch.nn.functional as f
 import numpy as np
 from typing import Union
 from .utils import get_valid_vecs, get_valid_ref, get_valid_device, validate_shape, to_numpy, flow_from_matrix, \
@@ -541,7 +542,7 @@ class Flow(object):
 
         # Resize vectors and mask
         to_resize = torch.cat((self._vecs, self._mask.to(torch.float).unsqueeze(0)), dim=0).unsqueeze(0)
-        resized = torch.nn.functional.interpolate(to_resize, scale_factor=scale, mode='bilinear').squeeze(0)
+        resized = f.interpolate(to_resize, scale_factor=scale, mode='bilinear').squeeze(0)
 
         # Adjust values
         resized[0] *= scale[1]
