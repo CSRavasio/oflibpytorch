@@ -571,6 +571,11 @@ class FlowTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             flow1 ** np.random.rand(200, 200, 2, 1)
 
+    def test_neg(self):
+        vecs1 = np.random.rand(100, 200, 2)
+        flow1 = Flow(vecs1)
+        self.assertIsNone(np.testing.assert_allclose((-flow1).vecs_numpy, -vecs1))
+
 
 if __name__ == '__main__':
     unittest.main()
