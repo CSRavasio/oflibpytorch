@@ -576,6 +576,69 @@ class FlowTest(unittest.TestCase):
         flow1 = Flow(vecs1)
         self.assertIsNone(np.testing.assert_allclose((-flow1).vecs_numpy, -vecs1))
 
+    def test_resize(self):
+        shape = [20, 10]
+        ref = 's'
+        flow = Flow.from_transforms([['rotation', 30, 50, 30]], shape, ref)
+
+        # Different scales
+        scales = [.2, .5, 1, 1.5, 2, 10]
+        for scale in scales:
+            resized_flow = flow.resize(scale)
+            resized_shape = scale * np.array(shape)
+            self.assertIsNone(np.testing.assert_equal(resized_flow.shape, resized_shape))
+            self.assertIsNone(np.testing.assert_allclose(resized_flow.vecs_numpy[0, 0],
+                                                         flow.vecs_numpy[0, 0] * scale,
+                                                         rtol=.1))
+
+        # Scale list
+        scale = [.5, 2]
+        resized_flow = flow.resize(scale)
+        resized_shape = np.array(scale) * np.array(shape)
+        self.assertIsNone(np.testing.assert_equal(resized_flow.shape, resized_shape))
+        self.assertIsNone(np.testing.assert_allclose(resized_flow.vecs_numpy[0, 0],
+                                                     flow.vecs_numpy[0, 0] * np.array(scale)[::-1],
+                                                     rtol=.1))
+
+        # Scale tuple
+        scale = (2, .5)
+        resized_flow = flow.resize(scale)
+        resized_shape = np.array(scale) * np.array(shape)
+        self.assertIsNone(np.testing.assert_equal(resized_flow.shape, resized_shape))
+        self.assertIsNone(np.testing.assert_allclose(resized_flow.vecs_numpy[0, 0],
+                                                     flow.vecs_numpy[0, 0] * np.array(scale)[::-1],
+                                                     rtol=.1))
+
+        # Scale mask
+        shape_small = (20, 40)
+        shape_large = (30, 80)
+        mask_small = np.ones(shape_small, 'bool')
+        mask_small[:6, :20] = 0
+        mask_large = np.ones(shape_large, 'bool')
+        mask_large[:9, :40] = 0
+        flow_small = Flow.from_transforms([['rotation', 0, 0, 30]], shape_small, 't', mask_small)
+        flow_large = flow_small.resize((1.5, 2))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(flow_large.mask), mask_large))
+
+        # Check scaling is performed correctly based on the actual flow field
+        ref = 't'
+        flow_small = Flow.from_transforms([['rotation', 0, 0, 30]], (50, 80), ref)
+        flow_large = Flow.from_transforms([['rotation', 0, 0, 30]], (150, 240), ref)
+        flow_resized = flow_large.resize(1/3)
+        self.assertIsNone(np.testing.assert_allclose(flow_resized.vecs_numpy, flow_small.vecs_numpy, atol=1, rtol=.1))
+
+        # Invalid input
+        with self.assertRaises(TypeError):
+            flow.resize('test')
+        with self.assertRaises(ValueError):
+            flow.resize(['test', 0])
+        with self.assertRaises(ValueError):
+            flow.resize([1, 2, 3])
+        with self.assertRaises(ValueError):
+            flow.resize(0)
+        with self.assertRaises(ValueError):
+            flow.resize(-0.1)
+
 
 if __name__ == '__main__':
     unittest.main()
