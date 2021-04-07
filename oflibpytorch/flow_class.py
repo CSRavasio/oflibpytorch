@@ -410,7 +410,7 @@ class Flow(object):
         """
 
         try:  # other is int, float, or can be converted to it
-            return Flow(self._vecs * float(other), self._ref, self._mask)
+            return Flow(self._vecs * float(other), self._ref, self._mask, self._device)
         except (TypeError, ValueError):
             if isinstance(other, list):
                 if len(other) != 2:
@@ -431,7 +431,7 @@ class Flow(object):
                     raise ValueError("Error multiplying flow: Multiplier array or tensor needs to be of size 2, of the "
                                      "shape of the flow object (H-W), or either 2-H-W or H-W-2")
                 other = other.to(self._vecs.device)
-                return Flow(self._vecs * other, self._ref, self._mask)
+                return Flow(self._vecs * other, self._ref, self._mask, self._device)
             else:
                 raise TypeError("Error multiplying flow: Multiplier cannot be converted to float, "
                                 "or isn't a list, numpy array, or torch tensor")
@@ -445,7 +445,7 @@ class Flow(object):
         """
 
         try:  # other is int, float, or can be converted to it
-            return Flow(self._vecs / float(other), self._ref, self._mask)
+            return Flow(self._vecs / float(other), self._ref, self._mask, self._device)
         except (TypeError, ValueError):
             if isinstance(other, list):
                 if len(other) != 2:
@@ -466,7 +466,7 @@ class Flow(object):
                     raise ValueError("Error dividing flow: Divisor array or tensor needs to be of size 2, of the "
                                      "shape of the flow object (H-W), or either 2-H-W or H-W-2")
                 other = other.to(self._vecs.device)
-                return Flow(self._vecs / other, self._ref, self._mask)
+                return Flow(self._vecs / other, self._ref, self._mask, self._device)
             else:
                 raise TypeError("Error dividing flow: Divisor cannot be converted to float, "
                                 "or isn't a list, numpy array, or torch tensor")
