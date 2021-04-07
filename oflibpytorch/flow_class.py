@@ -505,3 +505,15 @@ class Flow(object):
             else:
                 raise TypeError("Error exponentiating flow: Exponent cannot be converted to float, "
                                 "or isn't a list, numpy array, or torch tensor")
+
+    def __neg__(self) -> Flow:
+        """Returns the negative of a flow object
+
+        CAREFUL: this is NOT equal to correctly inverting a flow! For that, use invert().
+
+        DO NOT USE if you're not certain about what you're aiming to achieve.
+
+        :return: Negative flow
+        """
+
+        return self * -1
