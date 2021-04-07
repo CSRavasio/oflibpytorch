@@ -517,3 +517,34 @@ class Flow(object):
         """
 
         return self * -1
+
+    def resize(self, scale: Union[float, int, list, tuple]) -> Flow:
+        """Resizes flow object, also scaling the flow vectors themselves
+
+        :param scale: Scale used for resizing. Integer or float, or a list or tuple [vertical scale, horizontal scale]
+        :return: Scaled flow
+        """
+
+        # Check validity
+        if isinstance(scale, (float, int)):
+            scale = [scale, scale]
+        elif isinstance(scale, (tuple, list)):
+            if len(scale) != 2:
+                raise ValueError("Error resizing flow: Scale {} must have a length of 2".format(type(scale)))
+            if not all(isinstance(item, (float, int)) for item in scale):
+                raise ValueError("Error resizing flow: Scale {} items must be integers or floats".format(type(scale)))
+        else:
+            raise TypeError("Error resizing flow: "
+                            "Scale must be an integer, float, or list or tuple of integers or floats")
+        if any(s <= 0 for s in scale):
+            raise ValueError("Error resizing flow: Scale values must be larger than 0")
+
+        # Resize vectors and mask
+        to_resize = torch.cat((self._vecs, self._mask.to(torch.float).unsqueeze(0)), dim=0).unsqueeze(0)
+        resized = torch.nn.functional.interpolate(to_resize, scale_factor=scale, mode='bilinear').squeeze(0)
+
+        # Adjust values
+        resized[0] *= scale[1]
+        resized[1] *= scale[0]
+
+        return Flow(resized[:2], self._ref, torch.round(resized[2]))
