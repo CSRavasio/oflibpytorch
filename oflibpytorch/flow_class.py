@@ -369,3 +369,32 @@ class Flow(object):
             return Flow(vecs, self._ref, self._mask, self._device)
         else:
             raise TypeError("Error adding to flow: Addend is not a flow object, numpy array, or torch tensor")
+
+    def __sub__(self, other: Union[np.ndarray, torch.Tensor, Flow]) -> Flow:
+        """Subtracts a flow objects, numpy array, or torch tensor from a flow object
+
+        Note: this is NOT equal to subtracting the effects of applying flow fields to an image. For that, used
+        combine_flows(flow1, None, flow2) or combine_flows(None, flow1, flow2). The function also does not check whether
+        the two flow objects have the same reference.
+
+        DO NOT USE if you're not certain about what you're aiming to achieve.
+
+        :param other: Flow object, numpy array, or torch tensor corresponding to the subtrahend. Arrays and tensors
+            need to have the shape 2-H-W or H-W-2, where H-W matches the shape of the flow object. Subtracting a flow
+            object will adjust the mask of the resulting flow object to correspond to the logical union of the
+            minuend / subtrahend masks
+        :return: Flow object corresponding to the difference
+        """
+
+        if isinstance(other, Flow):
+            if self.shape != other.shape:
+                raise ValueError("Error subtracting from flow: Augend and addend flow objects are not the same shape")
+            else:
+                vecs = self._vecs - other._vecs
+                mask = np.logical_and(self._mask, other._mask)
+                return Flow(vecs, self._ref, mask)
+        if isinstance(other, (np.ndarray, torch.Tensor)):
+            vecs = self._vecs - get_valid_vecs(other, self.shape, error_string="Error subtracting from flow: ")
+            return Flow(vecs, self._ref, self._mask, self._device)
+        else:
+            raise TypeError("Error subtracting from flow: Addend is not a flow object, numpy array, or torch tensor")
