@@ -15,8 +15,8 @@ import torch
 import torch.nn.functional as f
 import numpy as np
 from typing import Union
-from .utils import get_valid_vecs, get_valid_ref, get_valid_device, validate_shape, to_numpy, flow_from_matrix, \
-    matrix_from_transforms
+from .utils import get_valid_vecs, get_valid_ref, get_valid_device, get_valid_padding, validate_shape, to_numpy, \
+    flow_from_matrix, matrix_from_transforms
 
 
 class Flow(object):
@@ -549,3 +549,22 @@ class Flow(object):
         resized[1] *= scale[0]
 
         return Flow(resized[:2], self._ref, torch.round(resized[2]))
+
+    def pad(self, padding: list = None, mode: str = None) -> Flow:
+        """Pads the flow with the given padding. Sets padded mask values to False, and inserts 0 flow values if padding
+        mode is 'constant'
+
+        :param padding: [top, bot, left, right] list of padding values
+        :param mode: Numpy padding mode for the flow vectors, defaults to 'constant'. Options:
+            'constant', 'reflect', 'replicate' (see torch.nn.functional.pad documentation). 'Constant' value is 0.
+        :return: Padded flow
+        """
+
+        mode = 'constant' if mode is None else mode
+        if mode not in ['constant', 'reflect', 'replicate']:
+            raise ValueError("Error padding flow: Mode should be one of "
+                             "'constant', 'reflect', or 'replicate', but instead got '{}'".format(mode))
+        padding = get_valid_padding(padding, "Error padding flow: ")
+        padded_vecs = f.pad(self._vecs.unsqueeze(0), (*padding[2:], *padding[:2]), mode=mode).squeeze(0)
+        padded_mask = f.pad(self._mask.unsqueeze(0).unsqueeze(0), (*padding[2:], *padding[:2])).squeeze(0).squeeze(0)
+        return Flow(padded_vecs, self._ref, padded_mask)
