@@ -493,6 +493,84 @@ class FlowTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             flow1 / np.ones((200, 200, 2, 1))
 
+    def test_pow(self):
+        vecs1 = np.random.rand(100, 200, 2)
+        vecs2 = np.random.rand(100, 200, 2)
+        flow1 = Flow(vecs1)
+
+        # Exponentiation
+        ints = np.random.randint(-2, 2, 100)
+        floats = (np.random.rand(100) - .5) * 4
+        # ... using ints and floats
+        for i, f in zip(ints, floats):
+            self.assertIsNone(np.testing.assert_allclose((flow1 ** i).vecs_numpy, vecs1 ** i, rtol=1e-6, atol=1e-6))
+            self.assertIsNone(np.testing.assert_allclose((flow1 ** f).vecs_numpy, vecs1 ** f, rtol=1e-6, atol=1e-6))
+        # ... using a list of length 2
+        int_list = np.random.randint(-5, 5, (100, 2))
+        for li in int_list:
+            v = vecs1.astype('f')
+            v[..., 0] **= li[0]
+            v[..., 1] **= li[1]
+            self.assertIsNone(np.testing.assert_allclose((flow1 ** list(li)).vecs_numpy, v, rtol=1e-6, atol=1e-6))
+        # ... using a numpy array of size 2
+        int_list = np.random.randint(-5, 5, (100, 2))
+        for li in int_list:
+            v = vecs1.astype('f')
+            v[..., 0] **= li[0]
+            v[..., 1] **= li[1]
+            self.assertIsNone(np.testing.assert_allclose((flow1 ** li).vecs_numpy, v, rtol=1e-6, atol=1e-6))
+        # ... using a numpy array and torch tensor of the same shape as the flow
+        vecs2_pt_hw2 = torch.rand(100, 200, 2)
+        vecs_list = [vecs2, vecs2_pt_hw2]
+        if torch.cuda.is_available():
+            vecs_list.append(torch.rand(100, 200, 2).to('cuda'))
+        for vecs in vecs_list:
+            if isinstance(vecs, torch.Tensor):
+                v = to_numpy(vecs)
+            else:
+                v = vecs
+            self.assertIsNone(np.testing.assert_allclose((flow1 ** vecs[..., 0]).vecs_numpy, vecs1 ** v[..., :1],
+                                                         rtol=1e-6, atol=1e-6))
+            self.assertEqual((flow1 ** vecs[..., 0]).device, flow1.vecs.device.type)
+            self.assertEqual((flow1 ** vecs[..., 0]).device, flow1.mask.device.type)
+        # ... using numpy arrays and torch tensors of the same shape as the flow vectors
+        vecs2_np_2hw = np.random.rand(2, 100, 200)
+        vecs2_pt_2hw = torch.rand(2, 100, 200)
+        vecs2_pt_hw2 = torch.rand(100, 200, 2)
+        vecs_list = [vecs2, vecs2_np_2hw, vecs2_pt_2hw, vecs2_pt_hw2]
+        if torch.cuda.is_available():
+            vecs_list.append(torch.rand(2, 100, 200).to('cuda'))
+            vecs_list.append(torch.rand(100, 200, 2).to('cuda'))
+        for vecs in vecs_list:
+            if isinstance(vecs, torch.Tensor):
+                v = to_numpy(vecs)
+            else:
+                v = vecs
+            if v.shape[0] == 2:
+                v = np.moveaxis(v, 0, -1)
+            self.assertIsNone(np.testing.assert_allclose((flow1 ** vecs).vecs_numpy, vecs1 ** v,
+                                                         rtol=1e-6, atol=1e-6))
+            self.assertEqual((flow1 ** vecs).device, flow1.vecs.device.type)
+            self.assertEqual((flow1 ** vecs).device, flow1.mask.device.type)
+        # ... using a list of the wrong length
+        with self.assertRaises(ValueError):
+            flow1 ** [0, 1, 2]
+        # ... using a numpy array of the wrong size
+        with self.assertRaises(ValueError):
+            flow1 ** np.array([0, 1, 2])
+        # ... using a numpy array of the wrong shape
+        with self.assertRaises(ValueError):
+            flow1 ** np.random.rand(200, 200)
+        # ... using a numpy array of the wrong shape
+        with self.assertRaises(ValueError):
+            flow1 ** np.random.rand(200, 200, 2)
+        # ... using a numpy array of the wrong shape
+        with self.assertRaises(ValueError):
+            flow1 ** np.random.rand(100, 200, 3)
+        # ... using a numpy array of the wrong shape
+        with self.assertRaises(ValueError):
+            flow1 ** np.random.rand(200, 200, 2, 1)
+
 
 if __name__ == '__main__':
     unittest.main()
