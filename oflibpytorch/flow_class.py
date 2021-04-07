@@ -470,3 +470,38 @@ class Flow(object):
             else:
                 raise TypeError("Error dividing flow: Divisor cannot be converted to float, "
                                 "or isn't a list, numpy array, or torch tensor")
+
+    def __pow__(self, other: Union[float, int, bool, list, np.ndarray, torch.Tensor]) -> Flow:
+        """Exponentiates a flow object
+
+        :param other: Exponent which either can be converted to float or is a list of length 2, or is a numpy array
+            or a torch tensor of either the same shape as the flow object (H-W), or either 2-H-W or H-W-2
+        :return: Flow object corresponding to the power
+        """
+
+        try:  # other is int, float, or can be converted to it
+            return Flow(self._vecs ** float(other), self._ref, self._mask, self._device)
+        except (TypeError, ValueError):
+            if isinstance(other, list):
+                if len(other) != 2:
+                    raise ValueError("Error exponentiating flow: Exponent list not length 2")
+                other = torch.tensor(other)
+            elif isinstance(other, np.ndarray):
+                other = torch.tensor(other)
+            if isinstance(other, torch.Tensor):
+                if other.ndim == 1 and other.shape[0] == 2:
+                    other = other.unsqueeze(-1).unsqueeze(-1)
+                elif other.ndim == 2 and other.shape == self.shape:
+                    other = other.unsqueeze(0)
+                elif other.ndim == 3 and other.shape == (2,) + self.shape:
+                    pass
+                elif other.ndim == 3 and other.shape == self.shape + (2,):
+                    other = other.unsqueeze(0).transpose(0, -1).squeeze(-1)
+                else:
+                    raise ValueError("Error exponentiating flow: Exponent array or tensor needs to be of size 2, of "
+                                     "the shape of the flow object (H-W), or either 2-H-W or H-W-2")
+                other = other.to(self._vecs.device)
+                return Flow(self._vecs ** other, self._ref, self._mask, self._device)
+            else:
+                raise TypeError("Error exponentiating flow: Exponent cannot be converted to float, "
+                                "or isn't a list, numpy array, or torch tensor")
