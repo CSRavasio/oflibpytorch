@@ -163,12 +163,12 @@ class Flow(object):
         :param input_device: Tensor device, 'cpu' or 'cuda'. Defaults to 'cpu'
         """
         if input_device is None:
-            device = self.vecs.device.type
+            device = self._vecs.device.type
         else:
             device = get_valid_device(input_device)
         self._device = device
-        self.vecs = self.vecs.to(device)
-        self.mask = self.mask.to(device)
+        self._vecs = self._vecs.to(device)
+        self._mask = self._mask.to(device)
 
     @property
     def shape(self) -> tuple:
@@ -177,7 +177,7 @@ class Flow(object):
         :return: Shape (resolution) of the flow field as a tuple
         """
 
-        return tuple(self.vecs.shape[1:])
+        return tuple(self._vecs.shape[1:])
 
     @classmethod
     def zero(
@@ -338,7 +338,7 @@ class Flow(object):
 
     def __str__(self):
         """Enhanced string representation of the flow object"""
-        info_string = "Flow object, reference {}, shape {}*{}, device {}; ".format(self.ref, *self.shape, self.device)
+        info_string = "Flow object, reference {}, shape {}*{}, device {}; ".format(self._ref, *self.shape, self._device)
         info_string += self.__repr__()
         return info_string
 
