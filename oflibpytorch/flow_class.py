@@ -14,7 +14,8 @@ from __future__ import annotations
 import torch
 import numpy as np
 from typing import Union
-from .utils import get_valid_ref, get_valid_device, validate_shape, to_numpy, flow_from_matrix, matrix_from_transforms
+from .utils import get_valid_vecs, get_valid_ref, get_valid_device, validate_shape, to_numpy, flow_from_matrix, \
+    matrix_from_transforms
 
 
 class Flow(object):
@@ -59,29 +60,7 @@ class Flow(object):
             the flow vector in OpenCV convention: C[0] is the horizontal component, C[1] is the vertical component
         """
 
-        # Check type and dimensions
-        if not isinstance(input_vecs, (np.ndarray, torch.Tensor)):
-            raise TypeError("Error setting flow vectors: Input is not a numpy array or a torch tensor")
-        if input_vecs.ndim != 3:
-            raise ValueError("Error setting flow vectors: Input is not 3-dimensional")
-
-        # Check channels
-        transpose_necessary = False
-        if input_vecs.shape[2] == 2:  # Input shape is H-W-2
-            transpose_necessary = True
-        elif input_vecs.shape[0] != 2:  # Input shape is neither H-W-2 nor 2-H-W
-            raise ValueError("Error setting flow vectors: Input needs to be shape H-W-2 or 2-H-W")
-
-        # Transform to tensor if necessary, transpose if necessary
-        if isinstance(input_vecs, np.ndarray):
-            input_vecs = torch.tensor(input_vecs, dtype=torch.float, device='cpu')
-        if transpose_necessary:
-            input_vecs = input_vecs.unsqueeze(0).transpose(0, -1).squeeze(-1)
-
-        # Check for invalid values
-        if not torch.isfinite(input_vecs).all():
-            raise ValueError("Error setting flow vectors: Input contains NaN, Inf or -Inf values")
-        self._vecs = input_vecs
+        self._vecs = get_valid_vecs(input_vecs, "Error setting flow vectors: ")
 
     @property
     def vecs_numpy(self) -> np.ndarray:
