@@ -342,3 +342,30 @@ class Flow(object):
         """
 
         return Flow(self._vecs, self._ref, self._mask, self._device)
+
+    def __add__(self, other: Union[np.ndarray, torch.Tensor, Flow]) -> Flow:
+        """Adds a flow object, a numpy array or a torch tensor to a flow object
+
+        Note: this is NOT equal to applying the two flows sequentially. For that, use combine_flows(flow1, flow2, None).
+        The function also does not check whether the two flow objects have the same reference.
+
+        DO NOT USE if you're not certain about what you're aiming to achieve.
+
+        :param other: Flow object, numpy array, or torch tensor corresponding to the addend. Arrays and tensors need to
+            have the shape 2-H-W or H-W-2, where H-W matches the shape of the flow object. Adding a flow object will
+            adjust the mask of the resulting flow object to correspond to the logical union of the augend / addend masks
+        :return: Flow object corresponding to the sum
+        """
+
+        if isinstance(other, Flow):
+            if self.shape != other.shape:
+                raise ValueError("Error adding to flow: Augend and addend flow objects are not the same shape")
+            else:
+                vecs = self._vecs + other._vecs
+                mask = np.logical_and(self._mask, other._mask)
+                return Flow(vecs, self._ref, mask)
+        if isinstance(other, (np.ndarray, torch.Tensor)):
+            vecs = self._vecs + get_valid_vecs(other, desired_shape=self.shape, error_string="Error adding to flow: ")
+            return Flow(vecs, self._ref, self._mask, self._device)
+        else:
+            raise TypeError("Error adding to flow: Addend is not a flow object, numpy array, or torch tensor")
