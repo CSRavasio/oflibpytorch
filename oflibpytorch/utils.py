@@ -19,11 +19,12 @@ from typing import Any, Union
 DEFAULT_THRESHOLD = 1e-3
 
 
-def get_valid_vecs(vecs: Any, error_string: str = None) -> torch.Tensor:
+def get_valid_vecs(vecs: Any, desired_shape: Union[tuple, list] = None, error_string: str = None) -> torch.Tensor:
     """Checks array or tensor input for validity and returns 2-H-W tensor for use as flow vectors
 
     :param vecs: Valid if numpy array or torch tensor, either shape 2-H-W (assumed first) or H-W-2
-    :param error_string: Optional string to be added before the error message if input is invalid
+    :param desired_shape: List or tuple of (H, W) the input vecs should be compared about. Optional
+    :param error_string: Optional string to be added before the error message if input is invalid. Optional
     :return: Tensor valid for flow vectors, shape 2-H-W
     """
 
@@ -45,6 +46,11 @@ def get_valid_vecs(vecs: Any, error_string: str = None) -> torch.Tensor:
             vecs = vecs.unsqueeze(0).transpose(0, -1).squeeze(-1)
         else:  # Input shape is neither H-W-2 nor 2-H-W
             raise ValueError(error_string + "Input needs to be shape H-W-2 or 2-H-W")
+
+    # Check shape if necessary
+    if desired_shape is not None:
+        if vecs.shape[1] != desired_shape[0] or vecs.shape[2] != desired_shape[1]:
+            raise ValueError(error_string + "Input shape H or W does not match the desired shape")
 
     # Check for invalid values
     if not torch.isfinite(vecs).all():

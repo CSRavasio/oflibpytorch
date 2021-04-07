@@ -40,6 +40,8 @@ class TestValidityChecks(unittest.TestCase):
             get_valid_vecs(np.zeros((3, 100, 200)))
         with self.assertRaises(ValueError):
             get_valid_vecs(torch.ones(3, 100, 200))
+        with self.assertRaises(ValueError):
+            get_valid_vecs(torch.ones(2, 100, 200), desired_shape=(110, 200))
 
         # Invalid vector values
         vectors = np.random.rand(100, 200, 2)

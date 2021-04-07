@@ -60,7 +60,7 @@ class Flow(object):
             the flow vector in OpenCV convention: C[0] is the horizontal component, C[1] is the vertical component
         """
 
-        self._vecs = get_valid_vecs(input_vecs, "Error setting flow vectors: ")
+        self._vecs = get_valid_vecs(input_vecs, error_string="Error setting flow vectors: ")
 
     @property
     def vecs_numpy(self) -> np.ndarray:
