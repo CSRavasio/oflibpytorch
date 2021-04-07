@@ -253,6 +253,40 @@ class FlowTest(unittest.TestCase):
             expected_device = device if torch.cuda.is_available() else 'cpu'
             self.assertEqual(flow[10:20].device, expected_device)
 
+    def test_add(self):
+        mask1 = np.ones((100, 200), 'bool')
+        mask1[:40] = 0
+        mask2 = np.ones((100, 200), 'bool')
+        mask2[60:] = 0
+        vecs1 = np.random.rand(100, 200, 2)
+        vecs2 = np.random.rand(100, 200, 2)
+        vecs2_np_2hw = np.random.rand(2, 100, 200)
+        vecs2_pt_2hw = torch.rand(2, 100, 200)
+        vecs2_pt_hw2 = torch.rand(100, 200, 2)
+        vecs3 = np.random.rand(200, 200, 2)
+        flow1 = Flow(vecs1, mask=mask1)
+        flow2 = Flow(vecs2, mask=mask2)
+        flow3 = Flow(vecs3)
+
+        # Addition
+        for vecs in [vecs2, vecs2_np_2hw, vecs2_pt_2hw, vecs2_pt_hw2]:
+            if isinstance(vecs, torch.Tensor):
+                v = to_numpy(vecs)
+            else:
+                v = vecs
+            if v.shape[0] == 2:
+                v = np.moveaxis(v, 0, -1)
+            self.assertIsNone(np.testing.assert_allclose((flow1 + vecs).vecs_numpy, vecs1 + v,
+                                                         rtol=1e-6, atol=1e-6))
+        self.assertIsNone(np.testing.assert_allclose((flow1 + flow2).vecs_numpy, vecs1 + vecs2, rtol=1e-6, atol=1e-6))
+        self.assertIsNone(np.testing.assert_equal(np.sum(to_numpy((flow1 + flow2).mask)), (60 - 40) * 200))
+        with self.assertRaises(TypeError):
+            flow1 + 'test'
+        with self.assertRaises(ValueError):
+            flow1 + flow3
+        with self.assertRaises(ValueError):
+            flow1 + vecs3
+
 
 if __name__ == '__main__':
     unittest.main()
