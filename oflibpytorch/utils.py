@@ -56,7 +56,7 @@ def get_valid_padding(padding: Any, error_string: str = None) -> list:
     """Checks padding input for validity
 
     :param padding: Padding to be checked, should be a list of length 4 of positive integers
-    :param error_string: Optional string to be added before the error message
+    :param error_string: Optional string to be added before the error message, if padding is invalid
     :return: valid padding list, if indeed valid
     """
 
