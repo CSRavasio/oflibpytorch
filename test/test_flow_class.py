@@ -312,7 +312,7 @@ class FlowTest(unittest.TestCase):
         flow2 = Flow(vecs2, mask=mask2)
         flow3 = Flow(vecs3)
 
-        # Addition
+        # Subtraction
         for vecs in vec_list:
             if isinstance(vecs, torch.Tensor):
                 v = to_numpy(vecs)
