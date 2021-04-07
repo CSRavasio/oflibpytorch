@@ -365,7 +365,8 @@ class Flow(object):
                 mask = np.logical_and(self._mask, other._mask)
                 return Flow(vecs, self._ref, mask)
         if isinstance(other, (np.ndarray, torch.Tensor)):
-            vecs = self._vecs + get_valid_vecs(other, desired_shape=self.shape, error_string="Error adding to flow: ")
+            other = get_valid_vecs(other, desired_shape=self.shape, error_string="Error adding to flow: ")
+            vecs = self._vecs + other.to(self._vecs.device)
             return Flow(vecs, self._ref, self._mask, self._device)
         else:
             raise TypeError("Error adding to flow: Addend is not a flow object, numpy array, or torch tensor")
@@ -394,7 +395,8 @@ class Flow(object):
                 mask = np.logical_and(self._mask, other._mask)
                 return Flow(vecs, self._ref, mask)
         if isinstance(other, (np.ndarray, torch.Tensor)):
-            vecs = self._vecs - get_valid_vecs(other, self.shape, error_string="Error subtracting from flow: ")
+            other = get_valid_vecs(other, desired_shape=self.shape, error_string="Error adding to flow: ")
+            vecs = self._vecs - other.to(self._vecs.device)
             return Flow(vecs, self._ref, self._mask, self._device)
         else:
             raise TypeError("Error subtracting from flow: Addend is not a flow object, numpy array, or torch tensor")

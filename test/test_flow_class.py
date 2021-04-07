@@ -263,13 +263,17 @@ class FlowTest(unittest.TestCase):
         vecs2_np_2hw = np.random.rand(2, 100, 200)
         vecs2_pt_2hw = torch.rand(2, 100, 200)
         vecs2_pt_hw2 = torch.rand(100, 200, 2)
+        vec_list = [vecs2, vecs2_np_2hw, vecs2_pt_2hw, vecs2_pt_hw2]
+        if torch.cuda.is_available():
+            vec_list.append(torch.rand(2, 100, 200).to('cuda'))
+            vec_list.append(torch.rand(100, 200, 2).to('cuda'))
         vecs3 = np.random.rand(200, 200, 2)
         flow1 = Flow(vecs1, mask=mask1)
         flow2 = Flow(vecs2, mask=mask2)
         flow3 = Flow(vecs3)
 
         # Addition
-        for vecs in [vecs2, vecs2_np_2hw, vecs2_pt_2hw, vecs2_pt_hw2]:
+        for vecs in vec_list:
             if isinstance(vecs, torch.Tensor):
                 v = to_numpy(vecs)
             else:
@@ -278,6 +282,8 @@ class FlowTest(unittest.TestCase):
                 v = np.moveaxis(v, 0, -1)
             self.assertIsNone(np.testing.assert_allclose((flow1 + vecs).vecs_numpy, vecs1 + v,
                                                          rtol=1e-6, atol=1e-6))
+            self.assertEqual((flow1 + vecs).device, flow1.vecs.device.type)
+            self.assertEqual((flow1 + vecs).device, flow1.mask.device.type)
         self.assertIsNone(np.testing.assert_allclose((flow1 + flow2).vecs_numpy, vecs1 + vecs2, rtol=1e-6, atol=1e-6))
         self.assertIsNone(np.testing.assert_equal(np.sum(to_numpy((flow1 + flow2).mask)), (60 - 40) * 200))
         with self.assertRaises(TypeError):
@@ -297,13 +303,17 @@ class FlowTest(unittest.TestCase):
         vecs2_np_2hw = np.random.rand(2, 100, 200)
         vecs2_pt_2hw = torch.rand(2, 100, 200)
         vecs2_pt_hw2 = torch.rand(100, 200, 2)
+        vec_list = [vecs2, vecs2_np_2hw, vecs2_pt_2hw, vecs2_pt_hw2]
+        if torch.cuda.is_available():
+            vec_list.append(torch.rand(2, 100, 200).to('cuda'))
+            vec_list.append(torch.rand(100, 200, 2).to('cuda'))
         vecs3 = np.random.rand(200, 200, 2)
         flow1 = Flow(vecs1, mask=mask1)
         flow2 = Flow(vecs2, mask=mask2)
         flow3 = Flow(vecs3)
 
         # Addition
-        for vecs in [vecs2, vecs2_np_2hw, vecs2_pt_2hw, vecs2_pt_hw2]:
+        for vecs in vec_list:
             if isinstance(vecs, torch.Tensor):
                 v = to_numpy(vecs)
             else:
@@ -312,6 +322,8 @@ class FlowTest(unittest.TestCase):
                 v = np.moveaxis(v, 0, -1)
             self.assertIsNone(np.testing.assert_allclose((flow1 - vecs).vecs_numpy, vecs1 - v,
                                                          rtol=1e-6, atol=1e-6))
+            self.assertEqual((flow1 + vecs).device, flow1.vecs.device.type)
+            self.assertEqual((flow1 + vecs).device, flow1.mask.device.type)
         self.assertIsNone(np.testing.assert_allclose((flow1 - flow2).vecs_numpy, vecs1 - vecs2, rtol=1e-6, atol=1e-6))
         self.assertIsNone(np.testing.assert_equal(np.sum(to_numpy((flow1 - flow2).mask)), (60 - 40) * 200))
         with self.assertRaises(TypeError):
