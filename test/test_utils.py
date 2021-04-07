@@ -14,11 +14,44 @@ import torch
 import unittest
 import numpy as np
 import math
-from oflibpytorch.utils import get_valid_ref, get_valid_padding, validate_shape, get_valid_device, to_numpy, \
-    flow_from_matrix, matrix_from_transform, matrix_from_transforms
+from oflibpytorch.utils import get_valid_vecs, get_valid_ref, get_valid_padding, validate_shape, get_valid_device, \
+    to_numpy, flow_from_matrix, matrix_from_transform, matrix_from_transforms
 
 
 class TestValidityChecks(unittest.TestCase):
+    def test_get_valid_vecs(self):
+        # Different valid vector inputs
+        vecs_np_2hw = np.zeros((2, 100, 200))
+        vecs_np_hw2 = np.zeros((100, 200, 2))
+        vecs_pt_2hw = torch.zeros((2, 100, 200))
+        vecs_pt_hw2 = torch.zeros((100, 200, 2))
+        for vecs in [vecs_np_2hw, vecs_np_hw2, vecs_pt_2hw, vecs_pt_hw2]:
+            self.assertIsInstance(get_valid_vecs(vecs), torch.Tensor)
+            self.assertIsNone(np.testing.assert_equal(to_numpy(get_valid_vecs(vecs)), vecs_np_2hw))
+
+        # Wrong vector type or shape
+        with self.assertRaises(TypeError):
+            get_valid_vecs('test')
+        with self.assertRaises(ValueError):
+            get_valid_vecs(np.zeros((2, 100, 200, 1)))
+        with self.assertRaises(ValueError):
+            get_valid_vecs(torch.ones(2, 100, 200, 1))
+        with self.assertRaises(ValueError):
+            get_valid_vecs(np.zeros((3, 100, 200)))
+        with self.assertRaises(ValueError):
+            get_valid_vecs(torch.ones(3, 100, 200))
+
+        # Invalid vector values
+        vectors = np.random.rand(100, 200, 2)
+        vectors[10, 10] = np.NaN
+        vectors[20, 20] = np.Inf
+        vectors[30, 30] = -np.Inf
+        with self.assertRaises(ValueError):
+            get_valid_vecs(vectors)
+        vectors = torch.tensor(vectors)
+        with self.assertRaises(ValueError):
+            get_valid_vecs(vectors)
+
     def test_get_valid_ref(self):
         self.assertEqual(get_valid_ref(None), 't')
         self.assertEqual(get_valid_ref('s'), 's')
