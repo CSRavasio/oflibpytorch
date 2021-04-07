@@ -411,7 +411,7 @@ class Flow(object):
 
         try:  # other is int, float, or can be converted to it
             return Flow(self._vecs * float(other), self._ref, self._mask)
-        except TypeError:
+        except (TypeError, ValueError):
             if isinstance(other, list):
                 if len(other) != 2:
                     raise ValueError("Error multiplying flow: Multiplier list not length 2")
