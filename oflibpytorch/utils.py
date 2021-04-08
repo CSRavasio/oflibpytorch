@@ -204,3 +204,17 @@ def matrix_from_transform(transform: str, values: list) -> torch.Tensor:
         # NOTE: diff from usual signs in rot matrix [[+, -], [+, +]] results from 'y' axis pointing down instead of up
         matrix = translation_matrix_2 @ matrix @ translation_matrix_1
     return matrix
+
+
+def normalise_coords(coords: torch.Tensor, shape: Union[tuple, list]) -> torch.Tensor:
+    """Normalise actual coordinates to [-1, 1]
+
+    :param coords: tensor of any shape, ending in a dim=2, which is (x, y) = [hor, ver]
+    :param shape: list of flow (or image) size [ver, hor]
+    :return: Normalised coordinates
+    """
+    normalised_coords = 2. * coords
+    normalised_coords[..., 0] /= (shape[1] - 1)  # points[..., 0] is x, which is horizontal, so shape[1]
+    normalised_coords[..., 1] /= (shape[0] - 1)  # points[..., 1] is y, which is vertical, so shape[0]
+    normalised_coords -= 1
+    return normalised_coords
