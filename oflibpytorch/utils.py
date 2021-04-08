@@ -206,6 +206,28 @@ def matrix_from_transform(transform: str, values: list) -> torch.Tensor:
     return matrix
 
 
+def reverse_transform_values(transform_list: list) -> list:
+    """Changes the values for all transforms in the list so the result is equal to the reverse transform
+
+    :param transform_list: List of transforms to be turned into a flow field, where each transform is expressed as
+        a list of [transform name, transform value 1, ... , transform value n]. Supported options:
+            ['translation', horizontal shift in px, vertical shift in px]
+            ['rotation', horizontal centre in px, vertical centre in px, angle in degrees, counter-clockwise]
+            ['scaling', horizontal centre in px, vertical centre in px, scaling fraction]
+    :return: List of reversed transforms
+    """
+    reversed_transform_list = []
+    for value_list in transform_list:
+        transform, values = value_list[0], value_list[1:]
+        if transform == 'translation':  # translate: value is a list of [horizontal movement, vertical movement]
+            reversed_transform_list.append([transform, -values[0], -values[1]])
+        if transform == 'scaling':  # zoom: value is a list of [horizontal coord, vertical coord, scaling]
+            reversed_transform_list.append([transform, values[0], values[1], 1/values[2]])
+        if transform == 'rotation':  # rotate: value is a list of [horizontal coord, vertical coord, rotation in deg]
+            reversed_transform_list.append([transform, values[0], values[1], -values[2]])
+    return reversed_transform_list
+
+
 def normalise_coords(coords: torch.Tensor, shape: Union[tuple, list]) -> torch.Tensor:
     """Normalise actual coordinates to [-1, 1]
 
