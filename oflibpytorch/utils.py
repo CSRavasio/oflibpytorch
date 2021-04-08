@@ -209,6 +209,11 @@ def matrix_from_transform(transform: str, values: list) -> torch.Tensor:
 def normalise_coords(coords: torch.Tensor, shape: Union[tuple, list]) -> torch.Tensor:
     """Normalise actual coordinates to [-1, 1]
 
+    Coordinate locations start "mid-pixel" and end "mid-pixel" (pixel box model):
+        Pixels | 0 | 1 | 2 |
+                 |   |   |
+          Grid  -1   0   1
+
     :param coords: tensor of any shape, ending in a dim=2, which is (x, y) = [hor, ver]
     :param shape: list of flow (or image) size [ver, hor]
     :return: Normalised coordinates
