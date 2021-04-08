@@ -15,7 +15,8 @@ import unittest
 import numpy as np
 import math
 from oflibpytorch.utils import get_valid_vecs, get_valid_ref, get_valid_padding, validate_shape, get_valid_device, \
-    to_numpy, flow_from_matrix, matrix_from_transform, matrix_from_transforms, normalise_coords
+    to_numpy, flow_from_matrix, matrix_from_transform, matrix_from_transforms, reverse_transform_values, \
+    normalise_coords
 from oflibpytorch.flow_class import Flow
 
 
@@ -280,6 +281,21 @@ class TestMatrixFromTransform(unittest.TestCase):
         desired_matrix[1, 2] = -30
         self.assertIsInstance(matrix_from_transform(transform, values), torch.Tensor)
         self.assertIsNone(np.testing.assert_allclose(desired_matrix, matrix_from_transform(transform, values)))
+
+
+class TestReverseTransformValues(unittest.TestCase):
+    def test_reverse_transform_values(self):
+        transform_list = [
+            ['translation', 10, 20],
+            ['rotation', 100, 43, -30],
+            ['scaling', 44, 12, 1.25]
+        ]
+        reversed_transform_list = [
+            ['translation', -10, -20],
+            ['rotation', 100, 43, 30],
+            ['scaling', 44, 12, .8]
+        ]
+        self.assertEqual(reverse_transform_values(transform_list), reversed_transform_list)
 
 
 class TestNormaliseCoords(unittest.TestCase):
