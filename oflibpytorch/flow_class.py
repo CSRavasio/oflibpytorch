@@ -16,7 +16,7 @@ import torch.nn.functional as f
 import numpy as np
 from typing import Union
 from .utils import get_valid_vecs, get_valid_ref, get_valid_device, get_valid_padding, validate_shape, to_numpy, \
-    flow_from_matrix, matrix_from_transforms
+    flow_from_matrix, matrix_from_transforms, reverse_transform_values
 
 
 class Flow(object):
@@ -269,6 +269,8 @@ class Flow(object):
         validate_shape(shape)
         # Get valid device
         device = get_valid_device(device)
+        # Get valid reference
+        ref = get_valid_ref(ref)
         # Check transform_list validity
         if not isinstance(transform_list, list):
             raise TypeError("Error creating flow from transforms: Transform_list needs to be a list")
@@ -324,10 +326,18 @@ class Flow(object):
         #            = coords - inv(t_n) * ... * inv(t_1) * coords
         #     ... because: inv(t_n) * ... * inv(t_1) = inv(t_1 * ... * t_n)
 
-        # Here implemented: method 1, via calling from_matrix where the inverse of the matrix is used if reference 't'
-        ref = get_valid_ref(ref)
-        matrix = matrix_from_transforms(transform_list)
-        return cls.from_matrix(matrix, shape, ref, mask, device)
+        # Following lines, commented out, correspond to method 1
+        # matrix = matrix_from_transforms(transform_list)
+        # return cls.from_matrix(matrix, shape, ref, mask, device)
+
+        # Here implemented: method 2, via calling from_matrix where the inverse of the matrix is used if reference 't'
+        if ref == 's':
+            matrix = matrix_from_transforms(transform_list)
+            return cls.from_matrix(matrix, shape, ref, mask, device)
+        else:  # ref == 't'
+            transform_list = reverse_transform_values(transform_list)
+            matrix = matrix_from_transforms(list(reversed(transform_list)))
+            return cls.from_matrix(matrix, shape, ref, mask, device, matrix_is_inverse=True)
 
     def __str__(self):
         """Enhanced string representation of the flow object"""
