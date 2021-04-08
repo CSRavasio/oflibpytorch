@@ -363,7 +363,7 @@ class Flow(object):
                 raise ValueError("Error adding to flow: Augend and addend flow objects are not the same shape")
             else:
                 vecs = self._vecs + other._vecs
-                mask = np.logical_and(self._mask, other._mask)
+                mask = self._mask & other._mask
                 return Flow(vecs, self._ref, mask)
         if isinstance(other, (np.ndarray, torch.Tensor)):
             other = get_valid_vecs(other, desired_shape=self.shape, error_string="Error adding to flow: ")
@@ -390,17 +390,19 @@ class Flow(object):
 
         if isinstance(other, Flow):
             if self.shape != other.shape:
-                raise ValueError("Error subtracting from flow: Augend and addend flow objects are not the same shape")
+                raise ValueError("Error subtracting from flow: "
+                                 "Minuend and subtrahend flow objects are not the same shape")
             else:
                 vecs = self._vecs - other._vecs
-                mask = np.logical_and(self._mask, other._mask)
-                return Flow(vecs, self._ref, mask)
+                mask = self._mask & other._mask
+                return Flow(vecs, self._ref, mask, self._device)
         if isinstance(other, (np.ndarray, torch.Tensor)):
-            other = get_valid_vecs(other, desired_shape=self.shape, error_string="Error adding to flow: ")
+            other = get_valid_vecs(other, desired_shape=self.shape, error_string="Error subtracting to flow: ")
             vecs = self._vecs - other.to(self._vecs.device)
             return Flow(vecs, self._ref, self._mask, self._device)
         else:
-            raise TypeError("Error subtracting from flow: Addend is not a flow object, numpy array, or torch tensor")
+            raise TypeError("Error subtracting from flow: "
+                            "Subtrahend is not a flow object, numpy array, or torch tensor")
 
     def __mul__(self, other: Union[float, int, bool, list, np.ndarray, torch.Tensor]) -> Flow:
         """Multiplies a flow object
