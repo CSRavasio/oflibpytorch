@@ -15,7 +15,8 @@ import unittest
 import numpy as np
 import math
 from oflibpytorch.utils import get_valid_vecs, get_valid_ref, get_valid_padding, validate_shape, get_valid_device, \
-    to_numpy, flow_from_matrix, matrix_from_transform, matrix_from_transforms
+    to_numpy, flow_from_matrix, matrix_from_transform, matrix_from_transforms, normalise_coords
+from oflibpytorch.flow_class import Flow
 
 
 class TestValidityChecks(unittest.TestCase):
@@ -279,6 +280,24 @@ class TestMatrixFromTransform(unittest.TestCase):
         desired_matrix[1, 2] = -30
         self.assertIsInstance(matrix_from_transform(transform, values), torch.Tensor)
         self.assertIsNone(np.testing.assert_allclose(desired_matrix, matrix_from_transform(transform, values)))
+
+
+class TestNormaliseCoords(unittest.TestCase):
+    def test_normalise(self):
+        coords = torch.tensor([[0, 0],
+                               [-1, 11],
+                               [10, 5],
+                               [21, 11],
+                               [20, 10]])
+        shape = (11, 21)
+        normalised_coords = normalise_coords(coords, shape)
+        expected_normalised_coords = torch.tensor([[-1, -1],
+                                                   [-1.1, 1.2],
+                                                   [0, 0],
+                                                   [1.1, 1.2],
+                                                   [1, 1]])
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(normalised_coords), to_numpy(expected_normalised_coords),
+                                                     rtol=1e-6))
 
 
 if __name__ == '__main__':
