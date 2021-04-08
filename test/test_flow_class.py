@@ -152,6 +152,13 @@ class FlowTest(unittest.TestCase):
                                                                  atol=1e-4, rtol=1e-4))
                     self.assertIsNone(np.testing.assert_equal(flow.shape, shape))
 
+        # With and without inverse matrix for ref 't'
+        matrix = np.array([[1, 0, 10], [0, 1, 20], [0, 0, 1]])
+        inv_matrix = np.array([[1, 0, -10], [0, 1, -20], [0, 0, 1]])
+        vecs = Flow.from_matrix(matrix, shape, ref='t', matrix_is_inverse=False).vecs_numpy
+        inv_vecs = Flow.from_matrix(inv_matrix, shape, ref='t', matrix_is_inverse=True).vecs_numpy
+        self.assertIsNone(np.testing.assert_allclose(vecs, inv_vecs, rtol=1e-3))
+
         # Invalid input
         with self.assertRaises(TypeError):
             Flow.from_matrix('test', [10, 10])
@@ -159,6 +166,10 @@ class FlowTest(unittest.TestCase):
             Flow.from_matrix(np.eye(4), [10, 10])
         with self.assertRaises(ValueError):
             Flow.from_matrix(torch.eye(4), [10, 10])
+        with self.assertRaises(TypeError):
+            Flow.from_matrix(torch.eye(3), [10, 10], matrix_is_inverse='test')
+        with self.assertRaises(ValueError):
+            Flow.from_matrix(torch.eye(3), [10, 10], ref='s', matrix_is_inverse=True)
 
     def test_from_transforms(self):
         shape = [200, 300]
