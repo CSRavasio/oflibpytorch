@@ -189,6 +189,7 @@ class Flow(object):
         ref: str = None,
         mask: Union[np.ndarray, torch.Tensor] = None,
         device: str = None,
+        matrix_is_inverse: bool = None
     ) -> Flow:
         """Flow object constructor, based on transformation matrix input
 
@@ -198,6 +199,9 @@ class Flow(object):
         :param mask: Numpy array or torch tensor H-W containing a boolean mask indicating where the flow vectors are
             valid. Defaults to True everywhere
         :param device: Tensor device, 'cpu' or 'cuda' (if available). Defaults to 'cpu'
+        :param matrix_is_inverse: Boolean determining whether the given matrix is already the inverse of the desired
+            transformation. Is useful for flow with reference 't' to avoid calculation of the pseudo-inverse, but will
+            throw an error if used for flow with reference 's' to avoid accidental usage. Defaults to False
         :return: Flow object
         """
 
@@ -213,19 +217,28 @@ class Flow(object):
             raise ValueError("Error creating flow from matrix: Matrix needs to be of shape (3, 3)")
         if isinstance(matrix, np.ndarray):
             matrix = torch.tensor(matrix)
+        matrix = matrix.to(torch.float)
         # Get valid ref
         ref = get_valid_ref(ref)
+        # Get valid inverse flag
+        matrix_is_inverse = False if matrix_is_inverse is None else matrix_is_inverse
+        if not isinstance(matrix_is_inverse, bool):
+            raise TypeError("Error creating flow from matrix: Matrix_is_inverse needs to be None or a Boolean")
 
         if ref == 's':
             # Coordinates correspond to the meshgrid of the original ('s'ource) image. They are transformed according
             # to the transformation matrix. The start points are subtracted from the end points to yield flow vectors.
+            if matrix_is_inverse:
+                raise ValueError("Error creating flow from matrix: Matrix_is_inverse cannot be True when ref is 's'")
             flow_vectors = flow_from_matrix(matrix, shape)
             return cls(flow_vectors, ref, mask, device)
         elif ref == 't':
             # Coordinates correspond to the meshgrid of the warped ('t'arget) image. They are inversely transformed
             # according to the transformation matrix. The end points, which correspond to the flow origin for the
             # meshgrid in the warped image, are subtracted from the start points to yield flow vectors.
-            flow_vectors = -flow_from_matrix(torch.pinverse(matrix), shape)
+            if not matrix_is_inverse:
+                matrix = torch.pinverse(matrix)
+            flow_vectors = -flow_from_matrix(matrix, shape)
             return cls(flow_vectors, ref, mask, device)
 
     @classmethod
