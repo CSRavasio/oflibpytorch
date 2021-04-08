@@ -199,10 +199,8 @@ class FlowTest(unittest.TestCase):
             expected_device = device if torch.cuda.is_available() and device is not None else 'cpu'
             self.assertEqual(flow.device, expected_device)
         self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[50, 10], [0, 0], atol=1e-4))
-        self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[50, 299], [38.7186583063, 144.5],
-                                                     atol=1e-4, rtol=1e-4))
-        self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[199, 10], [-74.5, 19.9622148361],
-                                                     atol=1e-4, rtol=1e-4))
+        self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[50, 299], [38.7186583063, 144.5]))
+        self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[199, 10], [-74.5, 19.9622148361], rtol=1e-6))
         self.assertIsNone(np.testing.assert_equal(flow.shape, shape))
         self.assertEqual(flow.ref, 't')
 
