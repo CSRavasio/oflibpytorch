@@ -12,11 +12,12 @@
 
 import torch
 import unittest
+import cv2
 import numpy as np
 import math
 from oflibpytorch.utils import get_valid_vecs, get_valid_ref, get_valid_padding, validate_shape, get_valid_device, \
     to_numpy, flow_from_matrix, matrix_from_transform, matrix_from_transforms, reverse_transform_values, \
-    normalise_coords
+    normalise_coords, apply_flow
 from oflibpytorch.flow_class import Flow
 
 
@@ -314,6 +315,53 @@ class TestNormaliseCoords(unittest.TestCase):
                                                    [1, 1]])
         self.assertIsNone(np.testing.assert_allclose(to_numpy(normalised_coords), to_numpy(expected_normalised_coords),
                                                      rtol=1e-6))
+
+
+class TestApplyFlow(unittest.TestCase):
+    def test_rotation(self):
+        img = cv2.imread('lena.png')
+        img = torch.tensor(np.moveaxis(img, -1, 0))
+        for dev in ['cpu', 'cuda']:
+            for ref in ['t', 's']:
+                flow = Flow.from_transforms([['rotation', 255.5, 255.5, 90]], img.shape[1:], ref).vecs
+                warped_img = apply_flow(flow.to(dev), img, ref)
+                desired_img = img.transpose(1, 2).flip(1)
+                self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img), to_numpy(desired_img)))
+
+    def test_translation(self):
+        img = cv2.imread('lena.png')
+        img = cv2.resize(img, None, fx=1, fy=.5)
+        img = torch.tensor(np.moveaxis(img, -1, 0))
+        for dev in ['cpu', 'cuda']:
+            for ref in ['s', 't']:
+                flow = Flow.from_transforms([['translation', 10, -20]], img.shape[1:], ref).vecs
+                warped_img = apply_flow(flow.to(dev), img, ref)
+                self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img[:, :-20, 10:]),
+                                                          to_numpy(img[:, 20:, :-10])))
+
+    def test_2d_target(self):
+        img = cv2.imread('lena.png', 0)
+        img = cv2.resize(img, None, fx=1, fy=.5)
+        img = torch.tensor(img)
+        for dev in ['cpu', 'cuda']:
+            for ref in ['s', 't']:
+                flow = Flow.from_transforms([['translation', 10, -20]], img.shape, ref).vecs
+                warped_img = apply_flow(flow.to(dev), img, ref)
+                self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img[:-20, 10:]),
+                                                          to_numpy(img[20:, :-10])))
+
+    def test_4d_target(self):
+        img = cv2.imread('lena.png')
+        img = cv2.resize(img, None, fx=1, fy=.5)
+        img = np.moveaxis(img, -1, 0)
+        imgs = torch.tensor(np.repeat(img, 4, axis=0))
+        for dev in ['cpu', 'cuda']:
+            for ref in ['s', 't']:
+                flow = Flow.from_transforms([['translation', 10, -20]], imgs.shape[-2:], ref).vecs
+                warped_imgs = apply_flow(flow.to(dev), imgs, ref)
+                for warped_img, img in zip(warped_imgs, imgs):
+                    self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img[:-20, 10:]),
+                                                              to_numpy(img[20:, :-10])))
 
 
 if __name__ == '__main__':
