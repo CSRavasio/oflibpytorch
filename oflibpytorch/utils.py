@@ -12,6 +12,8 @@
 
 import math
 import torch
+import torch.nn.functional as f
+from scipy.interpolate import griddata
 import numpy as np
 from typing import Any, Union
 
@@ -245,3 +247,87 @@ def normalise_coords(coords: torch.Tensor, shape: Union[tuple, list]) -> torch.T
     normalised_coords[..., 1] /= (shape[0] - 1)  # points[..., 1] is y, which is vertical, so shape[0]
     normalised_coords -= 1
     return normalised_coords
+
+
+def apply_flow(flow: torch.Tensor, target: torch.Tensor, ref: str = None) -> torch.Tensor:
+    """Warps target according to flow of given reference
+
+    :param flow: Torch tensor 2-H-W containing the flow vectors in cv2 convention (1st channel hor, 2nd channel ver)
+    :param target: Torch tensor H-W, C-H-W, or N-C-H-W containing the content to be warped
+    :param ref: Reference of the flow, 't' or 's'. Defaults to 't'
+    :return: Torch tensor of the same shape as the target, with the content warped by the flow
+    """
+
+    # Check if all flow vectors are almost zero
+    if torch.all(torch.norm(flow, dim=0) <= DEFAULT_THRESHOLD):  # If the flow field is actually 0 or very close
+        return target
+
+    # Set up
+    ref = get_valid_ref(ref)
+    device = flow.device.type
+    h, w = flow.shape[1:]
+
+    # Prepare target dtype, device, and shape
+    target_dtype = target.dtype
+    target = target.to(torch.float)
+    if target.device != flow.device:
+        target = target.to(flow.device)
+    target_dims = target.ndim
+    for _ in range(4 - target_dims):
+        # Get to ndim = 4
+        target = target.unsqueeze(0)
+
+    # Warp target
+    if ref == 't':
+        # Prepare grid
+        grid_x, grid_y = torch.meshgrid(torch.arange(0, h), torch.arange(0, w))
+        grid = torch.stack((grid_y, grid_x), dim=-1).to(torch.float).to(device)
+        field = normalise_coords(grid.unsqueeze(0) - flow.unsqueeze(-1).transpose(-1, 0), (h, w))
+        if target.shape[0] > 1:  # target wasn't just unsqueezed, but has a true N dimension
+            field = field.repeat(target.shape[0], 1, 1, 1)
+        # noinspection PyArgumentList
+        result = f.grid_sample(target, field, align_corners=True).squeeze(0)
+        # Comment on grid_sample: given grid_sample(input, grid), the input is sampled at grid points.
+        #   For this to work:
+        #   - input is shape NCHW (containing data vals in C)
+        #   - grid is shape NHW2, where 2 is [x, y], each in limits [-1, 1]
+        #   - grid locations by default start "mid-pixel", end "mid-pixel" (box model): Pixels | 0 | 1 | 2 |
+        #                                                                                        |   |   |
+        #                                                                                 Grid  -1   0   1
+        #   - in practice, this box model leads to artefacts around the corners (might be fixable), setting align_corner
+        #     to True fixes this.
+        #   - x and y are spatially defined as follows, same as the cv2 convention (e.g. Farnebäck flow)
+        #       -1    0    1
+        #     -1 +---------+--> x
+        #        |         |
+        #      0 |  image  |
+        #        |         |
+        #      1 +---------+
+        #        v
+        #        y
+    else:  # ref == 's'
+        field = np.moveaxis(to_numpy(flow), 0, -1).astype('float32')
+        x, y = np.mgrid[:field.shape[0], :field.shape[1]]
+        positions = np.swapaxes(np.vstack([x.ravel(), y.ravel()]), 0, 1)
+        flow_flat = np.reshape(field[..., ::-1], (-1, 2))
+        target_np = np.moveaxis(to_numpy(target), 1, -1)
+        target_flat = np.reshape(target_np, (target.shape[0], -1, target.shape[1]))
+        results = np.copy(target_np)
+        for i in range(target_flat.shape[0]):
+            pos = positions + flow_flat
+            result = griddata(pos, target_flat[i], (x, y), method='linear')
+            results[i] = np.nan_to_num(result)
+        # Make sure the output is returned with the same dtype as the input, if necessary rounded
+        result = torch.tensor(np.moveaxis(results, -1, 1))
+
+    # Reduce target to original shape
+    for _ in range(4 - target_dims):
+        result = result.squeeze(0)
+
+    # Return target with original dtype, rounding if necessary
+    # noinspection PyUnresolvedReferences
+    if not target_dtype.is_floating_point:
+        result = torch.round(result)
+    result = result.to(target_dtype)
+
+    return result
