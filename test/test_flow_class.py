@@ -746,6 +746,28 @@ class FlowTest(unittest.TestCase):
             with self.assertRaises(TypeError):
                 flow.apply(target_flow, padding=[10, 20, 30, 40, 50], cut='true')
 
+    def test_is_zero(self):
+        shape = (10, 10)
+        flow = Flow.zero(shape)
+        self.assertEqual(flow.is_zero(thresholded=True), True)
+        self.assertEqual(flow.is_zero(thresholded=False), True)
+
+        flow.vecs[:3, :, 0] = 1e-4
+        self.assertEqual(flow.is_zero(thresholded=True), True)
+        self.assertEqual(flow.is_zero(thresholded=False), False)
+
+        flow.vecs[:3, :, 1] = -1e-3
+        self.assertEqual(flow.is_zero(thresholded=True), False)
+        self.assertEqual(flow.is_zero(thresholded=False), False)
+
+        transforms = [['rotation', 0, 0, 45]]
+        flow = Flow.from_transforms(transforms, shape)
+        self.assertEqual(flow.is_zero(thresholded=True), False)
+        self.assertEqual(flow.is_zero(thresholded=False), False)
+
+        with self.assertRaises(TypeError):
+            flow.is_zero('test')
+
 
 if __name__ == '__main__':
     unittest.main()
