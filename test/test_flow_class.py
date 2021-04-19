@@ -12,10 +12,11 @@
 
 import unittest
 import torch
+import cv2
 import numpy as np
 import math
 from oflibpytorch.flow_class import Flow
-from oflibpytorch.utils import to_numpy
+from oflibpytorch.utils import to_numpy, apply_flow
 
 
 class FlowTest(unittest.TestCase):
@@ -674,6 +675,76 @@ class FlowTest(unittest.TestCase):
         # Invalid padding mode
         with self.assertRaises(ValueError):
             flow.pad([10, 10, 20, 20], mode='test')
+
+    def test_apply(self):
+        img_np = np.moveaxis(cv2.imread('lena.png'), -1, 0)
+        img_pt = torch.tensor(img_np)
+        # Check flow.apply results in the same as using apply_flow directly
+        for ref in ['t', 's']:
+            for img in [img_np, img_pt]:
+                flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref)
+                # Target is a numpy array
+                warped_img_desired = apply_flow(flow.vecs, img_pt, ref)
+                warped_img_actual = flow.apply(img)
+                if isinstance(warped_img_actual, torch.Tensor):
+                    warped_img_actual = to_numpy(warped_img_actual)
+                self.assertIsNone(np.testing.assert_equal(warped_img_actual, to_numpy(warped_img_desired)))
+                # Target is a flow object
+                warped_flow_desired = apply_flow(flow.vecs, flow.vecs, ref)
+                warped_flow_actual = flow.apply(flow)
+                self.assertIsNone(np.testing.assert_equal(to_numpy(warped_flow_actual.vecs),
+                                                          to_numpy(warped_flow_desired)))
+        # Check using a smaller flow field on a larger target works the same as a full flow field on the same target
+        img = img_pt
+        ref = 't'
+        flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref)
+        warped_img_desired = apply_flow(flow.vecs, img, ref)
+        shape = [img.shape[1] - 90, img.shape[2] - 110]
+        padding = [50, 40, 30, 80]
+        cut_flow = Flow.from_transforms([['rotation', 0, 0, 30]], shape, ref)
+        # # ... not cutting (target torch tensor)
+        # warped_img_actual = cut_flow.apply(img, padding=padding, cut=False)
+        # self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual[padding[0]:-padding[1],
+        #                                                    padding[2]:-padding[3]]),
+        #                                           to_numpy(warped_img_desired[padding[0]:-padding[1],
+        #                                                    padding[2]:-padding[3]])))
+        # ... cutting (target torch tensor)
+        warped_img_actual = cut_flow.apply(img, padding=padding, cut=True)
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img_actual).astype('f'),
+                                                     to_numpy(warped_img_desired[:, padding[0]:-padding[1],
+                                                              padding[2]:-padding[3]]).astype('f'),
+                                                     atol=1))  # result rounded (uint8), so errors can be 1
+        # ... not cutting (target flow object)
+        target_flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref)
+        warped_flow_desired = apply_flow(flow.vecs, target_flow.vecs, ref)
+        warped_flow_actual = cut_flow.apply(target_flow, padding=padding, cut=False)
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_flow_actual.vecs[:, padding[0]:-padding[1],
+                                                              padding[2]:-padding[3]]),
+                                                     to_numpy(warped_flow_desired[:, padding[0]:-padding[1],
+                                                              padding[2]:-padding[3]]),
+                                                     atol=1e-1))
+        # ... cutting (target flow object)
+        warped_flow_actual = cut_flow.apply(target_flow, padding=padding, cut=True)
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_flow_actual.vecs),
+                                                     to_numpy(warped_flow_desired[:, padding[0]:-padding[1],
+                                                              padding[2]:-padding[3]]),
+                                                     atol=1e-1))
+
+        # Non-valid padding values
+        for ref in ['t', 's']:
+            flow = Flow.from_transforms([['rotation', 0, 0, 30]], shape, ref)
+            with self.assertRaises(TypeError):
+                flow.apply(target_flow, padding=100, cut=True)
+            with self.assertRaises(ValueError):
+                flow.apply(target_flow, padding=[10, 20, 30, 40, 50], cut=True)
+            with self.assertRaises(ValueError):
+                flow.apply(target_flow, padding=[10., 20, 30, 40], cut=True)
+            with self.assertRaises(ValueError):
+                flow.apply(target_flow, padding=[-10, 10, 10, 10], cut=True)
+            with self.assertRaises(TypeError):
+                flow.apply(target_flow, padding=[10, 20, 30, 40, 50], cut=2)
+            with self.assertRaises(TypeError):
+                flow.apply(target_flow, padding=[10, 20, 30, 40, 50], cut='true')
 
 
 if __name__ == '__main__':
