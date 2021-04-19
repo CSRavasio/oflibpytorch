@@ -16,7 +16,7 @@ import torch.nn.functional as f
 import numpy as np
 from typing import Union
 from .utils import get_valid_vecs, get_valid_ref, get_valid_device, get_valid_padding, validate_shape, to_numpy, \
-    move_axis, flow_from_matrix, matrix_from_transforms, reverse_transform_values
+    move_axis, flow_from_matrix, matrix_from_transforms, reverse_transform_values, apply_flow
 
 
 class Flow(object):
@@ -598,3 +598,116 @@ class Flow(object):
         padded_vecs = f.pad(self._vecs.unsqueeze(0), (*padding[2:], *padding[:2]), mode=mode).squeeze(0)
         padded_mask = f.pad(self._mask.unsqueeze(0).unsqueeze(0), (*padding[2:], *padding[:2])).squeeze(0).squeeze(0)
         return Flow(padded_vecs, self._ref, padded_mask)
+
+    def apply(
+        self,
+        target: Union[np.ndarray, torch.Tensor, Flow],
+        return_valid_area: bool = None,
+        padding: list = None,
+        cut: bool = None
+    ) -> Union[np.ndarray, torch.Tensor, Flow]:
+        """Applies the flow to the target, which can be a numpy array or a Flow object.
+
+        :param target: Numpy array or torch tensor of shape C-H-W, or flow object the flow should be applied to
+        :param return_valid_area: Boolean determining whether a boolean numpy array of shape H-W containing the valid
+            image area is returned (only relevant if target is a numpy array). This array is true where the image
+            values in the function output:
+                1) have been affected by flow vectors: always true if the flow has reference 't' as the target image by
+                    default has a corresponding flow vector in each position, but only true for some parts of the image
+                    if the flow has reference 's': some target image positions would only be reachable by flow vectors
+                    originating outside of the source image area, which is obviously impossible
+                2) have been affected by flow vectors that were themselves valid, as determined by the flow mask
+        :param padding: If flow applied only covers part of the target; [top, bot, left, right]; default None
+        :param cut: If padding is given, whether the input is returned as cut to shape of flow; default True
+        :return: An object of the same type as the input (numpy array, torch tensor, or flow)
+        """
+
+        cut = False if cut is None else cut
+        if not isinstance(cut, bool):
+            raise TypeError("Error applying flow: Cut needs to be a boolean")
+        if padding is not None:
+            padding = get_valid_padding(padding, "Error applying flow: ")
+            if self.shape[0] + padding[0] + padding[1] != target.shape[-2] or \
+                    self.shape[1] + padding[2] + padding[3] != target.shape[-1]:
+                raise ValueError("Error applying flow: Padding values do not match flow and target shape difference")
+
+        # Type check, prepare arrays
+        return_device = 'cpu'
+        return_array = False
+        if isinstance(target, Flow):
+            return_flow = True
+            return_device = target._vecs.device.type
+            t = target._vecs.to(self._vecs.device)
+            mask = target._mask.unsqueeze(0).to(self._vecs.device)
+        else:
+            return_flow = False
+            if isinstance(target, np.ndarray):
+                return_array = True
+                t = torch.tensor(target).to(self._vecs.device)
+            elif isinstance(target, torch.Tensor):
+                t = target
+            else:
+                raise ValueError("Error applying flow: Target needs to be either a flow object, a numpy ndarray, or a "
+                                 "torch tensor")
+            mask = torch.ones(1, *t.shape[1:]).to(torch.bool).to(self._vecs.device)
+
+        # Concatenate the flow vectors with the mask if required, so they are warped in one step
+        if return_flow or return_valid_area:
+            # if self.ref == 't': Just warp the mask, which self.vecs are valid taken into account after warping
+            if self._ref == 's':
+                # Warp the target mask after ANDing with flow mask to take into account which self.vecs are valid
+                if mask.shape[1:] != self.shape:
+                    # If padding in use, mask can be smaller than self.mask
+                    tmp = mask[0, padding[0]:padding[0] + self.shape[0], padding[2]:padding[2] + self.shape[1]].clone()
+                    mask[...] = False
+                    mask[0, padding[0]:padding[0] + self.shape[0], padding[2]:padding[2] + self.shape[1]] = \
+                        tmp & self._mask
+                else:
+                    mask = (mask & self._mask)
+            t = torch.cat((t, mask.to(torch.float)), dim=0)
+
+        # Determine flow to use for warping, and warp
+        if padding is None:
+            if not target.shape[-2:] == self.shape:
+                raise ValueError("Error applying flow: Flow and target have to have the same shape")
+            warped_t = apply_flow(self._vecs, t, self._ref)
+        else:
+            mode = 'constant' if self._ref == 't' else 'replicate'
+            # Note: this mode is very important: irrelevant for flow with reference 't' as this by definition covers
+            # the area of the target image, so 'constant' (defaulting to filling everything with 0) is fine. However,
+            # for flows with reference 's', if locations in the source image with some flow vector border padded
+            # locations with flow zero, very strange interpolation artefacts will result, both in terms of the image
+            # being warped, and the mask being warped. By padding with the 'edge' mode, large gradients in flow vector
+            # values at the edge of the original flow area are avoided, as are interpolation artefacts.
+            flow = self.pad(padding, mode=mode)
+            warped_t = apply_flow(flow._vecs, t, flow._ref)
+
+        # Cut if necessary
+        if padding is not None and cut:
+            warped_t = warped_t[..., padding[0]:padding[0] + self.shape[0], padding[2]:padding[2] + self.shape[1]]
+
+        # Extract and finalise mask if required
+        if return_flow or return_valid_area:
+            mask = torch.round(warped_t[-1]).to(torch.bool)
+            # if self.ref == 's': Valid self.vecs already taken into account by ANDing with self.mask before warping
+            if self._ref == 't':
+                # Still need to take into account which self.vecs are actually valid by ANDing with self.mask
+                if mask.shape != self._mask.shape:
+                    # If padding is in use, but warped_t has not been cut: AND with self.mask inside the flow area, and
+                    # set everything else to False as not warped by the flow
+                    t = mask[padding[0]:padding[0] + self.shape[0], padding[2]:padding[2] + self.shape[1]].clone()
+                    mask[...] = False
+                    mask[padding[0]:padding[0] + self.shape[0], padding[2]:padding[2] + self.shape[1]] = t & self._mask
+                else:
+                    mask = mask & self._mask
+
+        # Return as correct type
+        if return_flow:
+            return Flow(warped_t[:2, ...], target._ref, mask, device=return_device)
+        else:
+            if return_array:
+                warped_t = to_numpy(warped_t)
+            if return_valid_area:
+                return warped_t[:-1, ...], mask
+            else:
+                return warped_t
