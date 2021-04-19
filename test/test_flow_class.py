@@ -746,6 +746,34 @@ class FlowTest(unittest.TestCase):
             with self.assertRaises(TypeError):
                 flow.apply(target_flow, padding=[10, 20, 30, 40, 50], cut='true')
 
+    def test_switch_ref(self):
+        shape = (200, 300)
+        # Mode 'invalid'
+        for refs in [['t', 's'], ['s', 't']]:
+            flow = Flow.from_transforms([['rotation', 30, 50, 30]], shape, refs[0])
+            flow = flow.switch_ref(mode='invalid')
+            self.assertEqual(flow.ref, refs[1])
+
+        # Mode 'valid'
+        transforms = [['rotation', 256, 256, 30]]
+        flow_s = Flow.from_transforms(transforms, shape, 's')
+        flow_t = Flow.from_transforms(transforms, shape, 't')
+        switched_s = flow_t.switch_ref()
+        self.assertIsNone(np.testing.assert_allclose(switched_s.vecs_numpy[switched_s.mask_numpy],
+                                                     flow_s.vecs_numpy[switched_s.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+        switched_t = flow_s.switch_ref()
+        self.assertIsNone(np.testing.assert_allclose(switched_t.vecs_numpy[switched_t.mask_numpy],
+                                                     flow_t.vecs_numpy[switched_t.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+
+        # Invalid mode passed
+        flow = Flow.from_transforms([['rotation', 30, 50, 30]], shape, 't')
+        with self.assertRaises(ValueError):
+            flow.switch_ref('test')
+        with self.assertRaises(ValueError):
+            flow.switch_ref(1)
+
     def test_is_zero(self):
         shape = (10, 10)
         flow = Flow.zero(shape)
