@@ -774,6 +774,52 @@ class FlowTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             flow.switch_ref(1)
 
+    def test_invert(self):
+        f_s = Flow.from_transforms([['rotation', 256, 256, 30]], (512, 512), 's')   # Forwards
+        f_t = Flow.from_transforms([['rotation', 256, 256, 30]], (512, 512), 't')   # Forwards
+        b_s = Flow.from_transforms([['rotation', 256, 256, -30]], (512, 512), 's')  # Backwards
+        b_t = Flow.from_transforms([['rotation', 256, 256, -30]], (512, 512), 't')  # Backwards
+
+        # Inverting s to s
+        b_s_inv = f_s.invert()
+        self.assertIsNone(np.testing.assert_allclose(b_s_inv.vecs_numpy[b_s_inv.mask_numpy],
+                                                     b_s.vecs_numpy[b_s_inv.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+        f_s_inv = b_s.invert()
+        self.assertIsNone(np.testing.assert_allclose(f_s_inv.vecs_numpy[f_s_inv.mask_numpy],
+                                                     f_s.vecs_numpy[f_s_inv.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+
+        # Inverting s to t
+        b_t_inv = f_s.invert('t')
+        self.assertIsNone(np.testing.assert_allclose(b_t_inv.vecs_numpy[b_t_inv.mask_numpy],
+                                                     b_t.vecs_numpy[b_t_inv.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+        f_t_inv = b_s.invert('t')
+        self.assertIsNone(np.testing.assert_allclose(f_t_inv.vecs_numpy[f_t_inv.mask_numpy],
+                                                     f_t.vecs_numpy[f_t_inv.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+
+        # Inverting t to t
+        b_t_inv = f_t.invert()
+        self.assertIsNone(np.testing.assert_allclose(b_t_inv.vecs_numpy[b_t_inv.mask_numpy],
+                                                     b_t.vecs_numpy[b_t_inv.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+        f_t_inv = b_t.invert()
+        self.assertIsNone(np.testing.assert_allclose(f_t_inv.vecs_numpy[f_t_inv.mask_numpy],
+                                                     f_t.vecs_numpy[f_t_inv.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+
+        # Inverting t to s
+        b_s_inv = f_t.invert('s')
+        self.assertIsNone(np.testing.assert_allclose(b_s_inv.vecs_numpy[b_s_inv.mask_numpy],
+                                                     b_s.vecs_numpy[b_s_inv.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+        f_s_inv = b_t.invert('s')
+        self.assertIsNone(np.testing.assert_allclose(f_s_inv.vecs_numpy[f_s_inv.mask_numpy],
+                                                     f_s.vecs_numpy[f_s_inv.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+
     def test_is_zero(self):
         shape = (10, 10)
         flow = Flow.zero(shape)
