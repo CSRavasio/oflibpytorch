@@ -17,7 +17,7 @@ import numpy as np
 import math
 from oflibpytorch.utils import get_valid_vecs, get_valid_ref, get_valid_padding, validate_shape, get_valid_device, \
     to_numpy, move_axis, flow_from_matrix, matrix_from_transform, matrix_from_transforms, reverse_transform_values, \
-    normalise_coords, apply_flow
+    normalise_coords, apply_flow, threshold_vectors
 from oflibpytorch.flow_class import Flow
 
 
@@ -387,6 +387,24 @@ class TestApplyFlow(unittest.TestCase):
                 for warped_img, img in zip(warped_imgs, imgs):
                     self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img[:-20, 10:]),
                                                               to_numpy(img[20:, :-10])))
+
+
+class TestThresholdVectors(unittest.TestCase):
+    def test_threshold(self):
+        vecs = torch.zeros((2, 10, 1))
+        vecs[0, 0, 0] = 1e-5
+        vecs[0, 1, 0] = 1e-4
+        vecs[0, 2, 0] = 1e-3
+        vecs[0, 3, 0] = 1
+        thresholded = threshold_vectors(vecs, threshold=1e-3)
+        thresholded = to_numpy(thresholded[0, :4, 0])
+        self.assertIsNone(np.testing.assert_allclose(thresholded, [0, 0, 1e-3, 1]))
+        thresholded = threshold_vectors(vecs, threshold=1e-4)
+        thresholded = to_numpy(thresholded[0, :4, 0])
+        self.assertIsNone(np.testing.assert_allclose(thresholded, [0, 1e-4, 1e-3, 1]))
+        thresholded = threshold_vectors(vecs, threshold=1e-5)
+        thresholded = to_numpy(thresholded[0, :4, 0])
+        self.assertIsNone(np.testing.assert_allclose(thresholded, [1e-5, 1e-4, 1e-3, 1]))
 
 
 if __name__ == '__main__':
