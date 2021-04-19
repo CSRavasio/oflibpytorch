@@ -16,9 +16,34 @@ import cv2
 import numpy as np
 import math
 from oflibpytorch.utils import get_valid_vecs, get_valid_ref, get_valid_padding, validate_shape, get_valid_device, \
-    to_numpy, flow_from_matrix, matrix_from_transform, matrix_from_transforms, reverse_transform_values, \
+    to_numpy, move_axis, flow_from_matrix, matrix_from_transform, matrix_from_transforms, reverse_transform_values, \
     normalise_coords, apply_flow
 from oflibpytorch.flow_class import Flow
+
+
+class TestMoveAxis(unittest.TestCase):
+    def test_move_axis(self):
+        ip_tensor = torch.tensor(np.ones((1, 2, 3, 4)))
+        ip_shape = ip_tensor.shape
+        for i in range(4):
+            for j in range(4):
+                op_tensor = move_axis(ip_tensor, i, j)
+                ip_shape_copy = list(ip_shape)
+                active_dim = ip_shape[i]
+                ip_shape_copy.pop(i)
+                expected_shape = ip_shape_copy[:j] + [active_dim] + ip_shape_copy[j:]
+                print("source {}, destination {}".format(i, j))
+                self.assertEqual(list(op_tensor.shape), expected_shape)
+
+        for i in range(4):
+            for j in range(4):
+                op_tensor = move_axis(ip_tensor, -i - 1, -j - 1)
+                ip_shape_copy = list(reversed(ip_shape))
+                active_dim = ip_shape_copy[i]
+                ip_shape_copy.pop(i)
+                expected_shape = ip_shape_copy[:j] + [active_dim] + ip_shape_copy[j:]
+                print("source {}, destination {}".format(-i - 1, -j - 1))
+                self.assertEqual(list(op_tensor.shape), list(reversed(expected_shape)))
 
 
 class TestValidityChecks(unittest.TestCase):
