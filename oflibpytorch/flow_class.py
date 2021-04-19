@@ -16,7 +16,7 @@ import torch.nn.functional as f
 import numpy as np
 from typing import Union
 from .utils import get_valid_vecs, get_valid_ref, get_valid_device, get_valid_padding, validate_shape, to_numpy, \
-    flow_from_matrix, matrix_from_transforms, reverse_transform_values
+    move_axis, flow_from_matrix, matrix_from_transforms, reverse_transform_values
 
 
 class Flow(object):
@@ -70,8 +70,13 @@ class Flow(object):
 
         :return: flow vectors as a numpy array of shape H-W-2
         """
-        np_vecs = np.moveaxis(to_numpy(self._vecs), 0, -1)
-        return np_vecs
+
+        with torch.no_grad():
+            if self._device == 'cuda':
+                vecs = self._vecs.cpu().numpy()
+            else:  # self._device == 'cpu'
+                vecs = self._vecs.detach().numpy()
+        return np.moveaxis(vecs, 0, -1)
 
     @property
     def ref(self) -> str:
@@ -179,7 +184,7 @@ class Flow(object):
 
         # Check shape validity
         validate_shape(shape)
-        return cls(torch.zeros(2, shape[0], shape[1]), ref, mask, device)
+        return cls(torch.zeros(2, *shape), ref, mask, device)
 
     @classmethod
     def from_matrix(
@@ -355,7 +360,7 @@ class Flow(object):
         :return: New flow cut as a corresponding torch tensor would be cut
         """
 
-        vecs = self._vecs.unsqueeze(-1).transpose(-1, 0).squeeze(0).__getitem__(item)
+        vecs = move_axis(move_axis(self._vecs, 0, -1).__getitem__(item), -1, 0)
         # Above line is to avoid having to parse item properly to deal with first dim of 2: move this dim to the back
         return Flow(vecs, self._ref, self._mask.__getitem__(item), self._device)
 
@@ -445,14 +450,14 @@ class Flow(object):
             elif isinstance(other, np.ndarray):
                 other = torch.tensor(other)
             if isinstance(other, torch.Tensor):
-                if other.ndim == 1 and other.shape[0] == 2:
+                if other.ndim == 1 and other.shape[0] == 2:  # shape 2 to 2-1-1
                     other = other.unsqueeze(-1).unsqueeze(-1)
-                elif other.ndim == 2 and other.shape == self.shape:
+                elif other.ndim == 2 and other.shape == self.shape:  # shape H-W to 2-H-W
                     other = other.unsqueeze(0)
-                elif other.ndim == 3 and other.shape == (2,) + self.shape:
+                elif other.ndim == 3 and other.shape == (2,) + self.shape:  # shape 2-H-W: all OK
                     pass
-                elif other.ndim == 3 and other.shape == self.shape + (2,):
-                    other = other.unsqueeze(0).transpose(0, -1).squeeze(-1)
+                elif other.ndim == 3 and other.shape == self.shape + (2,):  # shape H-W-2 to 2-H-W
+                    other = move_axis(other, -1, 0)
                 else:
                     raise ValueError("Error multiplying flow: Multiplier array or tensor needs to be of size 2, of the "
                                      "shape of the flow object (H-W), or either 2-H-W or H-W-2")
@@ -480,14 +485,14 @@ class Flow(object):
             elif isinstance(other, np.ndarray):
                 other = torch.tensor(other)
             if isinstance(other, torch.Tensor):
-                if other.ndim == 1 and other.shape[0] == 2:
+                if other.ndim == 1 and other.shape[0] == 2:  # shape 2 to 2-1-1
                     other = other.unsqueeze(-1).unsqueeze(-1)
-                elif other.ndim == 2 and other.shape == self.shape:
+                elif other.ndim == 2 and other.shape == self.shape:  # shape H-W to 2-H-W
                     other = other.unsqueeze(0)
-                elif other.ndim == 3 and other.shape == (2,) + self.shape:
+                elif other.ndim == 3 and other.shape == (2,) + self.shape:  # shape 2-H-W: all OK
                     pass
-                elif other.ndim == 3 and other.shape == self.shape + (2,):
-                    other = other.unsqueeze(0).transpose(0, -1).squeeze(-1)
+                elif other.ndim == 3 and other.shape == self.shape + (2,):  # shape H-W-2 to 2-H-W
+                    other = move_axis(other, -1, 0)
                 else:
                     raise ValueError("Error dividing flow: Divisor array or tensor needs to be of size 2, of the "
                                      "shape of the flow object (H-W), or either 2-H-W or H-W-2")
@@ -515,14 +520,14 @@ class Flow(object):
             elif isinstance(other, np.ndarray):
                 other = torch.tensor(other)
             if isinstance(other, torch.Tensor):
-                if other.ndim == 1 and other.shape[0] == 2:
+                if other.ndim == 1 and other.shape[0] == 2:  # shape 2 to 2-1-1
                     other = other.unsqueeze(-1).unsqueeze(-1)
-                elif other.ndim == 2 and other.shape == self.shape:
+                elif other.ndim == 2 and other.shape == self.shape:  # shape H-W to 2-H-W
                     other = other.unsqueeze(0)
-                elif other.ndim == 3 and other.shape == (2,) + self.shape:
+                elif other.ndim == 3 and other.shape == (2,) + self.shape:  # shape 2-H-W: all OK
                     pass
-                elif other.ndim == 3 and other.shape == self.shape + (2,):
-                    other = other.unsqueeze(0).transpose(0, -1).squeeze(-1)
+                elif other.ndim == 3 and other.shape == self.shape + (2,):  # shape H-W-2 to 2-H-W
+                    other = move_axis(other, -1, 0)
                 else:
                     raise ValueError("Error exponentiating flow: Exponent array or tensor needs to be of size 2, of "
                                      "the shape of the flow object (H-W), or either 2-H-W or H-W-2")
