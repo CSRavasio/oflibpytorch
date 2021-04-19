@@ -45,7 +45,7 @@ def get_valid_vecs(vecs: Any, desired_shape: Union[tuple, list] = None, error_st
     # Check channels, transpose if necessary
     if vecs.shape[0] != 2:  # Check if input shape can be interpreted as 2-H-W
         if vecs.shape[2] == 2:  # Input shape is H-W-2
-            vecs = vecs.unsqueeze(0).transpose(0, -1).squeeze(-1)
+            vecs = move_axis(vecs, -1, 0)
         else:  # Input shape is neither H-W-2 nor 2-H-W
             raise ValueError(error_string + "Input needs to be shape H-W-2 or 2-H-W")
 
@@ -174,7 +174,7 @@ def flow_from_matrix(matrix: torch.Tensor, shape: Union[list, tuple]) -> torch.T
     # Calculate the flow from the difference of the transformed default vectors, and the original default vector field
     transformed_vec_hom = torch.matmul(matrix.to(torch.float), default_vec_hom.unsqueeze(-1)).squeeze(-1)
     transformed_vec = transformed_vec_hom[..., 0:2] / transformed_vec_hom[..., 2:3]
-    transformed_vec = (transformed_vec - default_vec_hom[..., 0:2]).unsqueeze(0).transpose(0, -1).squeeze(-1)
+    transformed_vec = move_axis(transformed_vec - default_vec_hom[..., 0:2], -1, 0)
     return transformed_vec
 
 
