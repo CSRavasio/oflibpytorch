@@ -123,6 +123,24 @@ def validate_shape(shape: Any) -> Union[tuple, list]:
         raise ValueError("Error creating flow from matrix: Dims need to be a list or a tuple of integers above zero")
 
 
+def move_axis(input_tensor: torch.Tensor, source: int, destination: int) -> torch.Tensor:
+    """Helper function to imitate np.moveaxis
+
+    :param input_tensor: Input torch tensor, e.g. N-H-W-C
+    :param source: Source position of the dimension to be moved, e.g. -1
+    :param destination: Target position of the dimension to be moved, e.g. 1
+    :return: Output torch tensor, e.g. N-C-H-W
+    """
+
+    source %= input_tensor.ndim
+    destination %= input_tensor.ndim
+    if source < destination:
+        destination += 1  # Otherwise e.g. source = 0, destination = 1 won't give correct result
+    elif source > destination:
+        source += 1  # Otherwise e.g. source = 1, destionation = 0 won't give correct result
+    return input_tensor.unsqueeze(destination).transpose(source, destination).squeeze(source)
+
+
 def to_numpy(tensor: torch.Tensor) -> np.ndarray:
     """Tensor to numpy, calls .cpu() if necessary"""
     with torch.no_grad():
