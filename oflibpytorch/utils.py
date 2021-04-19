@@ -352,3 +352,18 @@ def apply_flow(flow: torch.Tensor, target: torch.Tensor, ref: str = None) -> tor
     result = result.to(target_dtype)
 
     return result
+
+
+def threshold_vectors(vecs: torch.Tensor, threshold: Union[float, int] = None) -> torch.Tensor:
+    """Sets all flow vectors with a magnitude below threshold to zero
+
+    :param vecs: Input flow torch tensor, shape 2-H-W
+    :param threshold: Threshold value as float or int, defaults to DEFAULT_THRESHOLD (top of file)
+    :return: Flow tensor with vector magnitudes below the threshold set to 0
+    """
+
+    threshold = DEFAULT_THRESHOLD if threshold is None else threshold
+    mags = torch.norm(vecs, dim=0)
+    f = vecs.clone()
+    f[:, mags < threshold] = 0
+    return f
