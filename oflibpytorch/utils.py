@@ -291,8 +291,9 @@ def apply_flow(flow: torch.Tensor, target: torch.Tensor, ref: str = None) -> tor
     if target.device != flow.device:
         target = target.to(flow.device)
     target_dims = target.ndim
-    for _ in range(4 - target_dims):
-        # Get to ndim = 4
+    if target_dims == 2:  # shape H-W to 1-1-H-W
+        target = target.unsqueeze(0).unsqueeze(0)
+    elif target_dims == 3:  # shape C-H-W to 1-C-H-W
         target = target.unsqueeze(0)
 
     # Warp target
@@ -304,7 +305,7 @@ def apply_flow(flow: torch.Tensor, target: torch.Tensor, ref: str = None) -> tor
         if target.shape[0] > 1:  # target wasn't just unsqueezed, but has a true N dimension
             field = field.repeat(target.shape[0], 1, 1, 1)
         # noinspection PyArgumentList
-        result = f.grid_sample(target, field, align_corners=True).squeeze(0)
+        result = f.grid_sample(target, field, align_corners=True)
         # Comment on grid_sample: given grid_sample(input, grid), the input is sampled at grid points.
         #   For this to work:
         #   - input is shape NCHW (containing data vals in C)
@@ -339,7 +340,9 @@ def apply_flow(flow: torch.Tensor, target: torch.Tensor, ref: str = None) -> tor
         result = torch.tensor(np.moveaxis(results, -1, 1))
 
     # Reduce target to original shape
-    for _ in range(4 - target_dims):
+    if target_dims == 2:  # shape 1-1-H-W to H-W
+        result = result.squeeze(0).squeeze(0)
+    elif target_dims == 3:  # shape 1-C-H-W to C-H-W
         result = result.squeeze(0)
 
     # Return target with original dtype, rounding if necessary
