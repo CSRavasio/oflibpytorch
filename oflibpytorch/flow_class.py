@@ -16,7 +16,7 @@ import torch.nn.functional as f
 import numpy as np
 from typing import Union
 from .utils import get_valid_vecs, get_valid_ref, get_valid_device, get_valid_padding, validate_shape, to_numpy, \
-    move_axis, flow_from_matrix, matrix_from_transforms, reverse_transform_values, apply_flow
+    move_axis, flow_from_matrix, matrix_from_transforms, reverse_transform_values, apply_flow, threshold_vectors
 
 
 class Flow(object):
@@ -711,3 +711,22 @@ class Flow(object):
                 return warped_t[:-1, ...], mask
             else:
                 return warped_t
+
+    def is_zero(self, thresholded: bool = None) -> bool:
+        """Checks whether all flow vectors (where mask is True) are zero, thresholding if necessary.
+
+        Flow vector magnitude threshold used is DEFAULT_THRESHOLD, defined at top of the utils file
+
+        :param thresholded: Boolean determining whether the flow is thresholded, defaults to True
+        :return: True if flow is zero, False if not
+        """
+
+        thresholded = True if thresholded is None else thresholded
+        if not isinstance(thresholded, bool):
+            raise TypeError("Error checking whether flow is zero: Thresholded needs to be a boolean")
+
+        if thresholded:
+            vecs = threshold_vectors(self._vecs)
+        else:
+            vecs = self._vecs
+        return torch.all(vecs == 0)
