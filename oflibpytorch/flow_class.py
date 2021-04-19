@@ -758,6 +758,27 @@ class Flow(object):
         else:
             raise ValueError("Error switching flow reference: Mode not recognised, should be 'valid' or 'invalid'")
 
+    def invert(self, ref: str = None) -> Flow:
+        """Inverting a flow: img1 -- f --> img2 becomes img1 <-- f -- img2
+
+        The smaller the input flow, the closer the inverse is to simply multiplying the flow by -1.
+
+        :param ref: Desired reference of the output field, defaults to reference of original flow field
+        :return: Inverse flow field
+        """
+
+        ref = self._ref if ref is None else get_valid_ref(ref)
+        if self._ref == 's':
+            if ref == 's':
+                return self.apply(-self)
+            elif ref == 't':
+                return Flow(-self._vecs, 't', self._mask)
+        elif self._ref == 't':
+            if ref == 's':
+                return Flow(-self._vecs, 's', self._mask)
+            elif ref == 't':
+                return self.invert('s').switch_ref()
+
     def is_zero(self, thresholded: bool = None) -> bool:
         """Checks whether all flow vectors (where mask is True) are zero, thresholding if necessary.
 
