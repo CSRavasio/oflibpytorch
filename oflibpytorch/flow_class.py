@@ -134,6 +134,20 @@ class Flow(object):
             self._mask = input_mask.to(torch.bool)
 
     @property
+    def mask_numpy(self) -> np.ndarray:
+        """Gets the mask as a numpy array of shape H-W, rather than the internal torch tensor
+
+        :return: mask as a numpy array of shape H-W, dtype 'bool'
+        """
+
+        with torch.no_grad():
+            if self._device == 'cuda':
+                mask = self._mask.cpu().numpy()
+            else:  # self._device == 'cpu'
+                mask = self._mask.detach().numpy()
+        return mask
+
+    @property
     def device(self) -> str:
         """Gets the tensor device
 
