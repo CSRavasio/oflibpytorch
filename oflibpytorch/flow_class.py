@@ -726,6 +726,38 @@ class Flow(object):
             else:
                 return warped_t
 
+    def switch_ref(self, mode: str = None) -> Flow:
+        """Switches the reference coordinates from 's'ource to 't'arget, or vice versa
+
+        :param mode: 'valid' or 'invalid':
+            'invalid' means just the flow reference attribute is switched without any flow values being changed. This
+                is functionally equivalent to simply using flow.ref = 't' for a flow of ref 's', and the flow vectors
+                aren't changed.
+            'valid' means actually switching the flow field to the other coordinate reference, with flow vectors being
+                recalculated to correspond to this other reference.
+        :return: Flow with switched coordinate reference.
+        """
+
+        mode = 'valid' if mode is None else mode
+        if mode == 'valid':
+            if self.is_zero(thresholded=False):  # In case the flow is 0, no further calculations are necessary
+                return self.switch_ref(mode='invalid')
+            else:
+                if self._ref == 's':
+                    switched_ref_flow = self.apply(self)  # apply_to is done s-based; see window pic 08/04/19
+                    switched_ref_flow._ref = 't'
+                    return switched_ref_flow
+                elif self._ref == 't':
+                    flow_copy_s = self.switch_ref(mode='invalid')  # so apply_to is ref-s; see window pic 08/04/19
+                    return (-flow_copy_s).apply(flow_copy_s)
+        elif mode == 'invalid':
+            if self._ref == 's':
+                return Flow(self._vecs, 't', self._mask)
+            elif self._ref == 't':
+                return Flow(self._vecs, 's', self._mask)
+        else:
+            raise ValueError("Error switching flow reference: Mode not recognised, should be 'valid' or 'invalid'")
+
     def is_zero(self, thresholded: bool = None) -> bool:
         """Checks whether all flow vectors (where mask is True) are zero, thresholding if necessary.
 
