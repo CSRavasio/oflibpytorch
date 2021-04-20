@@ -1009,8 +1009,8 @@ class Flow(object):
         show_mask_borders: bool = None,
         range_max: float = None,
         return_tensor: bool = None
-    ) -> torch.Tensor:
-        """Returns a flow visualisation as a tensor containing an rgb/bgr/hsv img of the same shape as the flow
+    ) -> Union[np.ndarray, torch.Tensor]:
+        """Returns a flow visualisation as a tensor containing an rgb / bgr / hsv img of the same shape as the flow
 
         NOTE: this currently runs internally based on NumPy & OpenCV, due to a lack of easily accessible function
 
