@@ -1199,6 +1199,13 @@ class FlowTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             flow.show(-1)
 
+    def test_show_arrows(self):
+        flow = Flow.zero([200, 300])
+        with self.assertRaises(TypeError):
+            flow.show_arrows('test')
+        with self.assertRaises(ValueError):
+            flow.show_arrows(-1)
+
 
 if __name__ == '__main__':
     unittest.main()
