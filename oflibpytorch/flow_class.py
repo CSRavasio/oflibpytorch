@@ -38,6 +38,14 @@ class Flow(object):
         :param device: Tensor device, 'cpu' or 'cuda' (if available). Defaults to the device of the given flow_vectors
             if that is a tensor, otherwise to 'cpu'
         """
+
+        # Prepare attributes and type hinting
+        self._vecs: torch.Tensor = None
+        self._mask: torch.Tensor = None
+        self._ref: str = None
+        self._device: str = None
+
+        # Fill attributes
         self.vecs = flow_vectors
         self.ref = ref
         self.mask = mask
