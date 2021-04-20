@@ -13,10 +13,12 @@
 from __future__ import annotations
 import torch
 import torch.nn.functional as f
+from scipy.interpolate import griddata
 import numpy as np
 from typing import Union
 from .utils import get_valid_vecs, get_valid_ref, get_valid_device, get_valid_padding, validate_shape, to_numpy, \
-    move_axis, flow_from_matrix, matrix_from_transforms, reverse_transform_values, apply_flow, threshold_vectors
+    move_axis, flow_from_matrix, matrix_from_transforms, reverse_transform_values, apply_flow, threshold_vectors, \
+    normalise_coords
 
 
 class Flow(object):
@@ -733,6 +735,85 @@ class Flow(object):
                 return warped_t[:-1, ...], mask
             else:
                 return warped_t
+
+    def track(
+        self,
+        pts: Union[np.ndarray, torch.Tensor],
+        int_out: bool = None,
+        get_valid_status: bool = None
+    ) -> Union[np.ndarray, torch.Tensor]:
+        """Warps input points according to the flow field, can be returned as integers if required
+
+        :param pts: Numpy array or torch tensor of points shape N-2, 1st coordinate vertical (height), 2nd coordinate
+            horizontal (width).
+        :param int_out: Boolean determining whether output points are returned as rounded integers, defaults to False
+        :param get_valid_status: Boolean determining whether an array of shape N-2 containing the status of each point
+            is returned. This will corresponds to self.valid_source() as applied to the point positions, and will show
+            True for the points that are tracked by valid flow vectors, and end up inside the target image area.
+        :return: Numpy array or torch tensor of warped ('tracked') points, and optionally an array or tensor (following
+            the warped point type) of the point tracking status. The tensor device (if applicable) will be the same as
+            the flow field device.
+        """
+
+        # Validate inputs
+        pts_type = 'tensor'
+        if isinstance(pts, np.ndarray):
+            pts = torch.tensor(pts)
+            pts_type = 'array'
+        elif not isinstance(pts, torch.Tensor):
+            raise TypeError("Error tracking points: Pts needs to be a numpy array or a torch tensor")
+        if pts.ndim != 2:
+            raise ValueError("Error tracking points: Pts needs to have shape N-2")
+        if pts.shape[1] != 2:
+            raise ValueError("Error tracking points: Pts needs to have shape N-2")
+        int_out = False if int_out is None else int_out
+        get_valid_status = False if get_valid_status is None else get_valid_status
+        if not isinstance(int_out, bool):
+            raise TypeError("Error tracking points: Int_out needs to be a boolean")
+        if not isinstance(get_valid_status, bool):
+            raise TypeError("Error tracking points: Get_tracked needs to be a boolean")
+
+        pts = pts.to(self._device)
+
+        if self.is_zero(thresholded=True):
+            warped_pts = pts
+        else:
+            if self._ref == 's':
+                # noinspection PyUnresolvedReferences
+                if not pts.dtype.is_floating_point:
+                    flow_vecs = self._vecs[:, pts[:, 0].long(), pts[:, 1].long()]  # flow_vecs shape 2-N
+                    flow_vecs = flow_vecs.transpose(0, 1).flip(-1)  # flow_vecs shape N-2 and (y, x) instead of (x, y)
+                else:
+                    pts_4d = pts.unsqueeze(0).unsqueeze(0).to(torch.float).flip(-1)  # pts_4d now 1-1-N-2 and (x, y)
+                    pts_4d = normalise_coords(pts_4d, self.shape)
+                    # noinspection PyArgumentList
+                    flow_vecs = f.grid_sample(self._vecs.unsqueeze(0), pts_4d, align_corners=True).flip(1)
+                    #  vecs are 1-2-H-W, pts_4d is 1-1-N-2, output will be 1-2-1-N
+                    flow_vecs = flow_vecs.transpose(0, -1).squeeze(-1).squeeze(-1)  # flow_vecs now N-2
+                warped_pts = pts + flow_vecs
+            else:  # self._ref == 't'
+                x, y = np.mgrid[:self.shape[0], :self.shape[1]]
+                grid = np.swapaxes(np.vstack([x.ravel(), y.ravel()]), 0, 1)
+                flow_flat = np.reshape(self.vecs_numpy[..., ::-1], (-1, 2))
+                origin_points = grid - flow_flat
+                flow_vecs = griddata(origin_points, flow_flat, (pts[:, 0], pts[:, 1]), method='linear')
+                warped_pts = pts + torch.tensor(flow_vecs, device=pts.device)
+            nan_vals = torch.isnan(warped_pts)
+            nan_vals = nan_vals[:, 0] | nan_vals[:, 1]
+            warped_pts[nan_vals] = 0
+        if int_out:
+            warped_pts = torch.round(warped_pts).long()
+        if pts_type == 'array':
+            warped_pts = to_numpy(warped_pts)
+
+        if get_valid_status:
+            status_array = self.valid_source()[torch.round(pts[..., 0]).long(),
+                                               torch.round(pts[..., 1]).long()]
+            if pts_type == 'array':
+                status_array = to_numpy(status_array)
+            return warped_pts, status_array
+        else:
+            return warped_pts
 
     def switch_ref(self, mode: str = None) -> Flow:
         """Switches the reference coordinates from 's'ource to 't'arget, or vice versa
