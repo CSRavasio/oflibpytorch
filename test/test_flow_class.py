@@ -820,6 +820,110 @@ class FlowTest(unittest.TestCase):
                                                      f_s.vecs_numpy[f_s_inv.mask_numpy],
                                                      rtol=1e-3, atol=1e-3))
 
+    def test_valid_target(self):
+        transforms = [['rotation', 0, 0, 45]]
+        shape = (7, 7)
+        mask = np.ones(shape, 'bool')
+        mask[4:, :3] = False
+        f_s_masked = Flow.from_transforms(transforms, shape, 's', mask)
+        mask = np.ones(shape, 'bool')
+        mask[:3, 4:] = False
+        f_t_masked = Flow.from_transforms(transforms, shape, 't', mask)
+        f_s = Flow.from_transforms(transforms, shape, 's')
+        f_t = Flow.from_transforms(transforms, shape, 't')
+        desired_area_s = np.array([
+            [1, 1, 1, 1, 1, 1, 1],
+            [0, 1, 1, 1, 1, 1, 1],
+            [0, 0, 1, 1, 1, 1, 1],
+            [0, 0, 0, 1, 1, 1, 0],
+            [0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0]
+        ]).astype('bool')
+        desired_area_t = np.array([
+            [1, 1, 1, 1, 1, 1, 1],
+            [0, 1, 1, 1, 1, 1, 1],
+            [0, 0, 1, 1, 1, 1, 1],
+            [0, 0, 0, 1, 1, 1, 1],
+            [0, 0, 0, 0, 1, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0]
+        ]).astype('bool')
+        desired_area_s_masked = np.array([
+            [1, 1, 1, 1, 1, 1, 1],
+            [0, 1, 1, 1, 1, 1, 1],
+            [0, 0, 1, 0, 0, 0, 1],
+            [0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0]
+        ]).astype('bool')
+        desired_area_t_masked = np.array([
+            [1, 1, 1, 1, 0, 0, 0],
+            [0, 1, 1, 1, 0, 0, 0],
+            [0, 0, 1, 1, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 1],
+            [0, 0, 0, 0, 1, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0]
+        ]).astype('bool')
+        self.assertIsNone(np.testing.assert_equal(to_numpy(f_s.valid_target()), desired_area_s))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(f_t.valid_target()), desired_area_t))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(f_s_masked.valid_target()), desired_area_s_masked))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(f_t_masked.valid_target()), desired_area_t_masked))
+
+    def test_valid_source(self):
+        transforms = [['rotation', 0, 0, 45]]
+        shape = (7, 7)
+        mask = np.ones(shape, 'bool')
+        mask[4:, :3] = False
+        f_s_masked = Flow.from_transforms(transforms, shape, 's', mask)
+        mask = np.ones(shape, 'bool')
+        mask[:3, 4:] = False
+        f_t_masked = Flow.from_transforms(transforms, shape, 't', mask)
+        f_s = Flow.from_transforms(transforms, shape, 's')
+        f_t = Flow.from_transforms(transforms, shape, 't')
+        desired_area_s = np.array([
+            [1, 0, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0],
+            [1, 1, 1, 1, 0, 0, 0],
+            [1, 1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 1, 0, 0, 0]
+        ]).astype('bool')
+        desired_area_t = np.array([
+            [1, 0, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0],
+            [1, 1, 1, 1, 0, 0, 0],
+            [1, 1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 1, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0]
+        ]).astype('bool')
+        desired_area_s_masked = np.array([
+            [1, 0, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0],
+            [1, 1, 1, 1, 0, 0, 0],
+            [0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 1, 0, 0, 0]
+        ]).astype('bool')
+        desired_area_t_masked = np.array([
+            [1, 0, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0]
+        ]).astype('bool')
+        self.assertIsNone(np.testing.assert_equal(to_numpy(f_s.valid_source()), desired_area_s))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(f_t.valid_source()), desired_area_t))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(f_s_masked.valid_source()), desired_area_s_masked))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(f_t_masked.valid_source()), desired_area_t_masked))
+
     def test_is_zero(self):
         shape = (10, 10)
         flow = Flow.zero(shape)
