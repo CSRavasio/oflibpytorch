@@ -1068,6 +1068,83 @@ class FlowTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             flow.is_zero('test')
 
+    def test_visualise(self):
+        # Correct values for the different modes
+        # Horizontal flow towards the right is red
+        flow = Flow.from_transforms([['translation', 1, 0]], [200, 300])
+        desired_img = np.tile(np.array([0, 0, 255]).reshape((1, 1, 3)), (200, 300, 1))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('bgr', return_tensor=False), desired_img))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('rgb', return_tensor=False), desired_img[..., ::-1]))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[..., 0], 0))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[..., 1], 255))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[..., 2], 255))
+
+        # Flow outwards at the andle of 240 degrees (counter-clockwise) is green
+        flow = Flow.from_transforms([['translation', -1, math.sqrt(3)]], [200, 300])
+        desired_img = np.tile(np.array([0, 255, 0]).reshape((1, 1, 3)), (200, 300, 1))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('bgr', return_tensor=False), desired_img))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('rgb', return_tensor=False), desired_img))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[..., 0], 60))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[..., 1], 255))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[..., 2], 255))
+
+        # Flow outwards at the andle of 240 degrees (counter-clockwise) is blue
+        flow = Flow.from_transforms([['translation', -1, -math.sqrt(3)]], [200, 300])
+        desired_img = np.tile(np.array([255, 0, 0]).reshape((1, 1, 3)), (200, 300, 1))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('bgr', return_tensor=False), desired_img))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('rgb', return_tensor=False), desired_img[..., ::-1]))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[..., 0], 120))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[..., 1], 255))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[..., 2], 255))
+
+        # Show the flow mask
+        mask = np.zeros((200, 300))
+        mask[30:-30, 40:-40] = 1
+        flow = Flow.from_transforms([['translation', 1, 0]], (200, 300), 't', mask)
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('bgr', True, return_tensor=False)[10, 10],
+                                                  [0, 0, 180]))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('rgb', True, return_tensor=False)[10, 10],
+                                                  [180, 0, 0]))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', True, return_tensor=False)[..., 0], 0))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', True, return_tensor=False)[..., 1], 255))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', True, return_tensor=False)[10, 10, 2], 180))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', True, return_tensor=False)[100, 100, 2], 255))
+
+        # Show the flow mask border
+        mask = np.zeros((200, 300))
+        mask[30:-30, 40:-40] = 1
+        flow = Flow.from_transforms([['translation', 1, 0]], (200, 300), 't', mask)
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('bgr', True, True, return_tensor=False)[30, 40],
+                                                  [0, 0, 0]))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('rgb', True, True, return_tensor=False)[30, 40],
+                                                  [0, 0, 0]))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', True, True, return_tensor=False)[..., 0], 0))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', True, True, return_tensor=False)[30, 40, 1], 0))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', True, True, return_tensor=False)[30, 40, 2], 0))
+
+        # Output is tensor if required
+        mask = np.zeros((200, 300))
+        mask[30:-30, 40:-40] = 1
+        flow = Flow.from_transforms([['translation', 1, 0]], (200, 300), 't', mask)
+        self.assertIsInstance(flow.visualise('bgr', True, True)[30, 40], torch.Tensor)
+
+        # Invalid arguments
+        flow = Flow.zero([10, 10])
+        with self.assertRaises(ValueError):
+            flow.visualise(mode=3)
+        with self.assertRaises(ValueError):
+            flow.visualise(mode='test')
+        with self.assertRaises(TypeError):
+            flow.visualise('rgb', show_mask=2)
+        with self.assertRaises(TypeError):
+            flow.visualise('rgb', show_mask_borders=2)
+        with self.assertRaises(TypeError):
+            flow.visualise('rgb', return_tensor=2)
+        with self.assertRaises(TypeError):
+            flow.visualise('rgb', range_max='2')
+        with self.assertRaises(ValueError):
+            flow.visualise('rgb', range_max=-1)
+
 
 if __name__ == '__main__':
     unittest.main()
