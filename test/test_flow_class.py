@@ -1192,6 +1192,13 @@ class FlowTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             flow.visualise_arrows(10, img, None, True, True, colour=(0, 0, 0), return_tensor='test')
 
+    def test_show(self):
+        flow = Flow.zero([200, 300])
+        with self.assertRaises(TypeError):
+            flow.show('test')
+        with self.assertRaises(ValueError):
+            flow.show(-1)
+
 
 if __name__ == '__main__':
     unittest.main()
