@@ -787,6 +787,73 @@ class Flow(object):
             elif ref == 't':
                 return self.invert('s').switch_ref()
 
+    def valid_target(self) -> torch.Tensor:
+        """Finds the valid area in the target image
+
+        Given source image, flow, and target image created by warping the source with the flow, the valid area is a
+        boolean mask that is True wherever the value in the target stems from warping a value from the source, and
+        False where no valid information is known. Pixels that are False in this valid area will often be black (or
+        'empty') in the warped target image, but not necessarily, due to warping artefacts etc. Even when they are all
+        empty, the valid area allows a distinction between pixels that are black due to no actual information being
+        available at this position, and pixels that are black due to black pixel values having been warped to that
+        location by the flow.
+
+        :return: Boolean tensor of the valid area in the target image
+        """
+
+        if self._ref == 's':
+            # Flow mask in 's' flow refers to valid flow vecs in the source image. Warping this mask to the target image
+            # gives a boolean mask of which positions in the target image are valid, i.e. have been filled by values
+            # warped there from the source by flow vectors that were themselves valid:
+            # area = F{source & mask}, where: source & mask = mask, because: source = True everywhere
+            area = apply_flow(self._vecs, self._mask.to(torch.float), self._ref)
+            area = torch.round(area).to(torch.bool)
+        else:  # ref is 't'
+            # Flow mask in 't' flow refers to valid flow vecs in the target image. Therefore, warping a test array that
+            # is true everywhere, ANDed with the flow mask, will yield a boolean mask of valid positions in the target
+            # image, i.e. positions that have been filled by values warped there from the source by flow vectors that
+            # were themselves valid:
+            # area = F{source} & mask, where: source = True everywhere
+            area = apply_flow(self._vecs, torch.ones(self.shape), self._ref)
+            area = torch.round(area).to(torch.bool)
+            area = area & self._mask
+        return area
+
+    def valid_source(self) -> torch.Tensor:
+        """Finds the area in the source image that will end up being valid in the target image after warping
+
+        Given source image, flow, and target image created by warping the source with the flow, the 'source area' is a
+        boolean mask that is True wherever the value in the source will end up somewhere in the valid target area, and
+        False where the value in the source will either be warped outside of the target image, or not be warped at all
+        due to a lack of valid flow vectors connecting to this position.
+
+        :return: Boolean tensor of the area in the source image valid in target image after warping
+        """
+
+        if self._ref == 's':
+            # Flow mask in 's' flow refers to valid flow vecs in the source image. Therefore, to find the area in the
+            # source image that will end up being valid in the target image after warping, equal to self.valid_target(),
+            # warping a test array that is True everywhere from target to source with the inverse of the flow, ANDed
+            # with the flow mask, will yield a boolean mask of valid positions in the source image:
+            # area = F.inv{target} & mask, where target = True everywhere
+            area = apply_flow(-self._vecs, torch.ones(self.shape), 't')
+            # Note: this is equal to: area = self.invert('t').apply(np.ones(self.shape)), but more efficient as there
+            # is no unnecessary warping of the mask
+            area = torch.round(area).to(torch.bool)
+            area = area & self._mask
+        else:  # ref is 't'
+            # Flow mask in 't' flow refers to valid flow vecs in the target image. Therefore, to find the area in the
+            # source image that will end up being valid in the target image after warping, equal to self.valid_target(),
+            # warping the flow mask from target to source with the inverse of the flow will yield a boolean mask of
+            # valid positions in the source image:
+            # area = F.inv{target & mask}, where target & mask = mask, because target = True everywhere
+            area = apply_flow(-self._vecs, self._mask.to(torch.float), 's')
+            # Note: this is equal to: area = self.invert('s').apply(self.mask.astype('f')), but more efficient as there
+            # is no unnecessary warping of the mask
+            area = torch.round(area).to(torch.bool)
+        # Note: alternative way of seeing this: self.valid_source() = self.invert(<other ref>).valid_target()
+        return area
+
     def is_zero(self, thresholded: bool = None) -> bool:
         """Checks whether all flow vectors (where mask is True) are zero, thresholding if necessary.
 
