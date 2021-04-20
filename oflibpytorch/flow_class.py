@@ -1210,3 +1210,35 @@ class Flow(object):
         img = self.visualise('bgr', show_mask, show_mask_borders, return_tensor=False)
         cv2.imshow('Visualise and show flow', img)
         cv2.waitKey(wait)
+
+    def show_arrows(
+        self,
+        wait: int = None,
+        grid_dist: int = None,
+        img: np.ndarray = None,
+        scaling: Union[float, int] = None,
+        show_mask: bool = None,
+        show_mask_borders: bool = None,
+        colour: tuple = None
+    ):
+        """Shows the flow in a cv2 window, visualised with arrows
+
+        :param wait: Integer determining how long to show the flow for, in ms. Defaults to 0, which means show until
+            window closed or process terminated
+        :param grid_dist: Integer of the distance of the flow points to be used for the visualisation, defaults to 20
+        :param img: Numpy array with the background image to use (in BGR mode), defaults to black
+        :param scaling: Float or int of the flow line scaling, defaults to scaling the 99th percentile of arrowed line
+            lengths to be equal to twice the grid distance (empirical value)
+        :param show_mask: Boolean determining whether the flow mask is visualised, defaults to False
+        :param show_mask_borders: Boolean determining whether the flow mask border is visualised, defaults to False
+        :param colour: Tuple of the flow arrow colour, defaults to hue based on flow direction as in visualise()
+        """
+
+        wait = 0 if wait is None else wait
+        if not isinstance(wait, int):
+            raise TypeError("Error showing flow: Wait needs to be an integer")
+        if wait < 0:
+            raise ValueError("Error showing flow: Wait needs to be an integer larger than zero")
+        img = self.visualise_arrows(grid_dist, img, scaling, show_mask, show_mask_borders, colour, return_tensor=False)
+        cv2.imshow('Visualise and show flow', img)
+        cv2.waitKey(wait)
