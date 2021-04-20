@@ -1192,3 +1192,21 @@ class Flow(object):
             return torch.tensor(img, device=self._device)
         else:
             return img
+
+    def show(self, wait: int = None, show_mask: bool = None, show_mask_borders: bool = None):
+        """Shows the flow in a cv2 window
+
+        :param wait: Integer determining how long to show the flow for, in ms. Defaults to 0, which means show until
+            window closed or process terminated
+        :param show_mask: Boolean determining whether the flow mask is visualised, defaults to False
+        :param show_mask_borders: Boolean determining whether flow mask border is visualised, defaults to False
+        """
+
+        wait = 0 if wait is None else wait
+        if not isinstance(wait, int):
+            raise TypeError("Error showing flow: Wait needs to be an integer")
+        if wait < 0:
+            raise ValueError("Error showing flow: Wait needs to be an integer larger than zero")
+        img = self.visualise('bgr', show_mask, show_mask_borders, return_tensor=False)
+        cv2.imshow('Visualise and show flow', img)
+        cv2.waitKey(wait)
