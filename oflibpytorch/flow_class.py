@@ -15,6 +15,7 @@ import torch
 import torch.nn.functional as f
 from scipy.interpolate import griddata
 import numpy as np
+import cv2
 from typing import Union
 from .utils import get_valid_vecs, get_valid_ref, get_valid_device, get_valid_padding, validate_shape, to_numpy, \
     move_axis, flow_from_matrix, matrix_from_transforms, reverse_transform_values, apply_flow, threshold_vectors, \
@@ -1000,3 +1001,97 @@ class Flow(object):
         else:
             vecs = self._vecs
         return torch.all(vecs == 0)
+
+    def visualise(
+        self,
+        mode: str,
+        show_mask: bool = None,
+        show_mask_borders: bool = None,
+        range_max: float = None,
+        return_tensor: bool = None
+    ) -> torch.Tensor:
+        """Returns a flow visualisation as a tensor containing an rgb/bgr/hsv img of the same shape as the flow
+
+        NOTE: this currently runs internally based on NumPy & OpenCV, due to a lack of easily accessible function
+
+        :param mode: Output mode, options: 'rgb', 'bgr', 'hsv'
+        :param show_mask: Boolean determining whether the flow mask is visualised, defaults to False
+        :param show_mask_borders: Boolean determining whether the flow mask border is visualised, defaults to False
+        :param range_max: Maximum vector magnitude expected, corresponding to the HSV maximum Value of 255 when scaling
+            the flow magnitudes. Defaults to the 99th percentile of the current flow field
+        :param return_tensor: Boolean determining whether the result is returned as a tensor. Note that the result is
+            originally a numpy array. Defaults to True
+        :return: Tensor or array containing the flow visualisation as an rgb / bgr / hsv image of the same shape as the
+            flow
+        """
+
+        show_mask = False if show_mask is None else show_mask
+        show_mask_borders = False if show_mask_borders is None else show_mask_borders
+        return_tensor = True if return_tensor is None else return_tensor
+        if not isinstance(show_mask, bool):
+            raise TypeError("Error visualising flow: Show_mask needs to be boolean")
+        if not isinstance(show_mask_borders, bool):
+            raise TypeError("Error visualising flow: Show_mask_borders needs to be boolean")
+        if not isinstance(return_tensor, bool):
+            raise TypeError("Error visualising flow: Return_tensor needs to be boolean")
+
+        f = np.moveaxis(to_numpy(threshold_vectors(self._vecs)), 0, -1)
+        # Threshold the flow: very small numbers can otherwise lead to issues when calculating mag / angle
+
+        # Colourise the flow
+        hsv = np.zeros((f.shape[0], f.shape[1], 3), 'f')
+        mag, ang = cv2.cartToPolar(f[..., 0], f[..., 1], angleInDegrees=True)
+        hsv[..., 0] = np.mod(ang, 360) / 2
+        hsv[..., 2] = 255
+
+        # Add mask if required
+        if show_mask:
+            hsv[np.invert(self.mask_numpy), 2] = 180
+
+        # Scale flow
+        if range_max is None:
+            if np.percentile(mag, 99) > 0:  # Use 99th percentile to avoid extreme outliers skewing the scaling
+                range_max = np.percentile(mag, 99)
+            elif np.max(mag):  # If the 99th percentile is 0, use the actual maximum instead
+                range_max = np.max(mag)
+            else:  # If the maximum is 0 too (i.e. the flow field is entirely 0)
+                range_max = 1
+        if not isinstance(range_max, (float, int)):
+            raise TypeError("Error visualising flow: Range_max needs to be an integer or a float")
+        if range_max <= 0:
+            raise ValueError("Error visualising flow: Range_max needs to be larger than zero")
+        hsv[..., 1] = np.clip(mag * 255 / range_max, 0, 255)
+
+        # Add mask borders if required
+        if show_mask_borders:
+            contours, hierarchy = cv2.findContours((255 * self.mask_numpy).astype('uint8'),
+                                                   cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(hsv, contours, -1, (0, 0, 0), 1)
+
+        # Process and return the flow visualisation
+        if mode == 'hsv':
+            return np.round(hsv).astype('uint8')
+        elif mode == 'rgb' or mode == 'bgr':
+            h = hsv[..., 0] / 180
+            s = hsv[..., 1] / 255
+            v = hsv[..., 2] / 255
+            # Credit to stackoverflow.com/questions/24852345/hsv-to-rgb-color-conversion
+            i = np.int_(h * 6.)
+            f = h * 6. - i
+            i = np.ravel(i)
+            t = np.ravel(1. - f)
+            f = np.ravel(f)
+            i %= 6
+            c_list = (1 - np.ravel(s) * np.vstack([np.zeros_like(f), np.ones_like(f), f, t])) * np.ravel(v)
+            # 0:v 1:p 2:q 3:t
+            order = np.array([[0, 3, 1], [2, 0, 1], [1, 0, 3], [1, 2, 0], [3, 1, 0], [0, 1, 2]])
+            rgb = c_list[order[i], np.arange(np.prod(h.shape))[:, None]].reshape(*h.shape, 3)
+            return_arr = np.round(rgb * 255).astype('uint8')
+            if mode == 'bgr':
+                return_arr = return_arr[..., ::-1]
+            if return_tensor:
+                return torch.tensor(return_arr.copy(), device=self._device)
+            else:
+                return return_arr
+        else:
+            raise ValueError("Error visualising flow: Mode needs to be either 'bgr', 'rgb', or 'hsv'")
