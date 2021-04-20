@@ -935,6 +935,53 @@ class Flow(object):
         # Note: alternative way of seeing this: self.valid_source() = self.invert(<other ref>).valid_target()
         return area
 
+    def get_padding(self) -> list:
+        """Determine necessary padding from the flow field.
+
+        When the flow reference is 't', this corresponds to the padding needed for an input image, so that the output
+        when warped with the flow field contains no undefined areas inside defined flow areas.
+
+        When the flow reference is 's', this corresponds to the padding needed for the flow so that applying it to an
+        input image will result in no input image information being lost in the warped output, i.e each input image
+        pixel will come to lie inside the padded area.
+
+        :return: Padding as a list [top, bottom, left, right]
+        """
+
+        # Threshold to avoid very small flow values (possible artefacts) triggering a need for padding
+        v = threshold_vectors(self._vecs)
+        if self._ref == 's':
+            v *= -1
+
+        # Prepare grid
+        grid_x, grid_y = torch.meshgrid(torch.arange(0, self.shape[0]), torch.arange(0, self.shape[1]))
+        v[0] -= grid_y.to(self._device)
+        v[1] -= grid_x.to(self._device)
+        v *= -1
+
+        # Calculate padding
+        padding = [
+            max(-torch.min(v[1, self._mask]), 0),
+            max(torch.max(v[1, self._mask]) - (self.shape[0] - 1), 0),
+            max(-torch.min(v[0, self._mask]), 0),
+            max(torch.max(v[0, self._mask]) - (self.shape[1] - 1), 0)
+        ]
+        padding = [int(np.ceil(p)) for p in padding]
+        return padding
+
+        # x, y = np.mgrid[:self.shape[0], :self.shape[1]]
+        # v[..., 0] -= y
+        # v[..., 1] -= x
+        # v *= -1
+        # padding = [
+        #     np.maximum(-np.min(v[self._mask, 1]), 0),
+        #     np.maximum(np.max(v[self._mask, 1]) - (self.shape[0] - 1), 0),
+        #     np.maximum(-np.min(v[self._mask, 0]), 0),
+        #     np.maximum(np.max(v[self._mask, 0]) - (self.shape[1] - 1), 0)
+        # ]
+        # padding = [int(np.ceil(p)) for p in padding]
+        # return padding
+
     def is_zero(self, thresholded: bool = None) -> bool:
         """Checks whether all flow vectors (where mask is True) are zero, thresholding if necessary.
 
