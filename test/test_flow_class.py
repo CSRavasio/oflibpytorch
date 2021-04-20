@@ -1145,6 +1145,53 @@ class FlowTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             flow.visualise('rgb', range_max=-1)
 
+    def test_visualise_arrows(self):
+        img = cv2.imread('lena.png')
+        mask = np.zeros(img.shape[:2])
+        mask[50:-50, 20:-20] = 1
+        flow = Flow.from_transforms([['rotation', 256, 256, 30]], img.shape[:2], 's', mask)
+        for scaling in [0.1, 1, 2]:
+            for show_mask in [True, False]:
+                for show_mask_border in [True, False]:
+                    for return_tensor in [True, False]:
+                        img = flow.visualise_arrows(
+                            grid_dist=10,
+                            scaling=scaling,
+                            show_mask=show_mask,
+                            show_mask_borders=show_mask_border,
+                            return_tensor=return_tensor
+                        )
+                        if return_tensor:
+                            self.assertIsInstance(img, torch.Tensor)
+                        else:
+                            self.assertIsInstance(img, np.ndarray)
+        with self.assertRaises(TypeError):
+            flow.visualise_arrows(grid_dist='test')
+        with self.assertRaises(ValueError):
+            flow.visualise_arrows(grid_dist=-1)
+        with self.assertRaises(TypeError):
+            flow.visualise_arrows(10, img='test')
+        with self.assertRaises(ValueError):
+            flow.visualise_arrows(10, img=mask)
+        with self.assertRaises(ValueError):
+            flow.visualise_arrows(10, img=mask[10:])
+        with self.assertRaises(ValueError):
+            flow.visualise_arrows(10, img=img[..., :2])
+        with self.assertRaises(TypeError):
+            flow.visualise_arrows(10, img, scaling='test')
+        with self.assertRaises(ValueError):
+            flow.visualise_arrows(10, img, scaling=-1)
+        with self.assertRaises(TypeError):
+            flow.visualise_arrows(10, img, None, show_mask='test')
+        with self.assertRaises(TypeError):
+            flow.visualise_arrows(10, img, None, True, show_mask_borders='test')
+        with self.assertRaises(TypeError):
+            flow.visualise_arrows(10, img, None, True, True, colour='test')
+        with self.assertRaises(ValueError):
+            flow.visualise_arrows(10, img, None, True, True, colour=(0, 0))
+        with self.assertRaises(TypeError):
+            flow.visualise_arrows(10, img, None, True, True, colour=(0, 0, 0), return_tensor='test')
+
 
 if __name__ == '__main__':
     unittest.main()
