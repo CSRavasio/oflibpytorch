@@ -712,7 +712,7 @@ class Flow(object):
 
         # Extract and finalise mask if required
         if return_flow or return_valid_area:
-            mask = torch.round(warped_t[-1]).to(torch.bool)
+            mask = warped_t[-1] == 1
             # if self.ref == 's': Valid self.vecs already taken into account by ANDing with self.mask before warping
             if self._ref == 't':
                 # Still need to take into account which self.vecs are actually valid by ANDing with self.mask
@@ -888,7 +888,7 @@ class Flow(object):
             # warped there from the source by flow vectors that were themselves valid:
             # area = F{source & mask}, where: source & mask = mask, because: source = True everywhere
             area = apply_flow(self._vecs, self._mask.to(torch.float), self._ref)
-            area = torch.round(area).to(torch.bool)
+            area = area == 1
         else:  # ref is 't'
             # Flow mask in 't' flow refers to valid flow vecs in the target image. Therefore, warping a test array that
             # is true everywhere, ANDed with the flow mask, will yield a boolean mask of valid positions in the target
@@ -896,7 +896,7 @@ class Flow(object):
             # were themselves valid:
             # area = F{source} & mask, where: source = True everywhere
             area = apply_flow(self._vecs, torch.ones(self.shape), self._ref)
-            area = torch.round(area).to(torch.bool)
+            area = area == 1
             area = area & self._mask
         return area
 
@@ -920,7 +920,7 @@ class Flow(object):
             area = apply_flow(-self._vecs, torch.ones(self.shape), 't')
             # Note: this is equal to: area = self.invert('t').apply(np.ones(self.shape)), but more efficient as there
             # is no unnecessary warping of the mask
-            area = torch.round(area).to(torch.bool)
+            area = area == 1
             area = area & self._mask
         else:  # ref is 't'
             # Flow mask in 't' flow refers to valid flow vecs in the target image. Therefore, to find the area in the
@@ -931,7 +931,7 @@ class Flow(object):
             area = apply_flow(-self._vecs, self._mask.to(torch.float), 's')
             # Note: this is equal to: area = self.invert('s').apply(self.mask.astype('f')), but more efficient as there
             # is no unnecessary warping of the mask
-            area = torch.round(area).to(torch.bool)
+            area = area == 1
         # Note: alternative way of seeing this: self.valid_source() = self.invert(<other ref>).valid_target()
         return area
 
