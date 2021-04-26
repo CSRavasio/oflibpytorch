@@ -23,6 +23,11 @@ from .utils import get_valid_vecs, get_valid_ref, get_valid_device, get_valid_pa
 
 
 class Flow(object):
+    _vecs: torch.Tensor
+    _mask: torch.Tensor
+    _ref: str
+    _device: str
+
     def __init__(
             self,
             flow_vectors: Union[np.ndarray, torch.Tensor],
@@ -41,12 +46,6 @@ class Flow(object):
         :param device: Tensor device, 'cpu' or 'cuda' (if available). Defaults to the device of the given flow_vectors
             if that is a tensor, otherwise to 'cpu'
         """
-
-        # Prepare attributes and type hinting
-        self._vecs: torch.Tensor = None
-        self._mask: torch.Tensor = None
-        self._ref: str = None
-        self._device: str = None
 
         # Fill attributes
         self.vecs = flow_vectors
