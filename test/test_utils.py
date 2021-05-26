@@ -345,7 +345,7 @@ class TestNormaliseCoords(unittest.TestCase):
 
 class TestApplyFlow(unittest.TestCase):
     def test_rotation(self):
-        img = cv2.imread('lena.png')
+        img = cv2.imread('smudge.png')
         img = torch.tensor(np.moveaxis(img, -1, 0))
         for dev in ['cpu', 'cuda']:
             for ref in ['t', 's']:
@@ -355,7 +355,7 @@ class TestApplyFlow(unittest.TestCase):
                 self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img), to_numpy(desired_img)))
 
     def test_translation(self):
-        img = cv2.imread('lena.png')
+        img = cv2.imread('smudge.png')
         img = cv2.resize(img, None, fx=1, fy=.5)
         img = torch.tensor(np.moveaxis(img, -1, 0))
         for dev in ['cpu', 'cuda']:
@@ -366,7 +366,7 @@ class TestApplyFlow(unittest.TestCase):
                                                           to_numpy(img[:, 20:, :-10])))
 
     def test_2d_target(self):
-        img = cv2.imread('lena.png', 0)
+        img = cv2.imread('smudge.png', 0)
         img = cv2.resize(img, None, fx=1, fy=.5)
         img = torch.tensor(img)
         for dev in ['cpu', 'cuda']:
@@ -377,7 +377,7 @@ class TestApplyFlow(unittest.TestCase):
                                                           to_numpy(img[20:, :-10])))
 
     def test_4d_target(self):
-        img = cv2.imread('lena.png')
+        img = cv2.imread('smudge.png')
         img = cv2.resize(img, None, fx=1, fy=.5)
         img = np.moveaxis(img, -1, 0)
         imgs = torch.tensor(np.repeat(img, 4, axis=0))

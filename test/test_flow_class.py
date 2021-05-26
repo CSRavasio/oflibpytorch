@@ -678,7 +678,7 @@ class FlowTest(unittest.TestCase):
             flow.pad([10, 10, 20, 20], mode='test')
 
     def test_apply(self):
-        img_np = np.moveaxis(cv2.imread('lena.png'), -1, 0)
+        img_np = np.moveaxis(cv2.imread('smudge.png'), -1, 0)
         img_pt = torch.tensor(img_np)
         # Check flow.apply results in the same as using apply_flow directly
         for ref in ['t', 's']:
@@ -1147,7 +1147,7 @@ class FlowTest(unittest.TestCase):
             flow.visualise('rgb', range_max=-1)
 
     def test_visualise_arrows(self):
-        img = cv2.imread('lena.png')
+        img = cv2.imread('smudge.png')
         mask = np.zeros(img.shape[:2])
         mask[50:-50, 20:-20] = 1
         flow = Flow.from_transforms([['rotation', 256, 256, 30]], img.shape[:2], 's', mask)
