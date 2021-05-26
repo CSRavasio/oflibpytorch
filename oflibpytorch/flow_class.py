@@ -377,7 +377,17 @@ class Flow(object):
 
         return Flow(self._vecs, self._ref, self._mask, self._device)
 
-    def __str__(self):
+    def to_device(self, device) -> Flow:
+        """Returns a new flow object on the desired torch device
+
+        :param device: Device the flow object is to be moved to, options: 'cpu' or 'cuda'
+        :return: New flow object on the desired torch device
+        """
+
+        device = get_valid_device(device)
+        return Flow(self._vecs.to(device), self._ref, self._mask.to(device), device)
+
+    def __str__(self) -> str:
         """Enhanced string representation of the flow object"""
         info_string = "Flow object, reference {}, shape {}*{}, device {}; ".format(self._ref, *self.shape, self._device)
         info_string += self.__repr__()
