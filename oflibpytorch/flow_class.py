@@ -369,6 +369,14 @@ class Flow(object):
             matrix = matrix_from_transforms(list(reversed(transform_list)))
             return cls.from_matrix(matrix, shape, ref, mask, device, matrix_is_inverse=True)
 
+    def copy(self) -> Flow:
+        """Returns a copy of the flow object
+
+        :return: Copy of the flow object
+        """
+
+        return Flow(self._vecs, self._ref, self._mask, self._device)
+
     def __str__(self):
         """Enhanced string representation of the flow object"""
         info_string = "Flow object, reference {}, shape {}*{}, device {}; ".format(self._ref, *self.shape, self._device)
@@ -388,14 +396,6 @@ class Flow(object):
         vecs = move_axis(move_axis(self._vecs, 0, -1).__getitem__(item), -1, 0)
         # Above line is to avoid having to parse item properly to deal with first dim of 2: move this dim to the back
         return Flow(vecs, self._ref, self._mask.__getitem__(item), self._device)
-
-    def __copy__(self) -> Flow:
-        """Returns a copy of the flow object
-
-        :return: Copy of the flow object
-        """
-
-        return Flow(self._vecs, self._ref, self._mask, self._device)
 
     def __add__(self, other: Union[np.ndarray, torch.Tensor, Flow]) -> Flow:
         """Adds a flow object, a numpy array or a torch tensor to a flow object
