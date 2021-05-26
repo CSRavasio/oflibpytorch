@@ -440,7 +440,7 @@ class FlowTest(unittest.TestCase):
         vecs2 = -np.random.rand(100, 200, 2) - .5
         flow1 = Flow(vecs1)
 
-        # Divison
+        # Division
         ints = np.random.randint(-10, 10, 100)
         floats = (np.random.rand(100) - .5) * 20
         # ... using ints and floats
@@ -1093,7 +1093,7 @@ class FlowTest(unittest.TestCase):
         self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[..., 1], 255))
         self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[..., 2], 255))
 
-        # Flow outwards at the andle of 240 degrees (counter-clockwise) is green
+        # Flow outwards at the angle of 240 degrees (counter-clockwise) is green
         flow = Flow.from_transforms([['translation', -1, math.sqrt(3)]], [200, 300])
         desired_img = np.tile(np.array([0, 255, 0]).reshape((1, 1, 3)), (200, 300, 1))
         self.assertIsNone(np.testing.assert_equal(flow.visualise('bgr', return_tensor=False), desired_img))
@@ -1102,7 +1102,7 @@ class FlowTest(unittest.TestCase):
         self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[..., 1], 255))
         self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[..., 2], 255))
 
-        # Flow outwards at the andle of 240 degrees (counter-clockwise) is blue
+        # Flow outwards at the angle of 240 degrees (counter-clockwise) is blue
         flow = Flow.from_transforms([['translation', -1, -math.sqrt(3)]], [200, 300])
         desired_img = np.tile(np.array([255, 0, 0]).reshape((1, 1, 3)), (200, 300, 1))
         self.assertIsNone(np.testing.assert_equal(flow.visualise('bgr', return_tensor=False), desired_img))

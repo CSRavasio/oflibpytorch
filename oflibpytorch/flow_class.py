@@ -200,7 +200,7 @@ class Flow(object):
         """Flow object constructor, zero everywhere
 
         :param shape: List or tuple [H, W] of flow field shape
-        :param ref: Flow referencce, 't'arget or 's'ource. Defaults to 't'
+        :param ref: Flow reference, 't'arget or 's'ource. Defaults to 't'
         :param mask: Numpy array or torch tensor H-W containing a boolean mask indicating where the flow vectors are
             valid. Defaults to True everywhere
         :param device: Tensor device, 'cpu' or 'cuda' (if available). Defaults to 'cpu'
@@ -225,7 +225,7 @@ class Flow(object):
 
         :param matrix: Transformation matrix to be turned into a flow field, as numpy array or torch tensor of shape 3-3
         :param shape: List or tuple [H, W] of flow field shape
-        :param ref: Flow referencce, 't'arget or 's'ource. Defaults to 't'
+        :param ref: Flow reference, 't'arget or 's'ource. Defaults to 't'
         :param mask: Numpy array or torch tensor H-W containing a boolean mask indicating where the flow vectors are
             valid. Defaults to True everywhere
         :param device: Tensor device, 'cpu' or 'cuda' (if available). Defaults to 'cpu'
@@ -288,7 +288,7 @@ class Flow(object):
                 ['rotation', horizontal centre in px, vertical centre in px, angle in degrees, counter-clockwise]
                 ['scaling', horizontal centre in px, vertical centre in px, scaling fraction]
         :param shape: List or tuple [H, W] of flow field shape
-        :param ref: Flow referencce, 't'arget or 's'ource. Defaults to 't'
+        :param ref: Flow reference, 't'arget or 's'ource. Defaults to 't'
         :param mask: Numpy array or torch tensor H-W containing a boolean mask indicating where the flow vectors are
             valid. Defaults to True everywhere
         :param device: Tensor device, 'cpu' or 'cuda' (if available). Defaults to 'cpu'

@@ -138,7 +138,7 @@ def move_axis(input_tensor: torch.Tensor, source: int, destination: int) -> torc
     if source < destination:
         destination += 1  # Otherwise e.g. source = 0, destination = 1 won't give correct result
     elif source > destination:
-        source += 1  # Otherwise e.g. source = 1, destionation = 0 won't give correct result
+        source += 1  # Otherwise e.g. source = 1, destination = 0 won't give correct result
     return input_tensor.unsqueeze(destination).transpose(source, destination).squeeze(source)
 
 
