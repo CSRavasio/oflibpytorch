@@ -240,6 +240,19 @@ class FlowTest(unittest.TestCase):
         self.assertIsNone(np.testing.assert_equal(flow.shape, shape))
         self.assertEqual(flow.ref, 't')
 
+    def test_copy(self):
+        vectors = np.random.rand(200, 200, 2)
+        mask = np.random.rand(200, 200) > 0.5
+        for ref in ['t', 's']:
+            for device in ['cpu', 'cuda']:
+                flow = Flow(vectors, ref, mask, device)
+                flow_copy = flow.copy()
+                self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, flow_copy.vecs_numpy))
+                self.assertIsNone(np.testing.assert_equal(flow.mask_numpy, flow_copy.mask_numpy))
+                self.assertEqual(flow.ref, flow_copy.ref)
+                self.assertEqual(flow.device, flow_copy.device)
+                self.assertNotEqual(id(flow), id(flow_copy))
+
     def test_str(self):
         flow = Flow.zero(shape=(100, 200), ref='s', device='cuda')
         self.assertEqual(str(flow)[:54],
