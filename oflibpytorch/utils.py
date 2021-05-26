@@ -268,12 +268,13 @@ def normalise_coords(coords: torch.Tensor, shape: Union[tuple, list]) -> torch.T
     return normalised_coords
 
 
-def apply_flow(flow: torch.Tensor, target: torch.Tensor, ref: str = None) -> torch.Tensor:
+def apply_flow(flow: torch.Tensor, target: torch.Tensor, ref: str = None, mask: torch.Tensor = None) -> torch.Tensor:
     """Warps target according to flow of given reference
 
     :param flow: Torch tensor 2-H-W containing the flow vectors in cv2 convention (1st channel hor, 2nd channel ver)
     :param target: Torch tensor H-W, C-H-W, or N-C-H-W containing the content to be warped
     :param ref: Reference of the flow, 't' or 's'. Defaults to 't'
+    :param mask: Torch tensor H-W containing the flow mask, only relevant for 's' flows. Defaults to True everywhere
     :return: Torch tensor of the same shape as the target, with the content warped by the flow
     """
 
@@ -326,15 +327,22 @@ def apply_flow(flow: torch.Tensor, target: torch.Tensor, ref: str = None) -> tor
         #        v
         #        y
     else:  # ref == 's'
+        # Get the positions of the unstructured points with known values
         field = np.moveaxis(to_numpy(flow), 0, -1).astype('float32')
         x, y = np.mgrid[:field.shape[0], :field.shape[1]]
         positions = np.swapaxes(np.vstack([x.ravel(), y.ravel()]), 0, 1)
-        flow_flat = np.reshape(field[..., ::-1], (-1, 2))
-        target_np = np.moveaxis(to_numpy(target), 1, -1)
-        target_flat = np.reshape(target_np, (target.shape[0], -1, target.shape[1]))
+        flow_flat = np.reshape(field[..., ::-1], (-1, 2))  # Shape H*W-2
+        pos = positions + flow_flat
+        # Get the known values themselves
+        target_np = np.moveaxis(to_numpy(target), 1, -1)                                # from N-C-H-W to N-H-W-C
+        target_flat = np.reshape(target_np, (target.shape[0], -1, target.shape[1]))     # from N-H-W-C to N-H*W-C
+        # Mask points, if required
+        if mask is not None:
+            pos = pos[mask.flatten()]
+            target_flat = target_flat[:, mask.flatten()]
+        # Perform interpolation of regular grid from unstructured data
         results = np.copy(target_np)
-        for i in range(target_flat.shape[0]):
-            pos = positions + flow_flat
+        for i in range(target_flat.shape[0]):  # Perform griddata for each "batch" member
             result = griddata(pos, target_flat[i], (x, y), method='linear')
             results[i] = np.nan_to_num(result)
         # Make sure the output is returned with the same dtype as the input, if necessary rounded
