@@ -708,19 +708,27 @@ class FlowTest(unittest.TestCase):
         img_pt = torch.tensor(img_np)
         # Check flow.apply results in the same as using apply_flow directly
         for ref in ['t', 's']:
-            for img in [img_np, img_pt]:
-                flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref)
-                # Target is a numpy array
-                warped_img_desired = apply_flow(flow.vecs, img_pt, ref)
-                warped_img_actual = flow.apply(img)
-                if isinstance(warped_img_actual, torch.Tensor):
-                    warped_img_actual = to_numpy(warped_img_actual)
-                self.assertIsNone(np.testing.assert_equal(warped_img_actual, to_numpy(warped_img_desired)))
-                # Target is a flow object
-                warped_flow_desired = apply_flow(flow.vecs, flow.vecs, ref)
-                warped_flow_actual = flow.apply(flow)
-                self.assertIsNone(np.testing.assert_equal(to_numpy(warped_flow_actual.vecs),
-                                                          to_numpy(warped_flow_desired)))
+            for consider_mask in [True, False]:
+                for device in ['cpu', 'cuda']:
+                    for img in [img_pt.to('cpu'), img_pt.to('cuda')]:
+                        mask = torch.ones(img_pt.shape[1:], dtype=torch.bool)
+                        mask[400:] = False
+                        flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref, mask, device)
+                        # Target is a torch tensor
+                        warped_img_desired = apply_flow(flow.vecs, img, ref, mask if consider_mask else None)
+                        warped_img_actual = flow.apply(img, consider_mask=consider_mask)
+                        self.assertEqual(flow.device, warped_img_actual.device.type)
+                        if isinstance(warped_img_actual, torch.Tensor):
+                            warped_img_actual = to_numpy(warped_img_actual)
+                        self.assertIsNone(np.testing.assert_equal(warped_img_actual, to_numpy(warped_img_desired)))
+                    for f_device in ['cpu', 'cuda']:
+                        f = flow.to_device(f_device)
+                        # Target is a flow object
+                        warped_flow_desired = apply_flow(flow.vecs, f.vecs, ref, mask if consider_mask else None)
+                        warped_flow_actual = flow.apply(f, consider_mask=consider_mask)
+                        self.assertEqual(flow.device, warped_flow_actual.device)
+                        self.assertIsNone(np.testing.assert_equal(to_numpy(warped_flow_actual.vecs),
+                                                                  to_numpy(warped_flow_desired)))
         # Check using a smaller flow field on a larger target works the same as a full flow field on the same target
         img = img_pt
         ref = 't'
@@ -760,6 +768,10 @@ class FlowTest(unittest.TestCase):
         # Non-valid padding values
         for ref in ['t', 's']:
             flow = Flow.from_transforms([['rotation', 0, 0, 30]], shape, ref)
+            with self.assertRaises(TypeError):
+                flow.apply(target_flow, return_valid_area='test')
+            with self.assertRaises(TypeError):
+                flow.apply(target_flow, consider_mask='test')
             with self.assertRaises(TypeError):
                 flow.apply(target_flow, padding=100, cut=True)
             with self.assertRaises(ValueError):
