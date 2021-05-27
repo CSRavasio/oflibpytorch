@@ -338,15 +338,15 @@ def apply_flow(flow: torch.Tensor, target: torch.Tensor, ref: str = None, mask: 
         target_flat = np.reshape(target_np, (target.shape[0], -1, target.shape[1]))     # from N-H-W-C to N-H*W-C
         # Mask points, if required
         if mask is not None:
-            pos = pos[mask.flatten()]
-            target_flat = target_flat[:, mask.flatten()]
+            pos = pos[to_numpy(mask.flatten())]
+            target_flat = target_flat[:, to_numpy(mask.flatten())]
         # Perform interpolation of regular grid from unstructured data
         results = np.copy(target_np)
         for i in range(target_flat.shape[0]):  # Perform griddata for each "batch" member
             result = griddata(pos, target_flat[i], (x, y), method='linear')
             results[i] = np.nan_to_num(result)
         # Make sure the output is returned with the same dtype as the input, if necessary rounded
-        result = torch.tensor(np.moveaxis(results, -1, 1))
+        result = torch.tensor(np.moveaxis(results, -1, 1)).to(flow.device)
 
     # Reduce target to original shape
     if target_dims == 2:  # shape 1-1-H-W to H-W
