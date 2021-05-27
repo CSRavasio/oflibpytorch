@@ -636,14 +636,18 @@ class Flow(object):
 
     def apply(
         self,
-        target: Union[np.ndarray, torch.Tensor, Flow],
+        target: Union[torch.Tensor, Flow],
+        target_mask: torch.Tensor = None,
         return_valid_area: bool = None,
+        consider_mask: bool = None,
         padding: list = None,
         cut: bool = None
     ) -> Union[np.ndarray, torch.Tensor, Flow]:
-        """Applies the flow to the target, which can be a numpy array or a Flow object.
+        """Applies the flow to the target, which can be a torch tensor or a Flow object.
 
-        :param target: Numpy array or torch tensor of shape C-H-W, or flow object the flow should be applied to
+        :param target: Torch tensor of shape C-H-W, or flow object the flow should be applied to
+        :param target_mask: Optional torch tensor of shape :math:`(H, W)` that indicates which part of the target is
+            valid (only relevant if `target` is a torch tensor). Defaults to ``True`` everywhere
         :param return_valid_area: Boolean determining whether a boolean numpy array of shape H-W containing the valid
             image area is returned (only relevant if target is a numpy array). This array is true where the image
             values in the function output:
@@ -652,11 +656,20 @@ class Flow(object):
                     if the flow has reference 's': some target image positions would only be reachable by flow vectors
                     originating outside of the source image area, which is obviously impossible
                 2) have been affected by flow vectors that were themselves valid, as determined by the flow mask
+        :param consider_mask: Boolean determining whether the flow vectors are masked before application (only relevant
+            for flows with reference ``ref = 's'``). Results in smoother outputs, but more artefacts. Defaults to
+            ``True``
         :param padding: If flow applied only covers part of the target; [top, bot, left, right]; default None
         :param cut: If padding is given, whether the input is returned as cut to shape of flow; default True
         :return: An object of the same type as the input (numpy array, torch tensor, or flow)
         """
 
+        return_valid_area = False if return_valid_area is None else return_valid_area
+        if not isinstance(return_valid_area, bool):
+            raise TypeError("Error applying flow: Return_valid_area needs to be a boolean")
+        consider_mask = True if consider_mask is None else consider_mask
+        if not isinstance(consider_mask, bool):
+            raise TypeError("Error applying flow: Consider_mask needs to be a boolean")
         cut = False if cut is None else cut
         if not isinstance(cut, bool):
             raise TypeError("Error applying flow: Cut needs to be a boolean")
@@ -667,24 +680,27 @@ class Flow(object):
                 raise ValueError("Error applying flow: Padding values do not match flow and target shape difference")
 
         # Type check, prepare arrays
-        return_device = 'cpu'
-        return_array = False
+        return_dtype = torch.float
         if isinstance(target, Flow):
             return_flow = True
-            return_device = target._vecs.device.type
             t = target._vecs.to(self._vecs.device)
             mask = target._mask.unsqueeze(0).to(self._vecs.device)
-        else:
+        elif isinstance(target, torch.Tensor):
             return_flow = False
-            if isinstance(target, np.ndarray):
-                return_array = True
-                t = torch.tensor(target).to(self._vecs.device)
-            elif isinstance(target, torch.Tensor):
-                t = target
+            t = target.to(self._vecs.device)
+            if target_mask is None:
+                mask = torch.ones(1, *t.shape[1:]).to(torch.bool).to(self._vecs.device)
             else:
-                raise ValueError("Error applying flow: Target needs to be either a flow object, a numpy ndarray, or a "
-                                 "torch tensor")
-            mask = torch.ones(1, *t.shape[1:]).to(torch.bool).to(self._vecs.device)
+                if not isinstance(target_mask, torch.Tensor):
+                    raise TypeError("Error applying flow: Target_mask needs to be a torch tensor")
+                if target_mask.shape != target.shape[1:]:
+                    raise ValueError("Error applying flow: Target_mask needs to match the target shape")
+                if target_mask.dtype != torch.bool:
+                    raise TypeError("Error applying flow: Target_mask needs to have dtype 'bool'")
+                mask = target_mask
+            return_dtype = target.dtype
+        else:
+            raise ValueError("Error applying flow: Target needs to be either a flow object or a torch tensor")
 
         # Concatenate the flow vectors with the mask if required, so they are warped in one step
         if return_flow or return_valid_area:
@@ -705,7 +721,7 @@ class Flow(object):
         if padding is None:
             if not target.shape[-2:] == self.shape:
                 raise ValueError("Error applying flow: Flow and target have to have the same shape")
-            warped_t = apply_flow(self._vecs, t, self._ref)
+            warped_t = apply_flow(self._vecs, t, self._ref, self._mask if consider_mask else None)
         else:
             mode = 'constant' if self._ref == 't' else 'replicate'
             # Note: this mode is very important: irrelevant for flow with reference 't' as this by definition covers
@@ -715,7 +731,7 @@ class Flow(object):
             # being warped, and the mask being warped. By padding with the 'edge' mode, large gradients in flow vector
             # values at the edge of the original flow area are avoided, as are interpolation artefacts.
             flow = self.pad(padding, mode=mode)
-            warped_t = apply_flow(flow._vecs, t, flow._ref)
+            warped_t = apply_flow(flow._vecs, t, flow._ref, flow._mask if consider_mask else None)
 
         # Cut if necessary
         if padding is not None and cut:
@@ -738,14 +754,17 @@ class Flow(object):
 
         # Return as correct type
         if return_flow:
-            return Flow(warped_t[:2, ...], target._ref, mask, device=return_device)
+            return Flow(warped_t[:2, ...], target._ref, mask)
         else:
-            if return_array:
-                warped_t = to_numpy(warped_t)
             if return_valid_area:
-                return warped_t[:-1, ...], mask
+                warped_t = warped_t[:-1, ...]
+            # noinspection PyUnresolvedReferences
+            if not return_dtype.is_floating_point:
+                warped_t = torch.round(warped_t.float())
+            if return_valid_area:
+                return warped_t.to(return_dtype), mask
             else:
-                return warped_t
+                return warped_t.to(return_dtype)
 
     def track(
         self,
