@@ -23,12 +23,12 @@ DEFAULT_THRESHOLD = 1e-3
 
 
 def get_valid_vecs(vecs: Any, desired_shape: Union[tuple, list] = None, error_string: str = None) -> torch.Tensor:
-    """Checks array or tensor input for validity and returns 2-H-W tensor for use as flow vectors
+    """Checks array or tensor input for validity and returns 2-H-W tensor of dtype float for use as flow vectors
 
     :param vecs: Valid if numpy array or torch tensor, either shape 2-H-W (assumed first) or H-W-2
     :param desired_shape: List or tuple of (H, W) the input vecs should be compared about. Optional
     :param error_string: Optional string to be added before the error message if input is invalid. Optional
-    :return: Tensor valid for flow vectors, shape 2-H-W
+    :return: Tensor valid for flow vectors, shape 2-H-W, dtype float
     """
 
     error_string = '' if error_string is None else error_string
@@ -59,7 +59,7 @@ def get_valid_vecs(vecs: Any, desired_shape: Union[tuple, list] = None, error_st
     if not torch.isfinite(vecs).all():
         raise ValueError(error_string + "Input contains NaN, Inf or -Inf values")
 
-    return vecs
+    return vecs.float()
 
 
 def get_valid_ref(ref: Any) -> str:
