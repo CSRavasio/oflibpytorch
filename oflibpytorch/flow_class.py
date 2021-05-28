@@ -427,8 +427,8 @@ class Flow(object):
             if self.shape != other.shape:
                 raise ValueError("Error adding to flow: Augend and addend flow objects are not the same shape")
             else:
-                vecs = self._vecs + other._vecs
-                mask = self._mask & other._mask
+                vecs = self._vecs + other._vecs.to(self._vecs.device)
+                mask = self._mask & other._mask.to(self._vecs.device)
                 return Flow(vecs, self._ref, mask)
         if isinstance(other, (np.ndarray, torch.Tensor)):
             other = get_valid_vecs(other, desired_shape=self.shape, error_string="Error adding to flow: ")
@@ -458,8 +458,8 @@ class Flow(object):
                 raise ValueError("Error subtracting from flow: "
                                  "Minuend and subtrahend flow objects are not the same shape")
             else:
-                vecs = self._vecs - other._vecs
-                mask = self._mask & other._mask
+                vecs = self._vecs - other._vecs.to(self._vecs.device)
+                mask = self._mask & other._mask.to(self._vecs.device)
                 return Flow(vecs, self._ref, mask, self._device)
         if isinstance(other, (np.ndarray, torch.Tensor)):
             other = get_valid_vecs(other, desired_shape=self.shape, error_string="Error subtracting to flow: ")
