@@ -17,6 +17,7 @@ import torch.nn.functional as f
 from scipy.interpolate import griddata
 import numpy as np
 import cv2
+import math
 from typing import Union, Tuple
 import warnings
 from .utils import get_valid_vecs, get_valid_ref, get_valid_device, get_valid_padding, validate_shape, to_numpy, \
@@ -1146,6 +1147,7 @@ class Flow(object):
         show_mask: bool = None,
         show_mask_borders: bool = None,
         colour: tuple = None,
+        thickness: int = None,
         return_tensor: bool = None
     ) -> Union[np.ndarray, torch.Tensor]:
         """Visualises the flow as arrowed lines, in BGR mode
@@ -1194,6 +1196,11 @@ class Flow(object):
                 raise TypeError("Error visualising flow: Colour needs to be a tuple")
             if len(colour) != 3:
                 raise ValueError("Error visualising flow arrows: Colour list or tuple needs to have length 3")
+        thickness = 1 if thickness is None else thickness
+        if not isinstance(thickness, int):
+            raise TypeError("Error visualising flow: Thickness needs to be an integer")
+        if thickness <= 0:
+            raise ValueError("Error visualising flow: Thickness needs to be a integer larger than zero")
 
         # Thresholding
         f = np.moveaxis(to_numpy(threshold_vectors(self._vecs)), 0, -1)
@@ -1209,18 +1216,23 @@ class Flow(object):
         flow_mags *= scaling
         f *= scaling
         colours = None
-        tip_size = 3.5
+        tip_size = math.sqrt(thickness) * 3.5  # Empirical value
         if colour is None:
             hsv = np.full((1, ang.shape[0], 3), 255, 'uint8')
             hsv[0, :, 0] = np.round(np.mod(ang[:, 0], 360) / 2)
             colours = np.squeeze(cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
         for i_num, i_pt in enumerate(i_pts_flat):
             if flow_mags[i_num] > 0.5:  # Only draw if the flow length rounds to at least one pixel
-                e_pt = np.round(i_pt + f[i_pt[0], i_pt[1]][::-1]).astype('i')
                 c = tuple(int(item) for item in colours[i_num]) if colour is None else colour
-                tip_length = tip_size / flow_mags[i_num]
-                cv2.arrowedLine(img, (i_pt[1], i_pt[0]), (e_pt[1], e_pt[0]), c,
-                                thickness=1, tipLength=tip_length, line_type=cv2.LINE_AA)
+                tip_length = float(tip_size / flow_mags[i_num])
+                if self.ref == 's':
+                    e_pt = np.round(i_pt + f[i_pt[0], i_pt[1]][::-1]).astype('i')
+                    cv2.arrowedLine(img, (i_pt[1], i_pt[0]), (e_pt[1], e_pt[0]), c,
+                                    thickness=1, tipLength=tip_length, line_type=cv2.LINE_AA)
+                else:  # self.ref == 't'
+                    e_pt = np.round(i_pt - f[i_pt[0], i_pt[1]][::-1]).astype('i')
+                    cv2.arrowedLine(img, (e_pt[1], e_pt[0]), (i_pt[1], i_pt[0]), c,
+                                    thickness=thickness, tipLength=tip_length, line_type=cv2.LINE_AA)
             img[i_pt[0], i_pt[1]] = [0, 0, 255]
 
         # Show mask and mask borders if required
@@ -1231,7 +1243,7 @@ class Flow(object):
             contours, hierarchy = cv2.findContours(mask_as_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             cv2.drawContours(img, contours, -1, (0, 0, 0), 1)
         if return_tensor:
-            return torch.tensor(img, device=self._device)
+            return torch.tensor(np.moveaxis(img, -1, 0), device=self._device)
         else:
             return img
 
