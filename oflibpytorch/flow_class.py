@@ -17,7 +17,8 @@ import torch.nn.functional as f
 from scipy.interpolate import griddata
 import numpy as np
 import cv2
-from typing import Union
+from typing import Union, Tuple
+import warnings
 from .utils import get_valid_vecs, get_valid_ref, get_valid_device, get_valid_padding, validate_shape, to_numpy, \
     move_axis, flow_from_matrix, matrix_from_transforms, reverse_transform_values, apply_flow, threshold_vectors, \
     normalise_coords
@@ -636,13 +637,12 @@ class Flow(object):
 
     def apply(
         self,
-        target: Union[torch.Tensor, Flow],
+        target: Union[torch.Tensor, FlowAlias],
         target_mask: torch.Tensor = None,
         return_valid_area: bool = None,
         consider_mask: bool = None,
         padding: list = None,
         cut: bool = None
-    ) -> Union[np.ndarray, torch.Tensor, Flow]:
         """Applies the flow to the target, which can be a torch tensor or a Flow object.
 
         :param target: Torch tensor of shape C-H-W, or flow object the flow should be applied to
@@ -656,6 +656,7 @@ class Flow(object):
                     if the flow has reference 's': some target image positions would only be reachable by flow vectors
                     originating outside of the source image area, which is obviously impossible
                 2) have been affected by flow vectors that were themselves valid, as determined by the flow mask
+    ) -> Union[Union[torch.Tensor, FlowAlias], Tuple[Union[torch.Tensor, FlowAlias], torch.Tensor]]:
         :param consider_mask: Boolean determining whether the flow vectors are masked before application (only relevant
             for flows with reference ``ref = 's'``). Results in smoother outputs, but more artefacts. Defaults to
             ``True``
@@ -681,23 +682,34 @@ class Flow(object):
 
         # Type check, prepare arrays
         return_dtype = torch.float
+        return_2d = False
         if isinstance(target, Flow):
             return_flow = True
             t = target._vecs.to(self._vecs.device)
             mask = target._mask.unsqueeze(0).to(self._vecs.device)
         elif isinstance(target, torch.Tensor):
             return_flow = False
-            t = target.to(self._vecs.device)
+            if target.ndim == 3:
+                t = target.to(self._vecs.device)
+            elif target.ndim == 2:
+                return_2d = True
+                t = target.unsqueeze(0).to(self._vecs.device)
+            else:
+                raise ValueError("Error applying flow: Target needs to have the shape H-W (2 dimensions) "
+                                 "or H-W-C (3 dimensions)")
             if target_mask is None:
                 mask = torch.ones(1, *t.shape[1:]).to(torch.bool).to(self._vecs.device)
             else:
                 if not isinstance(target_mask, torch.Tensor):
                     raise TypeError("Error applying flow: Target_mask needs to be a torch tensor")
-                if target_mask.shape != target.shape[1:]:
+                if target_mask.shape != t.shape[1:]:
                     raise ValueError("Error applying flow: Target_mask needs to match the target shape")
                 if target_mask.dtype != torch.bool:
                     raise TypeError("Error applying flow: Target_mask needs to have dtype 'bool'")
-                mask = target_mask
+                if not return_valid_area:
+                    warnings.warn("Warning applying flow: a mask is passed, but return_valid_area is False - so the "
+                                  "mask passed will not affect the output, but possibly make the function slower.")
+                mask = target_mask.unsqueeze(0).to(self._vecs.device)
             return_dtype = target.dtype
         else:
             raise ValueError("Error applying flow: Target needs to be either a flow object or a torch tensor")
@@ -715,7 +727,7 @@ class Flow(object):
                         tmp & self._mask
                 else:
                     mask = (mask & self._mask)
-            t = torch.cat((t, mask.to(torch.float)), dim=0)
+            t = torch.cat((t.float(), mask.float()), dim=0)
 
         # Determine flow to use for warping, and warp
         if padding is None:
@@ -754,13 +766,15 @@ class Flow(object):
 
         # Return as correct type
         if return_flow:
-            return Flow(warped_t[:2, ...], target._ref, mask)
+            return Flow(warped_t[:2, :, :], target._ref, mask)
         else:
             if return_valid_area:
-                warped_t = warped_t[:-1, ...]
+                warped_t = warped_t[:-1, :, :]
             # noinspection PyUnresolvedReferences
             if not return_dtype.is_floating_point:
                 warped_t = torch.round(warped_t.float())
+            if return_2d:
+                warped_t = warped_t[0, :, :]
             if return_valid_area:
                 return warped_t.to(return_dtype), mask
             else:

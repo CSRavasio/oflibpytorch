@@ -714,13 +714,24 @@ class FlowTest(unittest.TestCase):
                         mask = torch.ones(img_pt.shape[1:], dtype=torch.bool)
                         mask[400:] = False
                         flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref, mask, device)
-                        # Target is a torch tensor
+                        # Target is a 3D torch tensor
                         warped_img_desired = apply_flow(flow.vecs, img, ref, mask if consider_mask else None)
                         warped_img_actual = flow.apply(img, consider_mask=consider_mask)
                         self.assertEqual(flow.device, warped_img_actual.device.type)
-                        if isinstance(warped_img_actual, torch.Tensor):
-                            warped_img_actual = to_numpy(warped_img_actual)
-                        self.assertIsNone(np.testing.assert_equal(warped_img_actual, to_numpy(warped_img_desired)))
+                        self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
+                                                                  to_numpy(warped_img_desired)))
+                        warped_img_actual, _ = flow.apply(img, mask, True, consider_mask=consider_mask)
+                        self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
+                                                                  to_numpy(warped_img_desired)))
+                        # Target is a 2D torch tensor
+                        warped_img_desired = apply_flow(flow.vecs, img[0], ref, mask if consider_mask else None)
+                        warped_img_actual = flow.apply(img[0], consider_mask=consider_mask)
+                        self.assertEqual(flow.device, warped_img_actual.device.type)
+                        self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
+                                                                  to_numpy(warped_img_desired)))
+                        warped_img_actual, _ = flow.apply(img[0], mask, True, consider_mask=consider_mask)
+                        self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
+                                                                  to_numpy(warped_img_desired)))
                     for f_device in ['cpu', 'cuda']:
                         f = flow.to_device(f_device)
                         # Target is a flow object
