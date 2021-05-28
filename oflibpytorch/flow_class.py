@@ -904,8 +904,8 @@ class Flow(object):
             elif ref == 't':
                 return self.invert('s').switch_ref()
 
-    def valid_target(self) -> torch.Tensor:
         """Finds the valid area in the target image
+    def valid_target(self, consider_mask: bool = None) -> torch.Tensor:
 
         Given source image, flow, and target image created by warping the source with the flow, the valid area is a
         boolean mask that is True wherever the value in the target stems from warping a value from the source, and
@@ -918,12 +918,15 @@ class Flow(object):
         :return: Boolean tensor of the valid area in the target image
         """
 
+        consider_mask = True if consider_mask is None else consider_mask
+        if not isinstance(consider_mask, bool):
+            raise TypeError("Error applying flow: Consider_mask needs to be a boolean")
         if self._ref == 's':
             # Flow mask in 's' flow refers to valid flow vecs in the source image. Warping this mask to the target image
             # gives a boolean mask of which positions in the target image are valid, i.e. have been filled by values
             # warped there from the source by flow vectors that were themselves valid:
             # area = F{source & mask}, where: source & mask = mask, because: source = True everywhere
-            area = apply_flow(self._vecs, self._mask.to(torch.float), self._ref)
+            area = apply_flow(self._vecs, self._mask.to(torch.float), 's', self._mask if consider_mask else None)
             area = area == 1
         else:  # ref is 't'
             # Flow mask in 't' flow refers to valid flow vecs in the target image. Therefore, warping a test array that
@@ -931,13 +934,13 @@ class Flow(object):
             # image, i.e. positions that have been filled by values warped there from the source by flow vectors that
             # were themselves valid:
             # area = F{source} & mask, where: source = True everywhere
-            area = apply_flow(self._vecs, torch.ones(self.shape), self._ref)
+            area = apply_flow(self._vecs, torch.ones(self.shape), 't')
             area = area == 1
             area = area & self._mask
         return area
 
-    def valid_source(self) -> torch.Tensor:
         """Finds the area in the source image that will end up being valid in the target image after warping
+    def valid_source(self, consider_mask: bool = None) -> torch.Tensor:
 
         Given source image, flow, and target image created by warping the source with the flow, the 'source area' is a
         boolean mask that is True wherever the value in the source will end up somewhere in the valid target area, and
@@ -947,6 +950,9 @@ class Flow(object):
         :return: Boolean tensor of the area in the source image valid in target image after warping
         """
 
+        consider_mask = True if consider_mask is None else consider_mask
+        if not isinstance(consider_mask, bool):
+            raise TypeError("Error applying flow: Consider_mask needs to be a boolean")
         if self._ref == 's':
             # Flow mask in 's' flow refers to valid flow vecs in the source image. Therefore, to find the area in the
             # source image that will end up being valid in the target image after warping, equal to self.valid_target(),
@@ -964,7 +970,7 @@ class Flow(object):
             # warping the flow mask from target to source with the inverse of the flow will yield a boolean mask of
             # valid positions in the source image:
             # area = F.inv{target & mask}, where target & mask = mask, because target = True everywhere
-            area = apply_flow(-self._vecs, self._mask.to(torch.float), 's')
+            area = apply_flow(-self._vecs, self._mask.to(torch.float), 's', self._mask if consider_mask else None)
             # Note: this is equal to: area = self.invert('s').apply(self.mask.astype('f')), but more efficient as there
             # is no unnecessary warping of the mask
             area = area == 1
