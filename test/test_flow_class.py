@@ -1176,7 +1176,7 @@ class FlowTest(unittest.TestCase):
         mask = np.zeros((200, 300))
         mask[30:-30, 40:-40] = 1
         flow = Flow.from_transforms([['translation', 1, 0]], (200, 300), 't', mask)
-        self.assertIsInstance(flow.visualise('bgr', True, True)[30, 40], torch.Tensor)
+        self.assertIsInstance(flow.visualise('bgr', True, True), torch.Tensor)
 
         # Invalid arguments
         flow = Flow.zero([10, 10])

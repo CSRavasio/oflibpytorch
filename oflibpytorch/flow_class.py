@@ -1131,7 +1131,8 @@ class Flow(object):
             if mode == 'bgr':
                 return_arr = return_arr[..., ::-1]
             if return_tensor:
-                return torch.tensor(return_arr.copy(), device=self._device)
+                return torch.tensor(np.moveaxis(return_arr, -1, 0).copy(), device=self._device)
+                # Note: .copy() necessary to avoid negative strides in numpy array
             else:
                 return return_arr
         else:
