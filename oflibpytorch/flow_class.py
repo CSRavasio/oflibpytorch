@@ -782,10 +782,9 @@ class Flow(object):
 
     def track(
         self,
-        pts: Union[np.ndarray, torch.Tensor],
+        pts: torch.Tensor,
         int_out: bool = None,
         get_valid_status: bool = None
-    ) -> Union[np.ndarray, torch.Tensor]:
         """Warps input points according to the flow field, can be returned as integers if required
 
         :param pts: Numpy array or torch tensor of points shape N-2, 1st coordinate vertical (height), 2nd coordinate
@@ -797,14 +796,11 @@ class Flow(object):
         :return: Numpy array or torch tensor of warped ('tracked') points, and optionally an array or tensor (following
             the warped point type) of the point tracking status. The tensor device (if applicable) will be the same as
             the flow field device.
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
 
         # Validate inputs
-        pts_type = 'tensor'
-        if isinstance(pts, np.ndarray):
-            pts = torch.tensor(pts)
-            pts_type = 'array'
-        elif not isinstance(pts, torch.Tensor):
+        if not isinstance(pts, torch.Tensor):
             raise TypeError("Error tracking points: Pts needs to be a numpy array or a torch tensor")
         if pts.ndim != 2:
             raise ValueError("Error tracking points: Pts needs to have shape N-2")
@@ -847,14 +843,10 @@ class Flow(object):
             warped_pts[nan_vals] = 0
         if int_out:
             warped_pts = torch.round(warped_pts).long()
-        if pts_type == 'array':
-            warped_pts = to_numpy(warped_pts)
 
         if get_valid_status:
             status_array = self.valid_source()[torch.round(pts[..., 0]).long(),
                                                torch.round(pts[..., 1]).long()]
-            if pts_type == 'array':
-                status_array = to_numpy(status_array)
             return warped_pts, status_array
         else:
             return warped_pts

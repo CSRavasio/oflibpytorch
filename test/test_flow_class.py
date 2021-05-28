@@ -880,55 +880,35 @@ class FlowTest(unittest.TestCase):
             [24.1694586156, 198.93726969]
         ]
         pts_pt = torch.tensor(pts_np)
-        for pts in [pts_pt, pts_np]:
-            # Reference 's'
-            pts_tracked_s = f_s.track(pts)
-            if isinstance(pts, np.ndarray):
-                self.assertIsInstance(pts_tracked_s, np.ndarray)
-                self.assertIsNone(np.testing.assert_allclose(pts_tracked_s, desired_pts, rtol=1e-6))
-            else:
-                self.assertIsInstance(pts_tracked_s, torch.Tensor)
-                self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s), desired_pts, rtol=1e-6))
+        # Reference 's'
+        pts_tracked_s = f_s.track(pts_pt)
+        self.assertIsInstance(pts_tracked_s, torch.Tensor)
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s), desired_pts, rtol=1e-6))
 
-            # Reference 't'
-            pts_tracked_t = f_t.track(pts)
-            if isinstance(pts, np.ndarray):
-                self.assertIsInstance(pts_tracked_t, np.ndarray)
-                self.assertIsNone(np.testing.assert_allclose(pts_tracked_t, desired_pts))
-            else:
-                self.assertIsInstance(pts_tracked_t, torch.Tensor)
-                self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_t), desired_pts))
+        # Reference 't'
+        pts_tracked_t = f_t.track(pts_pt)
+        self.assertIsInstance(pts_tracked_t, torch.Tensor)
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_t), desired_pts))
 
-            # Reference 't', integer output
-            pts_tracked_t = f_t.track(pts, int_out=True)
-            if isinstance(pts, np.ndarray):
-                self.assertIsInstance(pts_tracked_t, np.ndarray)
-                self.assertIsNone(np.testing.assert_equal(pts_tracked_t, np.round(desired_pts)))
-                self.assertTrue(np.issubdtype(pts_tracked_t.dtype, int))
-            else:
-                self.assertIsInstance(pts_tracked_t, torch.Tensor)
-                self.assertIsNone(np.testing.assert_equal(to_numpy(pts_tracked_t), np.round(desired_pts)))
-                self.assertEqual(pts_tracked_t.dtype, torch.long)
+        # Reference 't', integer output
+        pts_tracked_t = f_t.track(pts_pt, int_out=True)
+        self.assertIsInstance(pts_tracked_t, torch.Tensor)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(pts_tracked_t), np.round(desired_pts)))
+        self.assertEqual(pts_tracked_t.dtype, torch.long)
 
-            # Reference 't', tracked output
-            pts_tracked_t, tracked = f_t.track(pts, get_valid_status=True)
-            if isinstance(pts, np.ndarray):
-                self.assertIsInstance(pts_tracked_t, np.ndarray)
-                self.assertIsInstance(tracked, np.ndarray)
-                self.assertIsNone(np.testing.assert_equal(tracked, True))
-                self.assertTrue(np.issubdtype(pts_tracked_t.dtype, float))
-            else:
-                self.assertIsInstance(pts_tracked_t, torch.Tensor)
-                self.assertIsInstance(tracked, torch.Tensor)
-                self.assertIsNone(np.testing.assert_equal(to_numpy(tracked), True))
-                self.assertEqual(pts_tracked_t.dtype, torch.float64)
+        # Reference 't', tracked output
+        pts_tracked_t, tracked = f_t.track(pts_pt, get_valid_status=True)
+        self.assertIsInstance(pts_tracked_t, torch.Tensor)
+        self.assertIsInstance(tracked, torch.Tensor)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(tracked), True))
+        self.assertEqual(pts_tracked_t.dtype, torch.float64)
 
         # Test tracking for 's' flow and int pts (checked via debugger)
         f = Flow.from_transforms([['translation', 10, 20]], (512, 512), 's')
         pts = np.array([[20, 10], [8, 7]])
         desired_pts = [[40, 20], [28, 17]]
-        pts_tracked_s = f.track(pts)
-        self.assertIsNone(np.testing.assert_equal(pts_tracked_s, desired_pts))
+        pts_tracked_s = f.track(torch.tensor(pts))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(pts_tracked_s), desired_pts))
 
         # Test valid status for 't' flow
         f_t.mask[:, 200:] = False
@@ -940,8 +920,8 @@ class FlowTest(unittest.TestCase):
             [300, 200]          # Moved normally by invalid flow vector
         ])
         desired_valid_status = [False, False, True, True, False]
-        _, tracked = f_t.track(pts, get_valid_status=True)
-        self.assertIsNone(np.testing.assert_equal(tracked, desired_valid_status))
+        _, tracked = f_t.track(torch.tensor(pts), get_valid_status=True)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(tracked), desired_valid_status))
 
         # Test valid status for 's' flow
         f_s.mask[:, 200:] = False
@@ -953,20 +933,20 @@ class FlowTest(unittest.TestCase):
             [300, 200]          # Moved normally by invalid flow vector
         ])
         desired_valid_status = [False, False, True, True, False]
-        _, tracked = f_s.track(pts, get_valid_status=True)
-        self.assertIsNone(np.testing.assert_equal(tracked, desired_valid_status))
+        _, tracked = f_s.track(torch.tensor(pts), get_valid_status=True)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(tracked), desired_valid_status))
 
         # Invalid inputs
         with self.assertRaises(TypeError):
             f_s.track(pts='test')
         with self.assertRaises(ValueError):
-            f_s.track(pts=np.eye(3))
+            f_s.track(pts=torch.eye(3))
         with self.assertRaises(ValueError):
-            f_s.track(pts=pts.transpose())
+            f_s.track(pts=torch.tensor(pts.transpose()))
         with self.assertRaises(TypeError):
-            f_s.track(pts, int_out='test')
+            f_s.track(pts_pt, int_out='test')
         with self.assertRaises(TypeError):
-            f_s.track(pts, True, get_valid_status='test')
+            f_s.track(pts_pt, True, get_valid_status='test')
 
     def test_valid_target(self):
         transforms = [['rotation', 0, 0, 45]]
