@@ -25,6 +25,9 @@ from .utils import get_valid_vecs, get_valid_ref, get_valid_device, get_valid_pa
     normalise_coords
 
 
+FlowAlias = 'Flow'
+
+
 class Flow(object):
     _vecs: torch.Tensor
     _mask: torch.Tensor
@@ -38,16 +41,20 @@ class Flow(object):
             mask: Union[np.ndarray, torch.Tensor] = None,
             device: str = None
     ):
-        """Flow object constructor
+        """Flow object constructor. For a more detailed explanation of the arguments, see the class attributes
+        :attr:`vecs`, :attr:`ref`, :attr:`mask`, and :attr:`device`.
 
-        :param flow_vectors: Numpy array or pytorch tensor. Shape interpreted as H-W-C with C=2 if the last dimension
-            is 2, otherwise as C-H-W with C=2, with ValueError thrown if neither fits. The channel dimension contains
-            the flow vector in OpenCV convention: C[0] is the horizontal component, C[1] is the vertical component
-        :param ref: Flow reference, 't'arget or 's'ource. Defaults to 't'
-        :param mask: Numpy array or pytorch tensor of shape H-W, containing a boolean mask indicating where the flow
-            vectors are valid. Defaults to True everywhere
-        :param device: Tensor device, 'cpu' or 'cuda' (if available). Defaults to the device of the given flow_vectors
-            if that is a tensor, otherwise to 'cpu'
+        :param flow_vectors: Numpy array or pytorch tensor with 3 dimensions. The shape is interpreted as
+            :math:`(2, H, W)` if the first dimension is 2, otherwise as :math:`(H, W, 2)` if the last dimension is 2.
+            Throws a ``ValueError`` if neither the first nor the last dimensions is 2. The dimension that is 2 (the
+            channel dimension) contains the flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the
+            horizontal, ``flow_vectors[..., 1]`` are the vertical vector components, defined as positive when pointing
+            to the right / down.
+        :param ref: Flow reference, either ``t`` for "target", or ``s`` for "source". Defaults to ``t``
+        :param mask: Numpy array or pytorch tensor of shape :math:`(H, W)` containing a boolean mask indicating where
+            the flow vectors are valid. Defaults to ``True`` everywhere
+        :param device: Tensor device, either ``cpu`` or ``cuda`` (if available). Defaults to the device of the given
+            flow_vectors, or to ``cpu`` if they were given as a numpy array
         """
 
         # Fill attributes
@@ -58,9 +65,12 @@ class Flow(object):
 
     @property
     def vecs(self) -> torch.Tensor:
-        """Gets flow vectors
+        """Flow vectors, a torch tensor of shape :math:`(2, H, W)`. The first dimension contains the flow vectors.
+        These are in the order horizontal component first, vertical component second (OpenCV convention). They
+        are defined as positive towards the right and the bottom, meaning the origin is located in the left upper
+        corner of the :math:`H \\times W` flow field area.
 
-        :return: Flow vectors as torch tensor of shape 2-H-W
+        :return: Flow vectors as torch tensor of shape :math:`(2, H, W)`, dtype ``float``, device ``self.device``
         """
 
         return self._vecs
@@ -69,19 +79,24 @@ class Flow(object):
     def vecs(self, input_vecs: Union[np.ndarray, torch.Tensor]):
         """Sets flow vectors, after checking validity
 
-        :param input_vecs: Numpy array or pytorch tensor. Shape interpreted as H-W-C with C=2 if the last dimension
-            is 2, otherwise as C-H-W with C=2, with ValueError thrown if neither fits. The channel dimension contains
-            the flow vector in OpenCV convention: C[0] is the horizontal component, C[1] is the vertical component
+        :param input_vecs: Numpy array or pytorch tensor with 3 dimensions. The shape is interpreted as
+            :math:`(2, H, W)` if the first dimension is 2, otherwise as :math:`(H, W, 2)` if the last dimension is 2.
+            Throws a ``ValueError`` if neither the first nor the last dimensions is 2. The dimension that is 2 (the
+            channel dimension) contains the flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the
+            horizontal, ``flow_vectors[..., 1]`` are the vertical vector components, defined as positive when pointing
+            to the right / down.
         """
 
         self._vecs = get_valid_vecs(input_vecs, error_string="Error setting flow vectors: ")
 
     @property
     def vecs_numpy(self) -> np.ndarray:
-        """Gets the flow vectors as a numpy array of shape H-W-2, rather than the internal representation of a torch
-        tensor of shape 2-H-W
+        """Convenience function to get the flow vectors as a numpy array of shape :math:`(H, W, 2)`. Otherwise same
+        as :attr:`vecs`: The last dimension contains the flow vectors, in the order of horizontal component first,
+        vertical component second (OpenCV convention). They are defined as positive towards the right and the bottom,
+        meaning the origin is located in the left upper corner of the :math:`H \\times W` flow field area.
 
-        :return: flow vectors as a numpy array of shape H-W-2
+        :return: Flow vectors as a numpy array of shape :math:`(H, W, 2)`, dtype ``float32``
         """
 
         with torch.no_grad():
@@ -93,9 +108,33 @@ class Flow(object):
 
     @property
     def ref(self) -> str:
-        """Gets flow reference
+        """Flow reference, a string: either ``s`` for "source" or ``t`` for "target". This determines whether the
+        regular grid of shape :math:`(H, W)` associated with the flow vectors should be understood as the source of the
+        vectors (which then point to any other position), or the target of the vectors (whose start point can then be
+        any other position). The flow reference ``t`` is the default, meaning the regular grid refers to the
+        coordinates the pixels whose motion is being recorded by the vectors end up at.
 
-        :return: Flow reference 't' or 's'
+        .. caution::
+
+            The :meth:`~oflibnumpy.Flow.apply` method for warping an image is significantly faster with a flow in ``t``
+            reference. The reason is that this requires interpolating unstructured points from a regular grid, while
+            reference ``s`` requires interpolating a regular grid from unstructured points. The former uses the fast
+            PyTorch :func:`nn.functional.grid_sample` function, the latter is much more operationally complex and
+            relies on the SciPy :func:`griddata` function.
+
+        .. caution::
+
+            The :meth:`~oflibnumpy.Flow.track` method for tracking points is significantly faster with a flow in ``s``
+            reference, again due to not requiring a call to SciPy's :func:`griddata` function.
+
+        .. tip::
+
+            If some algorithm :func:`get_flow` is set up to calculate a flow field with reference ``t`` (or ``s``) as in
+            ``flow_one_ref = get_flow(img1, img2)``, it is very simple to obtain the flow in reference ``s`` (or ``t``)
+            instead: simply call the algorithm with the images in the reversed order, and multiply the resulting flow
+            vectors by -1: ``flow_other_ref = -1 * get_flow(img2, img1)``
+
+        :return: Flow reference, as string of value ``t`` or ``s``
         """
 
         return self._ref
@@ -104,16 +143,21 @@ class Flow(object):
     def ref(self, input_ref: str = None):
         """Sets flow reference, after checking validity
 
-        :param input_ref: Flow reference 't' or 's'. Defaults to 't'
+        :param input_ref: Flow reference as string of value ``t`` or ``s``. Defaults to ``t``
         """
 
         self._ref = get_valid_ref(input_ref)
 
     @property
     def mask(self) -> torch.Tensor:
-        """Gets flow mask
+        """Flow mask as a torch tensor of shape :math:`(H, W)` and type ``bool``. This array indicates, for each
+        flow vector, whether it is considered "valid". As an example, this allows for masking of the flow based on
+        object segmentations. It is also necessary to keep track of which flow vectors are valid when different flow
+        fields are combined, as those operations often lead to undefined (partially or fully unknown) points in the
+        given :math:`H \\times W` area where the flow vectors are either completely unknown, or will not have valid
+        values.
 
-        :return: Flow mask as torch tensor of shape H-W and type 'bool'
+        :return: Flow mask as a torch tensor of shape :math:`(H, W)` and type ``bool``
         """
 
         return self._mask
@@ -122,7 +166,8 @@ class Flow(object):
     def mask(self, input_mask: Union[np.ndarray, torch.Tensor] = None):
         """Sets flow mask, after checking validity
 
-        :param input_mask: bool torch tensor of shape H-W (self.shape), matching flow vectors with shape 2-H-W
+        :param input_mask: numpy array or torch tensor of shape :math:`(H, W)` and type ``bool``, matching flow vectors
+            of shape :math:`(H, W, 2)`
         """
 
         if input_mask is None:
@@ -148,7 +193,12 @@ class Flow(object):
 
     @property
     def mask_numpy(self) -> np.ndarray:
-        """Gets the mask as a numpy array of shape H-W, rather than the internal torch tensor
+        """Convenience function to get the mask as a numpy array of shape :math:`(H, W)`. Otherwise same as
+        :attr:`mask`: this array indicates, for each flow vector, whether it is considered "valid". As an example,
+        this allows for masking of the flow based on object segmentations. It is also necessary to keep track of
+        which flow vectors are valid when different flow fields are combined, as those operations often lead to
+        undefined (partially or fully unknown) points in the given :math:`H \\times W` area where the flow vectors
+        are either completely unknown, or will not have valid values.
 
         :return: mask as a numpy array of shape H-W, dtype 'bool'
         """
@@ -162,18 +212,20 @@ class Flow(object):
 
     @property
     def device(self) -> str:
-        """Gets the tensor device
+        """The device of all flow object tensors, either ``cpu`` or ``cuda``
 
         :return: Tensor device as a string
         """
+
         return self._device
 
     @device.setter
     def device(self, input_device: str = None):
         """Sets the tensor device, after checking validity
 
-        :param input_device: Tensor device, 'cpu' or 'cuda'. Defaults to 'cpu'
+        :param input_device: Tensor device, either ``cpu`` or ``cuda`` (if available). Defaults to ``cpu``
         """
+
         if input_device is None:
             device = self._vecs.device.type
         else:
@@ -184,9 +236,10 @@ class Flow(object):
 
     @property
     def shape(self) -> tuple:
-        """Gets shape (resolution) of the flow
+        """Shape (resolution) :math:`(H, W)` of the flow, corresponding to the last two dimensions of the flow
+        vector tensor of shape :math:`(2, H, W)`
 
-        :return: Shape (resolution) of the flow field as a tuple
+        :return: Tuple of the shape (resolution) :math:`(H, W)` of the flow object
         """
 
         return tuple(self._vecs.shape[1:])
@@ -198,14 +251,14 @@ class Flow(object):
             ref: str = None,
             mask: Union[np.ndarray, torch.Tensor] = None,
             device: str = None,
-    ) -> Flow:
+    ) -> FlowAlias:
         """Flow object constructor, zero everywhere
 
-        :param shape: List or tuple [H, W] of flow field shape
-        :param ref: Flow reference, 't'arget or 's'ource. Defaults to 't'
-        :param mask: Numpy array or torch tensor H-W containing a boolean mask indicating where the flow vectors are
-            valid. Defaults to True everywhere
-        :param device: Tensor device, 'cpu' or 'cuda' (if available). Defaults to 'cpu'
+        :param shape: List or tuple of the shape :math:`(H, W)` of the flow field
+        :param ref: Flow reference, string of value ``t`` ("target") or ``s`` ("source"). Defaults to ``t``
+        :param mask: Numpy array or torch tensor of shape :math:`(H, W)` and type ``bool`` indicating where the flow
+            vectors are valid. Defaults to ``True`` everywhere
+        :param device: Tensor device, either ``cpu`` or ``cuda`` (if available). Defaults to ``cpu``
         :return: Flow object
         """
 
@@ -222,18 +275,20 @@ class Flow(object):
         mask: Union[np.ndarray, torch.Tensor] = None,
         device: str = None,
         matrix_is_inverse: bool = None
-    ) -> Flow:
+    ) -> FlowAlias:
         """Flow object constructor, based on transformation matrix input
 
-        :param matrix: Transformation matrix to be turned into a flow field, as numpy array or torch tensor of shape 3-3
-        :param shape: List or tuple [H, W] of flow field shape
-        :param ref: Flow reference, 't'arget or 's'ource. Defaults to 't'
-        :param mask: Numpy array or torch tensor H-W containing a boolean mask indicating where the flow vectors are
-            valid. Defaults to True everywhere
-        :param device: Tensor device, 'cpu' or 'cuda' (if available). Defaults to 'cpu'
+        :param matrix: Transformation matrix to be turned into a flow field, as numpy array or torch tensor of
+            shape :math:`(3, 3)`
+        :param shape: List or tuple of the shape :math:`(H, W)` of the flow field
+        :param ref: Flow reference, string of value ``t`` ("target") or ``s`` ("source"). Defaults to ``t``
+        :param mask: Numpy array or torch tensor of shape :math:`(H, W)` and type ``bool`` indicating where the flow
+            vectors are valid. Defaults to ``True`` everywhere
+        :param device: Tensor device, either ``cpu`` or ``cuda`` (if available). Defaults to ``cpu``
         :param matrix_is_inverse: Boolean determining whether the given matrix is already the inverse of the desired
-            transformation. Is useful for flow with reference 't' to avoid calculation of the pseudo-inverse, but will
-            throw an error if used for flow with reference 's' to avoid accidental usage. Defaults to False
+            transformation. Is useful for flow with reference ``t`` to avoid calculation of the pseudo-inverse, but
+            will throw a ``ValueError`` if used for flow with reference ``s`` to avoid accidental usage.
+            Defaults to ``False``
         :return: Flow object
         """
 
@@ -281,19 +336,22 @@ class Flow(object):
         ref: str = None,
         mask: Union[np.ndarray, torch.Tensor] = None,
         device: str = None,
-    ) -> Flow:
+    ) -> FlowAlias:
         """Flow object constructor, based on list of transforms
 
         :param transform_list: List of transforms to be turned into a flow field, where each transform is expressed as
-            a list of [transform name, transform value 1, ... , transform value n]. Supported options:
-                ['translation', horizontal shift in px, vertical shift in px]
-                ['rotation', horizontal centre in px, vertical centre in px, angle in degrees, counter-clockwise]
-                ['scaling', horizontal centre in px, vertical centre in px, scaling fraction]
-        :param shape: List or tuple [H, W] of flow field shape
-        :param ref: Flow reference, 't'arget or 's'ource. Defaults to 't'
-        :param mask: Numpy array or torch tensor H-W containing a boolean mask indicating where the flow vectors are
-            valid. Defaults to True everywhere
-        :param device: Tensor device, 'cpu' or 'cuda' (if available). Defaults to 'cpu'
+            a list of [``transform name``, ``transform value 1``, ... , ``transform value n``]. Supported options:
+
+            - Transform ``translation``, with values ``horizontal shift in px``, ``vertical shift in px``
+            - Transform ``rotation``, with values ``horizontal centre in px``, ``vertical centre in px``,
+              ``angle in degrees, counter-clockwise``
+            - Transform ``scaling``, with values ``horizontal centre in px``, ``vertical centre in px``,
+              ``scaling fraction``
+        :param shape: List or tuple of the shape :math:`(H, W)` of the flow field
+        :param ref: Flow reference, string of value ``t`` ("target") or ``s`` ("source"). Defaults to ``t``
+        :param mask: Numpy array or torch tensor of shape :math:`(H, W)` and type ``bool`` indicating where the flow
+            vectors are valid. Defaults to ``True`` everywhere
+        :param device: Tensor device, either ``cpu`` or ``cuda`` (if available). Defaults to ``cpu``
         :return: Flow object
         """
 
@@ -371,18 +429,19 @@ class Flow(object):
             matrix = matrix_from_transforms(list(reversed(transform_list)))
             return cls.from_matrix(matrix, shape, ref, mask, device, matrix_is_inverse=True)
 
-    def copy(self) -> Flow:
-        """Returns a copy of the flow object
+    def copy(self) -> FlowAlias:
+        """Copy a flow object by constructing a new one with the same vectors :attr:`vecs`, reference :attr:`ref`,
+        mask :attr:`mask`, and device :attr:`device`
 
         :return: Copy of the flow object
         """
 
         return Flow(self._vecs, self._ref, self._mask, self._device)
 
-    def to_device(self, device) -> Flow:
+    def to_device(self, device) -> FlowAlias:
         """Returns a new flow object on the desired torch device
 
-        :param device: Device the flow object is to be moved to, options: 'cpu' or 'cuda'
+        :param device: Device the flow object is to be moved to, either ``cpu`` or ``cuda`` (if available)
         :return: New flow object on the desired torch device
         """
 
@@ -390,37 +449,45 @@ class Flow(object):
         return Flow(self._vecs.to(device), self._ref, self._mask.to(device), device)
 
     def __str__(self) -> str:
-        """Enhanced string representation of the flow object"""
+        """Enhanced string representation of the flow object, containing the flow reference :attr:`ref`, shape
+        :attr:`shape`, and device :attr:`device`
+
+        :return: String representation
+        """
+
         info_string = "Flow object, reference {}, shape {}*{}, device {}; ".format(self._ref, *self.shape, self._device)
         info_string += self.__repr__()
         return info_string
 
-    def __getitem__(self, item: Union[int, list, slice]) -> Flow:
-        """Mimics __getitem__ of a torch tensor, returning a flow object cut accordingly
+    def __getitem__(self, item: Union[int, list, slice]) -> FlowAlias:
+        """Mimics ``__getitem__`` of a torch tensor, returning a new flow object cut accordingly
 
-        Will throw an error if mask.__getitem__(item) or vecs.__getitem__(item) throw an error. Also throws an error if
-        sliced vecs (or masks) don't fulfil the conditions to construct a flow object (e.g. have shape H-W-2 for vecs)
+        Will throw an error if ``mask.__getitem__(item)`` or ``vecs.__getitem__(item)`` (corresponding to
+        ``mask[item]`` and ``vecs[item]``) throw an error. Also throws an error if sliced :attr:`vecs` or :attr:`mask`
+        are not suitable to construct a new flow object with, e.g. if the number of dimensions is too low.
 
         :param item: Slice used to select a part of the flow
-        :return: New flow cut as a corresponding torch tensor would be cut
+        :return: New flow object cut as a corresponding torch tensor would be cut
         """
 
         vecs = move_axis(move_axis(self._vecs, 0, -1).__getitem__(item), -1, 0)
         # Above line is to avoid having to parse item properly to deal with first dim of 2: move this dim to the back
         return Flow(vecs, self._ref, self._mask.__getitem__(item), self._device)
 
-    def __add__(self, other: Union[np.ndarray, torch.Tensor, Flow]) -> Flow:
-        """Adds a flow object, a numpy array or a torch tensor to a flow object
+    def __add__(self, other: Union[np.ndarray, torch.Tensor, FlowAlias]) -> FlowAlias:
+        """Adds a flow object, a numpy array, or a torch tensor to a flow object
 
-        Note: this is NOT equal to applying the two flows sequentially. For that, use combine_flows(flow1, flow2, None).
-        The function also does not check whether the two flow objects have the same reference.
+        .. caution::
+            This is **not** equal to applying the two flows sequentially. For that, use
+            :func:`~oflibnumpy.combine_flows` with ``mode`` set to ``3``.
 
-        DO NOT USE if you're not certain about what you're aiming to achieve.
+        .. caution::
+            If this method is used to add two flow objects, there is no check on whether they have the same reference
+            :attr:`ref`.
 
-        :param other: Flow object, numpy array, or torch tensor corresponding to the addend. Arrays and tensors need to
-            have the shape 2-H-W or H-W-2, where H-W matches the shape of the flow object. Adding a flow object will
+        :param other: Flow object, numpy array, or torch tensor corresponding to the addend. Adding a flow object will
             adjust the mask of the resulting flow object to correspond to the logical union of the augend / addend masks
-        :return: Flow object corresponding to the sum
+        :return: New flow object corresponding to the sum
         """
 
         if isinstance(other, Flow):
@@ -437,20 +504,21 @@ class Flow(object):
         else:
             raise TypeError("Error adding to flow: Addend is not a flow object, numpy array, or torch tensor")
 
-    def __sub__(self, other: Union[np.ndarray, torch.Tensor, Flow]) -> Flow:
-        """Subtracts a flow objects, numpy array, or torch tensor from a flow object
+    def __sub__(self, other: Union[np.ndarray, torch.Tensor, FlowAlias]) -> FlowAlias:
+        """Subtracts a flow object, a numpy array, or a torch tensor from a flow object
 
-        Note: this is NOT equal to subtracting the effects of applying flow fields to an image. For that, used
-        combine_flows(flow1, None, flow2) or combine_flows(None, flow1, flow2). The function also does not check whether
-        the two flow objects have the same reference.
+        .. caution::
+            This is **not** equal to subtracting the effects of applying flow fields to an image. For that, use
+            :func:`~oflibnumpy.combine_flows` with ``mode`` set to ``1`` or ``2``.
 
-        DO NOT USE if you're not certain about what you're aiming to achieve.
+        .. caution::
+            If this method is used to subtract two flow objects, there is no check on whether they have the same
+            reference :attr:`ref`.
 
-        :param other: Flow object, numpy array, or torch tensor corresponding to the subtrahend. Arrays and tensors
-            need to have the shape 2-H-W or H-W-2, where H-W matches the shape of the flow object. Subtracting a flow
+        :param other: Flow object, numpy array, or torch tensor corresponding to the subtrahend. Subtracting a flow
             object will adjust the mask of the resulting flow object to correspond to the logical union of the
             minuend / subtrahend masks
-        :return: Flow object corresponding to the difference
+        :return: New flow object corresponding to the difference
         """
 
         if isinstance(other, Flow):
@@ -469,12 +537,16 @@ class Flow(object):
             raise TypeError("Error subtracting from flow: "
                             "Subtrahend is not a flow object, numpy array, or torch tensor")
 
-    def __mul__(self, other: Union[float, int, bool, list, np.ndarray, torch.Tensor]) -> Flow:
-        """Multiplies a flow object
+    def __mul__(self, other: Union[float, int, bool, list, np.ndarray, torch.Tensor]) -> FlowAlias:
+        """Multiplies a flow object with a single number, a list, a numpy array, or a torch tensor
 
-        :param other: Multiplier which either can be converted to float or is a list of length 2, or is a numpy array
-            or a torch tensor of either the same shape as the flow object (H-W), or either 2-H-W or H-W-2
-        :return: Flow object corresponding to the product
+        :param other: Multiplier, options:
+
+            - can be converted to a float
+            - a list of shape :math:`(2)`
+            - a numpy array or torch tensor of the same shape :math:`(H, W)` as the flow object
+            - a numpy array or torch tensor of the same shape :math:`(H, W, 2)` as the flow vectors
+        :return: New flow object corresponding to the product
         """
 
         try:  # other is int, float, or can be converted to it
@@ -504,12 +576,16 @@ class Flow(object):
                 raise TypeError("Error multiplying flow: Multiplier cannot be converted to float, "
                                 "or isn't a list, numpy array, or torch tensor")
 
-    def __truediv__(self, other: Union[float, int, bool, list, np.ndarray, torch.Tensor]) -> Flow:
-        """Divides a flow object
+    def __truediv__(self, other: Union[float, int, bool, list, np.ndarray, torch.Tensor]) -> FlowAlias:
+        """Divides a flow object by a single number, a list, a numpy array, or a torch tensor
 
-        :param other: Divisor which either can be converted to float or is a list of length 2, or is a numpy array
-            or a torch tensor of either the same shape as the flow object (H-W), or either 2-H-W or H-W-2
-        :return: Flow object corresponding to the quotient
+        :param other: Divisor, options:
+
+            - can be converted to a float
+            - a list of shape :math:`(2)`
+            - a numpy array or torch tensor of the same shape :math:`(H, W)` as the flow object
+            - a numpy array or torch tensor of the same shape :math:`(H, W, 2)` as the flow vectors
+        :return: New flow object corresponding to the quotient
         """
 
         try:  # other is int, float, or can be converted to it
@@ -539,12 +615,16 @@ class Flow(object):
                 raise TypeError("Error dividing flow: Divisor cannot be converted to float, "
                                 "or isn't a list, numpy array, or torch tensor")
 
-    def __pow__(self, other: Union[float, int, bool, list, np.ndarray, torch.Tensor]) -> Flow:
-        """Exponentiates a flow object
+    def __pow__(self, other: Union[float, int, bool, list, np.ndarray, torch.Tensor]) -> FlowAlias:
+        """Exponentiates a flow object by a single number, a list, a numpy array, or a torch tensor
 
-        :param other: Exponent which either can be converted to float or is a list of length 2, or is a numpy array
-            or a torch tensor of either the same shape as the flow object (H-W), or either 2-H-W or H-W-2
-        :return: Flow object corresponding to the power
+        :param other: Exponent, options:
+
+            - can be converted to a float
+            - a list of shape :math:`(2)`
+            - a numpy array or torch tensor of the same shape :math:`(H, W)` as the flow object
+            - a numpy array or torch tensor of the same shape :math:`(H, W, 2)` as the flow vectors
+        :return: New flow object corresponding to the power
         """
 
         try:  # other is int, float, or can be converted to it
@@ -574,23 +654,26 @@ class Flow(object):
                 raise TypeError("Error exponentiating flow: Exponent cannot be converted to float, "
                                 "or isn't a list, numpy array, or torch tensor")
 
-    def __neg__(self) -> Flow:
-        """Returns the negative of a flow object
+    def __neg__(self) -> FlowAlias:
+        """Returns a new flow object with all the flow vectors inverted
 
-        CAREFUL: this is NOT equal to correctly inverting a flow! For that, use invert().
+        .. caution::
+            This is **not** equal to inverting the transformation a flow field corresponds to! For that, use
+            :meth:`~oflibnumpy.Flow.invert`.
 
-        DO NOT USE if you're not certain about what you're aiming to achieve.
-
-        :return: Negative flow
+        :return: New flow object with inverted flow vectors
         """
 
         return self * -1
 
-    def resize(self, scale: Union[float, int, list, tuple]) -> Flow:
-        """Resizes flow object, also scaling the flow vectors themselves
+    def resize(self, scale: Union[float, int, list, tuple]) -> FlowAlias:
+        """Resize a flow field, scaling the flow vectors values :attr:`vecs` accordingly.
 
-        :param scale: Scale used for resizing. Integer or float, or a list or tuple [vertical scale, horizontal scale]
-        :return: Scaled flow
+        :param scale: Scale used for resizing, options:
+
+            - Integer or float of value ``scaling`` applied both vertically and horizontally
+            - List or tuple of shape :math:`(2)` with values ``[vertical scaling, horizontal scaling]``
+        :return: New flow object scaled as desired
         """
 
         # Check validity
@@ -617,14 +700,16 @@ class Flow(object):
 
         return Flow(resized[:2], self._ref, torch.round(resized[2]))
 
-    def pad(self, padding: list = None, mode: str = None) -> Flow:
-        """Pads the flow with the given padding. Sets padded mask values to False, and inserts 0 flow values if padding
-        mode is 'constant'
+    def pad(self, padding: list = None, mode: str = None) -> FlowAlias:
+        """Pad the flow with the given padding. Padded flow :attr:`vecs` values are either constant (set to ``0``),
+        reflect the existing flow values along the edges, or replicate those edge values.
+        Padded :attr:`mask` values are set to ``False``.
 
-        :param padding: [top, bot, left, right] list of padding values
-        :param mode: Numpy padding mode for the flow vectors, defaults to 'constant'. Options:
-            'constant', 'reflect', 'replicate' (see torch.nn.functional.pad documentation). 'Constant' value is 0.
-        :return: Padded flow
+        :param padding: List or tuple of shape :math:`(4)` with padding values ``[top, bot, left, right]``
+        :param mode: String of the numpy padding mode for the flow vectors, with options ``constant`` (fill value
+            ``0``), ``reflect``, ``replicate`` (see documentation for :func:`torch.nn.functional.pad`).
+            Defaults to ``constant``
+        :return: New flow object with the padded flow field
         """
 
         mode = 'constant' if mode is None else mode
@@ -644,26 +729,46 @@ class Flow(object):
         consider_mask: bool = None,
         padding: list = None,
         cut: bool = None
-        """Applies the flow to the target, which can be a torch tensor or a Flow object.
-
-        :param target: Torch tensor of shape C-H-W, or flow object the flow should be applied to
-        :param target_mask: Optional torch tensor of shape :math:`(H, W)` that indicates which part of the target is
-            valid (only relevant if `target` is a torch tensor). Defaults to ``True`` everywhere
-        :param return_valid_area: Boolean determining whether a boolean numpy array of shape H-W containing the valid
-            image area is returned (only relevant if target is a numpy array). This array is true where the image
-            values in the function output:
-                1) have been affected by flow vectors: always true if the flow has reference 't' as the target image by
-                    default has a corresponding flow vector in each position, but only true for some parts of the image
-                    if the flow has reference 's': some target image positions would only be reachable by flow vectors
-                    originating outside of the source image area, which is obviously impossible
-                2) have been affected by flow vectors that were themselves valid, as determined by the flow mask
     ) -> Union[Union[torch.Tensor, FlowAlias], Tuple[Union[torch.Tensor, FlowAlias], torch.Tensor]]:
+        """Apply the flow to a target, which can be a torch tensor or a Flow object itself. If the flow shape
+        :math:`(H_{flow}, W_{flow})` is smaller than the target shape :math:`(H_{target}, W_{target})`, a list of
+        padding values needs to be passed to localise the flow in the larger :math:`H_{target} \\times W_{target}` area.
+
+        The valid image area that can optionally be returned is ``True`` where the image values in the function output:
+
+        1) have been affected by flow vectors. If the flow has a reference :attr:`ref` value of ``t`` ("target"),
+           this is always ``True`` as the target image by default has a corresponding flow vector at each pixel
+           location in :math:`H \\times W`. If the flow has a reference :attr:`ref` value of ``s`` ("source"), this
+           is only ``True`` for some parts of the image: some target image pixel locations in :math:`H \\times W`
+           would only be reachable by flow vectors originating outside of the source image area, which is impossible
+           by definition
+        2) have been affected by flow vectors that were themselves valid, as determined by the flow mask
+
+        .. caution::
+
+            The parameter `consider_mask` relates to whether the invalid flow vectors in a flow field with reference
+            ``s`` are removed before application (default behaviour) or not. Doing so results in a smoother flow field,
+            but can cause artefacts to arise where the outline of the area returned by
+            :meth:`~oflibnumpy.Flow.valid_target` is not a convex hull. For a more detailed explanation with an
+            illustrative example, see the section ":ref:`Applying a Flow`" in the usage documentation.
+
+        :param target: Torch tensor of shape :math:`(H, W)` or :math:`(H, W, C)`, or a flow object of shape
+            :math:`(H, W)` to which the flow should be applied, where :math:`H` and :math:`W` are equal or larger
+            than the corresponding dimensions of the flow itself
+        :param target_mask: Optional torch tensor of shape :math:`(H, W)` and type ``bool`` that indicates which part
+            of the target is valid (only relevant if `target` is a numpy array). Defaults to ``True`` everywhere
+        :param return_valid_area: Boolean determining whether the valid image area is returned (only if the target is a
+            numpy array), defaults to ``False``. The valid image area is returned as a boolean torch tensor of shape
+            :math:`(H, W)`.
         :param consider_mask: Boolean determining whether the flow vectors are masked before application (only relevant
             for flows with reference ``ref = 's'``). Results in smoother outputs, but more artefacts. Defaults to
             ``True``
-        :param padding: If flow applied only covers part of the target; [top, bot, left, right]; default None
-        :param cut: If padding is given, whether the input is returned as cut to shape of flow; default True
-        :return: An object of the same type as the input (numpy array, torch tensor, or flow)
+        :param padding: List or tuple of shape :math:`(4)` with padding values ``[top, bottom, left, right]``. Required
+            if the flow and the target don't have the same shape. Defaults to ``None``, which means no padding needed
+        :param cut: Boolean determining whether the warped target is returned cut from :math:`(H_{target}, W_{target})`
+            to :math:`(H_{flow}, W_{flow})`, in the case that the shapes are not the same. Defaults to ``True``
+        :return: The warped target of the same shape :math:`(C, H, W)` and type as the input (rounded if necessary),
+            and optionally the valid area of the flow as a boolean torch tensor of shape :math:`(H, W)`.
         """
 
         return_valid_area = False if return_valid_area is None else return_valid_area
@@ -786,18 +891,24 @@ class Flow(object):
         pts: torch.Tensor,
         int_out: bool = None,
         get_valid_status: bool = None
-        """Warps input points according to the flow field, can be returned as integers if required
-
-        :param pts: Numpy array or torch tensor of points shape N-2, 1st coordinate vertical (height), 2nd coordinate
-            horizontal (width).
-        :param int_out: Boolean determining whether output points are returned as rounded integers, defaults to False
-        :param get_valid_status: Boolean determining whether an array of shape N-2 containing the status of each point
-            is returned. This will corresponds to self.valid_source() as applied to the point positions, and will show
-            True for the points that are tracked by valid flow vectors, and end up inside the target image area.
-        :return: Numpy array or torch tensor of warped ('tracked') points, and optionally an array or tensor (following
-            the warped point type) of the point tracking status. The tensor device (if applicable) will be the same as
-            the flow field device.
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """Warp input points with the flow field, returning the warped point coordinates as integers if required
+
+        .. tip::
+            Calling :meth:`~oflibnumpy.Flow.track` on a flow field with reference :attr:`ref` ``s`` ("source") is
+            significantly faster (as long as `s_exact_mode` is not set to ``True``), as this does not require a call to
+            :func:`scipy.interpolate.griddata`.
+
+        :param pts: Torch tensor of shape :math:`(N, 2)` containing the point coordinates. ``pts[:, 0]`` corresponds
+            to the vertical coordinate, ``pts[:, 1]`` to the horizontal coordinate
+        :param int_out: Boolean determining whether output points are returned as rounded integers, defaults to
+            ``False``
+        :param get_valid_status: Boolean determining whether a tensor of shape :math:`(N, 2)` is returned, which
+            contains the status of each point. This corresponds to applying :meth:`~oflibnumpy.Flow.valid_source` to the
+            point positions, and returns ``True`` for the points that 1) tracked by valid flow vectors, and 2) end up
+            inside the flow area of :math:`H \\times W`. Defaults to ``False``
+        :return: Torch tensor of warped ('tracked') points, and optionally a torch tensor of the point tracking status.
+            The tensor device (if applicable) will be the same as the flow field device.
         """
 
         # Validate inputs
@@ -852,16 +963,22 @@ class Flow(object):
         else:
             return warped_pts
 
-    def switch_ref(self, mode: str = None) -> Flow:
-        """Switches the reference coordinates from 's'ource to 't'arget, or vice versa
+    def switch_ref(self, mode: str = None) -> FlowAlias:
+        """Switch the reference :attr:`ref` between ``s`` ("source") and ``t`` ("target")
 
-        :param mode: 'valid' or 'invalid':
-            'invalid' means just the flow reference attribute is switched without any flow values being changed. This
-                is functionally equivalent to simply using flow.ref = 't' for a flow of ref 's', and the flow vectors
-                aren't changed.
-            'valid' means actually switching the flow field to the other coordinate reference, with flow vectors being
-                recalculated to correspond to this other reference.
-        :return: Flow with switched coordinate reference.
+        .. caution::
+
+            Do not use ``mode=invalid`` if avoidable: it does not actually change any flow values, and the resulting
+            flow object, when applied to an image, will no longer yield the correct result.
+
+        :param mode: Mode used for switching, available options:
+
+            - ``invalid``: just the flow reference attribute is switched without any flow values being changed. This
+              is functionally equivalent to simply assigning ``flow.ref = 't'`` for a "source" flow or
+              ``flow.ref = 's'`` for a "target" flow
+            - ``valid``: the flow field is switched to the other coordinate reference, with flow vectors recalculated
+              accordingly
+        :return: New flow object with switched coordinate reference
         """
 
         mode = 'valid' if mode is None else mode
@@ -884,13 +1001,12 @@ class Flow(object):
         else:
             raise ValueError("Error switching flow reference: Mode not recognised, should be 'valid' or 'invalid'")
 
-    def invert(self, ref: str = None) -> Flow:
-        """Inverting a flow: img1 -- f --> img2 becomes img1 <-- f -- img2
+    def invert(self, ref: str = None) -> FlowAlias:
+        """Inverting a flow: `img`\\ :sub:`1` -- `f` --> `img`\\ :sub:`2` becomes `img`\\ :sub:`1` <-- `f` --
+        `img`\\ :sub:`2`. The smaller the input flow, the closer the inverse is to simply multiplying the flow by -1.
 
-        The smaller the input flow, the closer the inverse is to simply multiplying the flow by -1.
-
-        :param ref: Desired reference of the output field, defaults to reference of original flow field
-        :return: Inverse flow field
+        :param ref: Desired reference of the output field, defaults to the reference of original flow field
+        :return: New flow object, inverse of the original
         """
 
         ref = self._ref if ref is None else get_valid_ref(ref)
@@ -905,18 +1021,23 @@ class Flow(object):
             elif ref == 't':
                 return self.invert('s').switch_ref()
 
-        """Finds the valid area in the target image
     def valid_target(self, consider_mask: bool = None) -> torch.Tensor:
+        """Find the valid area in the target domain
 
-        Given source image, flow, and target image created by warping the source with the flow, the valid area is a
-        boolean mask that is True wherever the value in the target stems from warping a value from the source, and
-        False where no valid information is known. Pixels that are False in this valid area will often be black (or
-        'empty') in the warped target image, but not necessarily, due to warping artefacts etc. Even when they are all
-        empty, the valid area allows a distinction between pixels that are black due to no actual information being
-        available at this position, and pixels that are black due to black pixel values having been warped to that
-        location by the flow.
+        Given a source image and a flow, both of shape :math:`(H, W)`, the target image is created by warping the source
+        with the flow. The valid area is then a boolean numpy array of shape :math:`(H, W)` that is ``True`` wherever
+        the value in the target img stems from warping a value from the source, and ``False`` where no valid information
+        is known.
 
-        :return: Boolean tensor of the valid area in the target image
+        Pixels that are ``False`` will often be black (or 'empty') in the warped target image - but not necessarily, due
+        to warping artefacts etc. The valid area also allows a distinction between pixels that are black due to no
+        actual information being available at this position (validity ``False``), and pixels that are black due to black
+        pixel values having been warped to that (valid) location by the flow.
+
+        :param consider_mask: Boolean determining whether the flow vectors are masked before application (only relevant
+            for flows with reference ``ref = 's'``, analogous to :meth:`~oflibnumpy.Flow.apply`). Results in smoother
+            outputs, but more artefacts. Defaults to ``True``
+        :return: Boolean torch tensor of the same shape :math:`(H, W)` as the flow
         """
 
         consider_mask = True if consider_mask is None else consider_mask
@@ -940,15 +1061,21 @@ class Flow(object):
             area = area & self._mask
         return area
 
-        """Finds the area in the source image that will end up being valid in the target image after warping
     def valid_source(self, consider_mask: bool = None) -> torch.Tensor:
+        """Finds the area in the source domain that will end up being valid in the target domain (see
+        :meth:`~oflibnumpy.Flow.valid_target`) after warping
 
-        Given source image, flow, and target image created by warping the source with the flow, the 'source area' is a
-        boolean mask that is True wherever the value in the source will end up somewhere in the valid target area, and
-        False where the value in the source will either be warped outside of the target image, or not be warped at all
-        due to a lack of valid flow vectors connecting to this position.
+        Given a source image and a flow, both of shape :math:`(H, W)`, the target image is created by warping the source
+        with the flow. The source area is then a boolean numpy array of shape :math:`(H, W)` that is ``True`` wherever
+        the value in the source will end up somewhere inside the valid target area, and ``False`` where the value in the
+        source will either be warped outside of the target image, or not be warped at all due to a lack of valid flow
+        vectors connecting to this position.
 
-        :return: Boolean tensor of the area in the source image valid in target image after warping
+        :param consider_mask: Boolean determining whether the flow vectors are masked before application (only relevant
+            for flows with reference ``ref = 't'`` as their inverse flow will be applied, using the reference ``s``;
+            analogous to :meth:`~oflibnumpy.Flow.apply`). Results in smoother outputs, but more artefacts. Defaults
+            to ``True``
+        :return: Boolean torch tensor of the same shape :math:`(H, W)` as the flow
         """
 
         consider_mask = True if consider_mask is None else consider_mask
@@ -979,16 +1106,19 @@ class Flow(object):
         return area
 
     def get_padding(self) -> list:
-        """Determine necessary padding from the flow field.
+        """Determine necessary padding from the flow field:
 
-        When the flow reference is 't', this corresponds to the padding needed for an input image, so that the output
-        when warped with the flow field contains no undefined areas inside defined flow areas.
+        - When the flow reference :attr:`ref` has the value ``t`` ("target"), this corresponds to the padding needed in
+          a source image which ensures that every flow vector in :attr:`vecs` marked as valid by the
+          mask :attr:`mask` will find a value in the source domain to warp towards the target domain. I.e. any invalid
+          locations in the area :math:`H \\times W` of the target domain (see :meth:`~oflibnumpy.Flow.valid_target`) are
+          purely due to no valid flow vector being available to pull a source value to this target location, rather than
+          no source value being available in the first place.
+        - When the flow reference :attr:`ref` has the value ``s`` ("source"), this corresponds to the padding needed for
+          the flow itself, so that applying it to a source image will result in no input image information being lost in
+          the warped output, i.e each input image pixel will come to lie inside the padded area.
 
-        When the flow reference is 's', this corresponds to the padding needed for the flow so that applying it to an
-        input image will result in no input image information being lost in the warped output, i.e each input image
-        pixel will come to lie inside the padded area.
-
-        :return: Padding as a list [top, bottom, left, right]
+        :return: A list of shape :math:`(4)` with the values ``[top, bottom, left, right]``
         """
 
         # Threshold to avoid very small flow values (possible artefacts) triggering a need for padding
@@ -1026,12 +1156,12 @@ class Flow(object):
         # return padding
 
     def is_zero(self, thresholded: bool = None) -> bool:
-        """Checks whether all flow vectors (where mask is True) are zero, thresholding if necessary.
+        """Check whether all flow vectors (where :attr:`mask` is ``True``) are zero. Optionally, a threshold flow
+        magnitude value of ``1e-3`` is used. This can be useful to filter out motions that are equal to very small
+        fractions of a pixel, which might just be a computational artefact to begin with.
 
-        Flow vector magnitude threshold used is DEFAULT_THRESHOLD, defined at top of the utils file
-
-        :param thresholded: Boolean determining whether the flow is thresholded, defaults to True
-        :return: True if flow is zero, False if not
+        :param thresholded: Boolean determining whether the flow is thresholded, defaults to ``True``
+        :return: ``True`` if the flow field is zero everywhere, otherwise ``False``
         """
 
         thresholded = True if thresholded is None else thresholded
@@ -1052,19 +1182,22 @@ class Flow(object):
         range_max: float = None,
         return_tensor: bool = None
     ) -> Union[np.ndarray, torch.Tensor]:
-        """Returns a flow visualisation as a tensor containing an rgb / bgr / hsv img of the same shape as the flow
+        """Visualises the flow as an rgb / bgr / hsv image, optionally showing the outline of the flow mask :attr:`mask`
+        as a black line, and the invalid areas greyed out.
 
-        NOTE: this currently runs internally based on NumPy & OpenCV, due to a lack of easily accessible function
+        .. note::
+           This currently runs internally based on NumPy & OpenCV, due to a lack of easily accessible equivalent
+            functions for coordinate and colour space conversions
 
-        :param mode: Output mode, options: 'rgb', 'bgr', 'hsv'
-        :param show_mask: Boolean determining whether the flow mask is visualised, defaults to False
-        :param show_mask_borders: Boolean determining whether the flow mask border is visualised, defaults to False
+        :param mode: Output mode, options: ``rgb``, ``bgr``, ``hsv``
+        :param show_mask: Boolean determining whether the flow mask is visualised, defaults to ``False``
+        :param show_mask_borders: Boolean determining whether the flow mask border is visualised, defaults to ``False``
         :param range_max: Maximum vector magnitude expected, corresponding to the HSV maximum Value of 255 when scaling
-            the flow magnitudes. Defaults to the 99th percentile of the current flow field
+            the flow magnitudes. Defaults to the 99th percentile of the flow field magnitudes
         :param return_tensor: Boolean determining whether the result is returned as a tensor. Note that the result is
-            originally a numpy array. Defaults to True
-        :return: Tensor or array containing the flow visualisation as an rgb / bgr / hsv image of the same shape as the
-            flow
+            originally a numpy array. Defaults to ``True``
+        :return: Numpy array of shape :math:`(H, W, 3)` or torch tensor of shape :math:`(3, H, W)` containing the
+            flow visualisation
         """
 
         show_mask = False if show_mask is None else show_mask
@@ -1150,18 +1283,23 @@ class Flow(object):
         thickness: int = None,
         return_tensor: bool = None
     ) -> Union[np.ndarray, torch.Tensor]:
-        """Visualises the flow as arrowed lines, in BGR mode
+        """Visualises the flow as arrowed lines, optionally showing the outline of the flow mask :attr:`mask` as a black
+        line, and the invalid areas greyed out.
 
-        :param grid_dist: Integer of the distance of the flow points to be used for the visualisation, defaults to 20
-        :param img: Numpy array with the background image to use (in BGR mode), defaults to black
+        :param grid_dist: Integer of the distance of the flow points to be used for the visualisation, defaults to
+            ``20``
+        :param img: Numpy array with the background image to use (in BGR mode), defaults to white
         :param scaling: Float or int of the flow line scaling, defaults to scaling the 99th percentile of arrowed line
             lengths to be equal to twice the grid distance (empirical value)
-        :param show_mask: Boolean determining whether the flow mask is visualised, defaults to False
-        :param show_mask_borders: Boolean determining whether the flow mask border is visualised, defaults to False
-        :param colour: Tuple of the flow arrow colour, defaults to hue based on flow direction as in visualise()
+        :param show_mask: Boolean determining whether the flow mask is visualised, defaults to ``False``
+        :param show_mask_borders: Boolean determining whether the flow mask border is visualised, defaults to ``False``
+        :param colour: Tuple of the flow arrow colour, defaults to hue based on flow direction as in
+            :meth:`~oflibnumpy.Flow.visualise`
+        :param thickness: Integer of the flow arrow thickness, larger than zero. Defaults to ``1``
         :param return_tensor: Boolean determining whether the result is returned as a tensor. Note that the result is
-            originally a numpy array. Defaults to True
-        :return: Tensor or array of the flow visualised as arrowed lines, of the same shape as the flow, in BGR
+            originally a numpy array. Defaults to ``True``
+        :return: Numpy array of shape :math:`(H, W, 3)` or torch tensor of shape :math:`(3, H, W)` containing the
+                flow visualisation, in ``bgr`` colour space
         """
 
         # Validate arguments
@@ -1248,12 +1386,12 @@ class Flow(object):
             return img
 
     def show(self, wait: int = None, show_mask: bool = None, show_mask_borders: bool = None):
-        """Shows the flow in a cv2 window
+        """Shows the flow in an OpenCV window using :meth:`~oflibnumpy.Flow.visualise`
 
-        :param wait: Integer determining how long to show the flow for, in ms. Defaults to 0, which means show until
-            window closed or process terminated
-        :param show_mask: Boolean determining whether the flow mask is visualised, defaults to False
-        :param show_mask_borders: Boolean determining whether flow mask border is visualised, defaults to False
+        :param wait: Integer determining how long to show the flow for, in milliseconds. Defaults to ``0``, which means
+            it will be shown until the window is closed, or the process is terminated
+        :param show_mask: Boolean determining whether the flow mask is visualised, defaults to ``False``
+        :param show_mask_borders: Boolean determining whether flow mask border is visualised, defaults to ``False``
         """
 
         wait = 0 if wait is None else wait
@@ -1275,17 +1413,19 @@ class Flow(object):
         show_mask_borders: bool = None,
         colour: tuple = None
     ):
-        """Shows the flow in a cv2 window, visualised with arrows
+        """Shows the flow in an OpenCV window using :meth:`~oflibnumpy.Flow.visualise_arrows`
 
-        :param wait: Integer determining how long to show the flow for, in ms. Defaults to 0, which means show until
-            window closed or process terminated
-        :param grid_dist: Integer of the distance of the flow points to be used for the visualisation, defaults to 20
-        :param img: Numpy array with the background image to use (in BGR mode), defaults to black
+        :param wait: Integer determining how long to show the flow for, in milliseconds. Defaults to ``0``, which means
+            it will be shown until the window is closed, or the process is terminated
+        :param grid_dist: Integer of the distance of the flow points to be used for the visualisation, defaults to
+            ``20``
+        :param img: Numpy array with the background image to use (in BGR colour space), defaults to black
         :param scaling: Float or int of the flow line scaling, defaults to scaling the 99th percentile of arrowed line
             lengths to be equal to twice the grid distance (empirical value)
-        :param show_mask: Boolean determining whether the flow mask is visualised, defaults to False
-        :param show_mask_borders: Boolean determining whether the flow mask border is visualised, defaults to False
-        :param colour: Tuple of the flow arrow colour, defaults to hue based on flow direction as in visualise()
+        :param show_mask: Boolean determining whether the flow mask is visualised, defaults to ``False``
+        :param show_mask_borders: Boolean determining whether the flow mask border is visualised, defaults to ``False``
+        :param colour: Tuple of the flow arrow colour, defaults to hue based on flow direction as in
+            :meth:`~oflibnumpy.Flow.visualise`
         """
 
         wait = 0 if wait is None else wait
