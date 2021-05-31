@@ -1,20 +1,63 @@
-.. oflibpytorch documentation master file, created by
-   sphinx-quickstart on Sat May 29 11:13:58 2021.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+Introduction
+============
+Oflibpytorch: a handy python **o**\ ptical **f**\ low **lib**\ rary, based on **PyTorch** tensors, that enables the
+manipulation and combination of flow fields while keeping track of valid areas (see "Usage"). It is mostly code
+written from scratch, but also contains useful wrappers for specific functions from libraries such as PyTorch's
+``grid_sample``, to integrate them with the custom flow field class introduced by oflibpytorch. Features:
 
-Welcome to oflibpytorch's documentation!
-========================================
+- Provides a custom flow field class for both backwards and forwards ('source' / 'target' based) flow fields
+- Provides a number of class methods to create flow fields from lists of affine transforms, or a transformation matrix
+- Provides a number of functions to resize the flow field, visualise it, warp images, find necessary image padding
+- Allows for three different types of flow field combination operations
+- Keeps track of valid flow field areas through said operations
+
+Install it using:
+
+.. code-block::
+
+    pip install oflibpytorch
+
+Code example:
+
+.. code-block:: python
+
+    import oflibpytorch as of
+    # Make a flow field and display it
+    shape = (300, 400)
+    flow = of.Flow.from_transforms([['rotation', 200, 150, -30]], shape)
+    flow.show()
+
+.. image:: ../docs/_static/index_flow_1.png
+    :width: 50%
+    :alt: Visualisation of optical flow representing a rotation
+
+.. code-block:: python
+
+    # Combine sequentially with another flow field, display the result
+    flow_2 = of.Flow.from_transforms([['translation', 40, 0]], shape)
+    result = of.combine_flows(flow, flow_2, mode=3)
+    result.show(show_mask=True, show_mask_borders=True)
+
+.. image:: ../docs/_static/index_result.png
+    :width: 50%
+    :alt: Visualisation of optical flow representing a rotation, translated to the right
+
+.. code-block:: python
+
+    result.show_arrows(show_mask=True, show_mask_borders=True)
+
+.. image:: ../docs/_static/index_result_arrows.png
+    :width: 50%
+    :alt: Visualisation of optical flow representing a rotation, translated to the right
+
+
+Contents
+========
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+    :maxdepth: 2
 
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+    self
+    usage
+    documentation
+    licensing
