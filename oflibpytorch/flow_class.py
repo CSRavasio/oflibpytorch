@@ -1346,7 +1346,7 @@ class Flow(object):
         f = np.moveaxis(to_numpy(threshold_vectors(self._vecs)), 0, -1)
 
         # Make points
-        x, y = np.mgrid[:f.shape[0] - 1:grid_dist, :f.shape[1] - 1:grid_dist]
+        x, y = np.mgrid[grid_dist//2:f.shape[0] - 1:grid_dist, grid_dist//2:f.shape[1] - 1:grid_dist]
         i_pts = np.dstack((x, y))
         i_pts_flat = np.reshape(i_pts, (-1, 2)).astype('i')
         f_at_pts = f[i_pts_flat[..., 0], i_pts_flat[..., 1]]
