@@ -16,7 +16,7 @@ import numpy as np
 from typing import Union
 import torch
 from .flow_class import Flow
-from .utils import validate_shape, to_numpy
+from .utils import validate_shape
 from scipy.interpolate import griddata
 
 
