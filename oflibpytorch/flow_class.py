@@ -116,15 +116,15 @@ class Flow(object):
 
         .. caution::
 
-            The :meth:`~oflibnumpy.Flow.apply` method for warping an image is significantly faster with a flow in ``t``
-            reference. The reason is that this requires interpolating unstructured points from a regular grid, while
-            reference ``s`` requires interpolating a regular grid from unstructured points. The former uses the fast
-            PyTorch :func:`nn.functional.grid_sample` function, the latter is much more operationally complex and
+            The :meth:`~oflibpytorch.Flow.apply` method for warping an image is significantly faster with a flow in
+            ``t`` reference. The reason is that this requires interpolating unstructured points from a regular grid,
+            while reference ``s`` requires interpolating a regular grid from unstructured points. The former uses the
+            fast PyTorch :func:`nn.functional.grid_sample` function, the latter is much more operationally complex and
             relies on the SciPy :func:`griddata` function.
 
         .. caution::
 
-            The :meth:`~oflibnumpy.Flow.track` method for tracking points is significantly faster with a flow in ``s``
+            The :meth:`~oflibpytorch.Flow.track` method for tracking points is significantly faster with a flow in ``s``
             reference, again due to not requiring a call to SciPy's :func:`griddata` function.
 
         .. tip::
@@ -479,7 +479,7 @@ class Flow(object):
 
         .. caution::
             This is **not** equal to applying the two flows sequentially. For that, use
-            :func:`~oflibnumpy.combine_flows` with ``mode`` set to ``3``.
+            :func:`~oflibpytorch.combine_flows` with ``mode`` set to ``3``.
 
         .. caution::
             If this method is used to add two flow objects, there is no check on whether they have the same reference
@@ -509,7 +509,7 @@ class Flow(object):
 
         .. caution::
             This is **not** equal to subtracting the effects of applying flow fields to an image. For that, use
-            :func:`~oflibnumpy.combine_flows` with ``mode`` set to ``1`` or ``2``.
+            :func:`~oflibpytorch.combine_flows` with ``mode`` set to ``1`` or ``2``.
 
         .. caution::
             If this method is used to subtract two flow objects, there is no check on whether they have the same
@@ -659,7 +659,7 @@ class Flow(object):
 
         .. caution::
             This is **not** equal to inverting the transformation a flow field corresponds to! For that, use
-            :meth:`~oflibnumpy.Flow.invert`.
+            :meth:`~oflibpytorch.Flow.invert`.
 
         :return: New flow object with inverted flow vectors
         """
@@ -749,7 +749,7 @@ class Flow(object):
             The parameter `consider_mask` relates to whether the invalid flow vectors in a flow field with reference
             ``s`` are removed before application (default behaviour) or not. Doing so results in a smoother flow field,
             but can cause artefacts to arise where the outline of the area returned by
-            :meth:`~oflibnumpy.Flow.valid_target` is not a convex hull. For a more detailed explanation with an
+            :meth:`~oflibpytorch.Flow.valid_target` is not a convex hull. For a more detailed explanation with an
             illustrative example, see the section ":ref:`Applying a Flow`" in the usage documentation.
 
         :param target: Torch tensor of shape :math:`(H, W)` or :math:`(H, W, C)`, or a flow object of shape
@@ -895,7 +895,7 @@ class Flow(object):
         """Warp input points with the flow field, returning the warped point coordinates as integers if required
 
         .. tip::
-            Calling :meth:`~oflibnumpy.Flow.track` on a flow field with reference :attr:`ref` ``s`` ("source") is
+            Calling :meth:`~oflibpytorch.Flow.track` on a flow field with reference :attr:`ref` ``s`` ("source") is
             significantly faster (as long as `s_exact_mode` is not set to ``True``), as this does not require a call to
             :func:`scipy.interpolate.griddata`.
 
@@ -904,9 +904,9 @@ class Flow(object):
         :param int_out: Boolean determining whether output points are returned as rounded integers, defaults to
             ``False``
         :param get_valid_status: Boolean determining whether a tensor of shape :math:`(N, 2)` is returned, which
-            contains the status of each point. This corresponds to applying :meth:`~oflibnumpy.Flow.valid_source` to the
-            point positions, and returns ``True`` for the points that 1) tracked by valid flow vectors, and 2) end up
-            inside the flow area of :math:`H \\times W`. Defaults to ``False``
+            contains the status of each point. This corresponds to applying :meth:`~oflibpytorch.Flow.valid_source` to
+            the point positions, and returns ``True`` for the points that 1) tracked by valid flow vectors, and 2) end
+            up inside the flow area of :math:`H \\times W`. Defaults to ``False``
         :return: Torch tensor of warped ('tracked') points, and optionally a torch tensor of the point tracking status.
             The tensor device (if applicable) will be the same as the flow field device.
         """
@@ -1035,7 +1035,7 @@ class Flow(object):
         pixel values having been warped to that (valid) location by the flow.
 
         :param consider_mask: Boolean determining whether the flow vectors are masked before application (only relevant
-            for flows with reference ``ref = 's'``, analogous to :meth:`~oflibnumpy.Flow.apply`). Results in smoother
+            for flows with reference ``ref = 's'``, analogous to :meth:`~oflibpytorch.Flow.apply`). Results in smoother
             outputs, but more artefacts. Defaults to ``True``
         :return: Boolean torch tensor of the same shape :math:`(H, W)` as the flow
         """
@@ -1063,7 +1063,7 @@ class Flow(object):
 
     def valid_source(self, consider_mask: bool = None) -> torch.Tensor:
         """Finds the area in the source domain that will end up being valid in the target domain (see
-        :meth:`~oflibnumpy.Flow.valid_target`) after warping
+        :meth:`~oflibpytorch.Flow.valid_target`) after warping
 
         Given a source image and a flow, both of shape :math:`(H, W)`, the target image is created by warping the source
         with the flow. The source area is then a boolean numpy array of shape :math:`(H, W)` that is ``True`` wherever
@@ -1073,7 +1073,7 @@ class Flow(object):
 
         :param consider_mask: Boolean determining whether the flow vectors are masked before application (only relevant
             for flows with reference ``ref = 't'`` as their inverse flow will be applied, using the reference ``s``;
-            analogous to :meth:`~oflibnumpy.Flow.apply`). Results in smoother outputs, but more artefacts. Defaults
+            analogous to :meth:`~oflibpytorch.Flow.apply`). Results in smoother outputs, but more artefacts. Defaults
             to ``True``
         :return: Boolean torch tensor of the same shape :math:`(H, W)` as the flow
         """
@@ -1111,9 +1111,9 @@ class Flow(object):
         - When the flow reference :attr:`ref` has the value ``t`` ("target"), this corresponds to the padding needed in
           a source image which ensures that every flow vector in :attr:`vecs` marked as valid by the
           mask :attr:`mask` will find a value in the source domain to warp towards the target domain. I.e. any invalid
-          locations in the area :math:`H \\times W` of the target domain (see :meth:`~oflibnumpy.Flow.valid_target`) are
-          purely due to no valid flow vector being available to pull a source value to this target location, rather than
-          no source value being available in the first place.
+          locations in the area :math:`H \\times W` of the target domain (see :meth:`~oflibpytorch.Flow.valid_target`)
+          are purely due to no valid flow vector being available to pull a source value to this target location, rather
+          than no source value being available in the first place.
         - When the flow reference :attr:`ref` has the value ``s`` ("source"), this corresponds to the padding needed for
           the flow itself, so that applying it to a source image will result in no input image information being lost in
           the warped output, i.e each input image pixel will come to lie inside the padded area.
@@ -1294,7 +1294,7 @@ class Flow(object):
         :param show_mask: Boolean determining whether the flow mask is visualised, defaults to ``False``
         :param show_mask_borders: Boolean determining whether the flow mask border is visualised, defaults to ``False``
         :param colour: Tuple of the flow arrow colour, defaults to hue based on flow direction as in
-            :meth:`~oflibnumpy.Flow.visualise`
+            :meth:`~oflibpytorch.Flow.visualise`
         :param thickness: Integer of the flow arrow thickness, larger than zero. Defaults to ``1``
         :param return_tensor: Boolean determining whether the result is returned as a tensor. Note that the result is
             originally a numpy array. Defaults to ``True``
@@ -1386,7 +1386,7 @@ class Flow(object):
             return img
 
     def show(self, wait: int = None, show_mask: bool = None, show_mask_borders: bool = None):
-        """Shows the flow in an OpenCV window using :meth:`~oflibnumpy.Flow.visualise`
+        """Shows the flow in an OpenCV window using :meth:`~oflibpytorch.Flow.visualise`
 
         :param wait: Integer determining how long to show the flow for, in milliseconds. Defaults to ``0``, which means
             it will be shown until the window is closed, or the process is terminated
@@ -1413,7 +1413,7 @@ class Flow(object):
         show_mask_borders: bool = None,
         colour: tuple = None
     ):
-        """Shows the flow in an OpenCV window using :meth:`~oflibnumpy.Flow.visualise_arrows`
+        """Shows the flow in an OpenCV window using :meth:`~oflibpytorch.Flow.visualise_arrows`
 
         :param wait: Integer determining how long to show the flow for, in milliseconds. Defaults to ``0``, which means
             it will be shown until the window is closed, or the process is terminated
@@ -1425,7 +1425,7 @@ class Flow(object):
         :param show_mask: Boolean determining whether the flow mask is visualised, defaults to ``False``
         :param show_mask_borders: Boolean determining whether the flow mask border is visualised, defaults to ``False``
         :param colour: Tuple of the flow arrow colour, defaults to hue based on flow direction as in
-            :meth:`~oflibnumpy.Flow.visualise`
+            :meth:`~oflibpytorch.Flow.visualise`
         """
 
         wait = 0 if wait is None else wait

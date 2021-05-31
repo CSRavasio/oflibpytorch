@@ -89,10 +89,10 @@ def combine_flows(input_1: FlowAlias, input_2: FlowAlias, mode: int, thresholded
 
     .. tip::
        All of the flow field combinations in this function rely on some combination of the
-       :meth:`~oflibnumpy.Flow.apply`, :meth:`~oflibnumpy.Flow.invert`, and :func:`~oflibnumpy.combine_flows` methods,
-       and can be very slow (several seconds) due to calling :func:`scipy.interpolate.griddata` multiple times. The
-       table below aids decision-making with regards to which reference a flow field should be provided in to obtain
-       the fastest result.
+       :meth:`~oflibpytorch.Flow.apply`, :meth:`~oflibpytorch.Flow.invert`, and :func:`~oflibpytorch.combine_flows`
+       methods, and can be very slow (several seconds) due to calling :func:`scipy.interpolate.griddata` multiple
+       times. The table below aids decision-making with regards to which reference a flow field should be provided in
+       to obtain the fastest result.
 
         .. list-table:: Calls to :func:`scipy.interpolate.griddata`
            :header-rows: 1
@@ -156,7 +156,7 @@ def combine_flows(input_1: FlowAlias, input_2: FlowAlias, mode: int, thresholded
         - Mode ``3``: `input_1` corresponds to :math:`flow_1`, `input_2` corresponds to :math:`flow_2`, the result will
           be :math:`flow_3`
     :param thresholded: Boolean determining whether flows are thresholded during an internal call to
-        :meth:`~oflibnumpy.Flow.is_zero`, defaults to ``False``
+        :meth:`~oflibpytorch.Flow.is_zero`, defaults to ``False``
     :return: New flow object
     """
 
