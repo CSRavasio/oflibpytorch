@@ -1274,8 +1274,8 @@ class Flow(object):
 
     def visualise_arrows(
         self,
-        grid_dist: int,
-        img: np.ndarray = None,
+        grid_dist: int = None,
+        img: Union[np.ndarray, torch.Tensor] = None,
         scaling: Union[float, int] = None,
         show_mask: bool = None,
         show_mask_borders: bool = None,
@@ -1288,7 +1288,7 @@ class Flow(object):
 
         :param grid_dist: Integer of the distance of the flow points to be used for the visualisation, defaults to
             ``20``
-        :param img: Numpy array with the background image to use (in BGR mode), defaults to white
+        :param img: Torch tensor or numpy array with the background image to use (in BGR mode), defaults to white
         :param scaling: Float or int of the flow line scaling, defaults to scaling the 99th percentile of arrowed line
             lengths to be equal to twice the grid distance (empirical value)
         :param show_mask: Boolean determining whether the flow mask is visualised, defaults to ``False``
@@ -1310,8 +1310,10 @@ class Flow(object):
             raise ValueError("Error visualising flow arrows: Grid_dist needs to be an integer larger than zero")
         if img is None:
             img = np.full(self.shape[:2] + (3,), 255, 'uint8')
+        if isinstance(img, torch.Tensor):
+            img = np.moveaxis(to_numpy(img), 0, -1)
         if not isinstance(img, np.ndarray):
-            raise TypeError("Error visualising flow arrows: Img needs to be a numpy array")
+            raise TypeError("Error visualising flow arrows: Img needs to be a numpy array or a torch tensor")
         if not img.ndim == 3 or img.shape[:2] != self.shape or img.shape[2] != 3:
             raise ValueError("Error visualising flow arrows: "
                              "Img needs to have 3 channels and the same shape as the flow")
