@@ -339,7 +339,7 @@ def apply_flow(flow: torch.Tensor, target: torch.Tensor, ref: str = None, mask: 
         #        y
     else:  # ref == 's'
         # Get the positions of the unstructured points with known values
-        field = np.moveaxis(to_numpy(flow), 0, -1).astype('float32')
+        field = to_numpy(flow, True).astype('float32')
         x, y = np.mgrid[:field.shape[0], :field.shape[1]]
         positions = np.swapaxes(np.vstack([x.ravel(), y.ravel()]), 0, 1)
         flow_flat = np.reshape(field[..., ::-1], (-1, 2))  # Shape H*W-2

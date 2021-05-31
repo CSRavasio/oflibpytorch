@@ -1210,7 +1210,7 @@ class Flow(object):
         if not isinstance(return_tensor, bool):
             raise TypeError("Error visualising flow: Return_tensor needs to be boolean")
 
-        f = np.moveaxis(to_numpy(threshold_vectors(self._vecs)), 0, -1)
+        f = to_numpy(threshold_vectors(self._vecs), True)
         # Threshold the flow: very small numbers can otherwise lead to issues when calculating mag / angle
 
         # Colourise the flow
@@ -1311,7 +1311,7 @@ class Flow(object):
         if img is None:
             img = np.full(self.shape[:2] + (3,), 255, 'uint8')
         if isinstance(img, torch.Tensor):
-            img = np.moveaxis(to_numpy(img), 0, -1)
+            img = to_numpy(img, True)
         if not isinstance(img, np.ndarray):
             raise TypeError("Error visualising flow arrows: Img needs to be a numpy array or a torch tensor")
         if not img.ndim == 3 or img.shape[:2] != self.shape or img.shape[2] != 3:
@@ -1343,7 +1343,7 @@ class Flow(object):
             raise ValueError("Error visualising flow: Thickness needs to be a integer larger than zero")
 
         # Thresholding
-        f = np.moveaxis(to_numpy(threshold_vectors(self._vecs)), 0, -1)
+        f = to_numpy(threshold_vectors(self._vecs), True)
 
         # Make points
         x, y = np.mgrid[grid_dist//2:f.shape[0] - 1:grid_dist, grid_dist//2:f.shape[1] - 1:grid_dist]
@@ -1473,7 +1473,7 @@ class Flow(object):
             raise TypeError("Error fitting transformation matrix to flow: Masked needs to be boolean")
 
         # Get the two point arrays
-        vecs = np.moveaxis(to_numpy(self._vecs), 0, -1)
+        vecs = to_numpy(self._vecs, True)
         if self._ref == 't':
             dst_pts = np.stack(np.mgrid[:self.shape[0], :self.shape[1]], axis=-1)[..., ::-1]
             src_pts = dst_pts - vecs
