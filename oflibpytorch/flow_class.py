@@ -1309,7 +1309,7 @@ class Flow(object):
         if not grid_dist > 0:
             raise ValueError("Error visualising flow arrows: Grid_dist needs to be an integer larger than zero")
         if img is None:
-            img = np.zeros(self.shape[:2] + (3,), 'uint8')
+            img = np.full(self.shape[:2] + (3,), 255, 'uint8')
         if not isinstance(img, np.ndarray):
             raise TypeError("Error visualising flow arrows: Img needs to be a numpy array")
         if not img.ndim == 3 or img.shape[:2] != self.shape or img.shape[2] != 3:
