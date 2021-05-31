@@ -142,14 +142,25 @@ def move_axis(input_tensor: torch.Tensor, source: int, destination: int) -> torc
     return input_tensor.unsqueeze(destination).transpose(source, destination).squeeze(source)
 
 
-def to_numpy(tensor: torch.Tensor) -> np.ndarray:
-    """Tensor to numpy, calls .cpu() if necessary"""
+def to_numpy(tensor: torch.Tensor, switch_channels: bool = None) -> np.ndarray:
+    """Tensor to numpy, calls .cpu() if necessary
+
+    :param tensor: Input tensor
+    :param switch_channels: Boolean determining whether the channels are moved from the first to the last dimension,
+        defaults to ``True``
+    :return: Numpy array, with channels switched if required
+    """
+
+    switch_channels = False if switch_channels is None else switch_channels
     with torch.no_grad():
         if tensor.device.type == 'cuda':
             tensor = tensor.cpu()
         else:
             tensor = tensor.detach()
-        return tensor.numpy()
+        arr = tensor.numpy()
+        if switch_channels:
+            arr = np.moveaxis(arr, 0, -1)
+        return arr
 
 
 def flow_from_matrix(matrix: torch.Tensor, shape: Union[list, tuple]) -> torch.Tensor:
