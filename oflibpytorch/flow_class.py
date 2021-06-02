@@ -777,7 +777,7 @@ class Flow(object):
         consider_mask = True if consider_mask is None else consider_mask
         if not isinstance(consider_mask, bool):
             raise TypeError("Error applying flow: Consider_mask needs to be a boolean")
-        cut = False if cut is None else cut
+        cut = True if cut is None else cut
         if not isinstance(cut, bool):
             raise TypeError("Error applying flow: Cut needs to be a boolean")
         if padding is not None:
