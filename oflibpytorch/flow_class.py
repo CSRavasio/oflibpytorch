@@ -957,8 +957,10 @@ class Flow(object):
             warped_pts = torch.round(warped_pts).long()
 
         if get_valid_status:
-            status_array = self.valid_source()[torch.round(pts[..., 0]).long(),
-                                               torch.round(pts[..., 1]).long()]
+            # noinspection PyUnresolvedReferences
+            if pts.dtype.is_floating_point:
+                pts = torch.round(pts)
+            status_array = self.valid_source()[pts[..., 0].long(), pts[..., 1].long()]
             return warped_pts, status_array
         else:
             return warped_pts
