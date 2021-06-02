@@ -147,7 +147,7 @@ def to_numpy(tensor: torch.Tensor, switch_channels: bool = None) -> np.ndarray:
 
     :param tensor: Input tensor
     :param switch_channels: Boolean determining whether the channels are moved from the first to the last dimension,
-        defaults to ``True``
+        defaults to ``False``
     :return: Numpy array, with channels switched if required
     """
 
