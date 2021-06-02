@@ -163,6 +163,24 @@ def to_numpy(tensor: torch.Tensor, switch_channels: bool = None) -> np.ndarray:
         return arr
 
 
+def to_tensor(array: np.ndarray, switch_channels: bool = None, device: str = None) -> torch.Tensor:
+    """Numpy to tensor
+
+    :param array: Input array
+    :param switch_channels: Boolean determining whether the channels are moved from the last to the first dimension,
+        defaults to ``False``
+    :param device: Tensor device, ``cpu`` or ``cuda`` (if available). Defaults to ``cpu``
+    :return: Torch tensor, with channels switched if required
+    """
+
+    switch_channels = False if switch_channels is None else switch_channels
+    device = 'cpu' if device is None else device
+    if switch_channels:
+        array = np.moveaxis(array, -1, 0)
+    tens = torch.tensor(array).to(device)
+    return tens
+
+
 def flow_from_matrix(matrix: torch.Tensor, shape: Union[list, tuple]) -> torch.Tensor:
     """Flow calculated from a transformation matrix
 
