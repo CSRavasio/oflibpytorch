@@ -16,6 +16,7 @@ import torch
 import torch.nn.functional as f
 from scipy.interpolate import griddata
 import numpy as np
+import cv2
 from typing import Any, Union
 
 
@@ -179,6 +180,31 @@ def to_tensor(array: np.ndarray, switch_channels: bool = None, device: str = Non
         array = np.moveaxis(array, -1, 0)
     tens = torch.tensor(array).to(device)
     return tens
+
+
+def show_masked_image(img: Union[torch.Tensor, np.ndarray], mask: Union[torch.Tensor, np.ndarray] = None) -> np.ndarray:
+    """Mimics flow.show(), for an input image and a mask
+
+    :param img: Torch tensor of shape :math:`(3, H, W)` or numpy array of shape :math:`(H, W, 3)`, BGR input image
+    :param mask: Torch tensor or numpy array of shape :math:`(H, W)`, boolean mask showing the valid area
+    :return: Masked image, in BGR colour space
+    """
+
+    if isinstance(img, torch.Tensor):
+        img = to_numpy(img, switch_channels=True)
+    if mask is None:
+        mask = np.ones(img.shape[:2], 'bool')
+    elif isinstance(mask, torch.Tensor):
+        mask = to_numpy(mask)
+    hsv = cv2.cvtColor(np.round(img).astype('uint8'), cv2.COLOR_BGR2HSV)
+    hsv[np.invert(mask), 2] = 180
+    contours, hierarchy = cv2.findContours((255 * mask).astype('uint8'),
+                                           cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(hsv, contours, -1, (0, 0, 0), 1)
+    bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    cv2.imshow("Image masked by valid area", bgr)
+    cv2.waitKey()
+    return bgr
 
 
 def flow_from_matrix(matrix: torch.Tensor, shape: Union[list, tuple]) -> torch.Tensor:
