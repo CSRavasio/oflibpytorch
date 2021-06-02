@@ -104,7 +104,7 @@ def get_valid_padding(padding: Any, error_string: str = None) -> list:
     """
 
     error_string = '' if error_string is None else error_string
-    if not isinstance(padding, list):
+    if not isinstance(padding, (list, tuple)):
         raise TypeError(error_string + "Padding needs to be a list [top, bot, left, right]")
     if len(padding) != 4:
         raise ValueError(error_string + "Padding list needs to be a list of length 4 [top, bot, left, right]")
