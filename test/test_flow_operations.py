@@ -14,6 +14,7 @@
 import unittest
 import cv2
 import numpy as np
+import torch
 from oflibpytorch.flow_class import Flow
 from oflibpytorch.flow_operations import combine_flows, visualise_definition
 
@@ -60,6 +61,21 @@ class TestFlowOperations(unittest.TestCase):
             comb_mask = f3_actual.mask & f3.mask
             self.assertIsNone(np.testing.assert_allclose(f3_actual.vecs_numpy[comb_mask], f3.vecs_numpy[comb_mask],
                                                          atol=5e-2))
+
+        with self.assertRaises(TypeError):  # wrong type
+            combine_flows(torch.ones(shape), f2, 3)
+        with self.assertRaises(ValueError):  # wrong shape
+            combine_flows(f1.resize(.5), f2, 3)
+        with self.assertRaises(ValueError):  # wrong ref
+            combine_flows(Flow.from_transforms(transforms[0:1], shape, 's'),
+                          Flow.from_transforms(transforms[1:2], shape, 't'), 3)
+        if torch.cuda.is_available():  # The following test assumes 'cuda' device is available
+            with self.assertRaises(ValueError):  # wrong device
+                combine_flows(f1.to_device('cuda'), f2, 3)
+        with self.assertRaises(ValueError):  # wrong mode
+            combine_flows(f1, f2, 0)
+        with self.assertRaises(TypeError):  # wrong thresholded
+            combine_flows(f1, f2, 1, thresholded='test')
 
 
 if __name__ == '__main__':
