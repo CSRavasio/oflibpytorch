@@ -162,11 +162,13 @@ def combine_flows(input_1: FlowAlias, input_2: FlowAlias, mode: int, thresholded
 
     # Check input validity
     if not isinstance(input_1, Flow) or not isinstance(input_2, Flow):
-        raise ValueError("Error combining flows: Inputs need to be of type 'Flow'")
+        raise TypeError("Error combining flows: Inputs need to be of type 'Flow'")
     if not input_1.shape == input_2.shape:
         raise ValueError("Error combining flows: Flow field inputs need to have the same shape")
-    if not input_1.ref == input_2.ref:
+    if not input_1._ref == input_2._ref:
         raise ValueError("Error combining flows: Flow fields need to have the same reference")
+    if not input_1._device == input_2._device:
+        raise ValueError("Error combining flows: Flow fields need to be on the same tensor device")
     if mode not in [1, 2, 3]:
         raise ValueError("Error combining flows: Mode needs to be 1, 2 or 3")
     thresholded = False if thresholded is None else thresholded
