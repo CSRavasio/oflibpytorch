@@ -857,7 +857,7 @@ class Flow(object):
 
         # Extract and finalise mask if required
         if return_flow or return_valid_area:
-            mask = warped_t[-1] == 1
+            mask = warped_t[-1] > 0.99999
             # if self.ref == 's': Valid self.vecs already taken into account by ANDing with self.mask before warping
             if self._ref == 't':
                 # Still need to take into account which self.vecs are actually valid by ANDing with self.mask
@@ -1059,7 +1059,7 @@ class Flow(object):
             # were themselves valid:
             # area = F{source} & mask, where: source = True everywhere
             area = apply_flow(self._vecs, torch.ones(self.shape), 't')
-            area = area == 1
+            area = area > 0.9999
             area = area & self._mask
         return area
 
@@ -1092,7 +1092,7 @@ class Flow(object):
             area = apply_flow(-self._vecs, torch.ones(self.shape), 't')
             # Note: this is equal to: area = self.invert('t').apply(np.ones(self.shape)), but more efficient as there
             # is no unnecessary warping of the mask
-            area = area == 1
+            area = area > 0.9999
             area = area & self._mask
         else:  # ref is 't'
             # Flow mask in 't' flow refers to valid flow vecs in the target image. Therefore, to find the area in the
