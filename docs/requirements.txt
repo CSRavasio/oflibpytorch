@@ -3,6 +3,6 @@ opencv-python==4.2.0.34
 scipy==1.6.0
 sphinx==3.5.2
 sphinx_rtd_theme==0.5.2
-pytorch==1.4
-cudatoolkit==10.1
+pytorch==1.8
+cudatoolkit==10.2
 readthedocs-sphinx-search==0.1.0rc3
