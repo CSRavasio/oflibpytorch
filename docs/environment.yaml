@@ -9,6 +9,6 @@ dependencies:
   - scipy==1.6.0
   - sphinx==3.5.2
   - pytorch==1.4
-  - cudatoolkit=10.1
+  - cudatoolkit==10.1
   - pip:
     - sphinx_rtd_theme==0.5.2
