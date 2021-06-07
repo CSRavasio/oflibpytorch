@@ -11,6 +11,14 @@ written from scratch, but also contains useful wrappers for specific functions f
 - Allows for three different types of flow field combination operations
 - Keeps track of valid flow field areas through said operations
 
+Oflibpytorch is based on oflibnumpy (`code on GitHub`_, `documentation on ReadTheDocs`_) and is aimed at allowing the
+same operations to be performed with torch tensors instead of numpy arrays as far as currently feasible, and on the
+GPU if required.
+
+.. _code on GitHub: https://github.com/RViMLab/oflibnumpy
+
+.. _documentation on ReadTheDocs: https://oflibnumpy.rtfd.io
+
 Usage & Documentation
 ---------------------
 A user's guide as well as full documentation of the library is available at ReadTheDocs_. Some quick examples:

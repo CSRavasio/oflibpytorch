@@ -5,8 +5,11 @@ manipulation and combination of flow fields while keeping track of valid areas (
 written from scratch, but also contains useful wrappers for specific functions from libraries such as PyTorch's
 ``grid_sample``, to integrate them with the custom flow field class introduced by oflibpytorch.
 
-An equivalent flow library based on NumPy arrays exists. Its documentation can be found on `ReadTheDocs`_.
+An equivalent flow library based on NumPy arrays exists. Its code is on GitHub_, and the documentation can be found on
+`ReadTheDocs`_. Oflibpytorch is aimed at allowing the same operations to be performed with torch tensors instead of
+numpy arrays as far as currently feasible, and on the GPU if required.
 
+.. _GitHub: https://github.com/RViMLab/oflibnumpy
 .. _ReadTheDocs: https://oflibnumpy.readthedocs.io
 
 **Features:**

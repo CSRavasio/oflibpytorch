@@ -1,8 +1,15 @@
 Usage
 =====
-This section aims to illustrate the benefits of ``oflibpytorch`` with examples. In all sample code, it is assumed that the
+This section aims to illustrate the benefits of :mod:`oflibpytorch` with examples. In all sample code, it is assumed that the
 library was imported using the command ``import oflibpytorch as of``, and therefore the flow class can be accessed using
 ``of.Flow`` and the functions using ``of.<function>``.
+
+Note that :mod:`oflibpytorch` is an adaption of :mod:`oflibnumpy` to the use of torch tensors instead of numpy arrays
+as far as currently feasible, functionally largely equivalent. Using torch tensors is advantageous e.g. for work with
+deep learning models, where image data, points tracked, as well as the flow fields themselves might be available as a
+torch tensor, possibly on GPU. However, due to the current lack of a PyTorch function that interpolates from
+unstructured data, some :mod:`oflibpytorch` still need to fall back on the slower and CPU-only SciPy :func:`griddata`
+function (see the section ":ref:`The Flow Reference`" and :meth:`~oflibpytorch.Flow.apply`).
 
 The Flow Object
 ---------------
