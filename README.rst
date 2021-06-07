@@ -25,7 +25,7 @@ A user's guide as well as full documentation of the library is available at Read
     flow = of.Flow.from_transforms([['rotation', 200, 150, -30]], shape)
     flow.show()
 
-.. image:: ../docs/_static/index_flow_1.png
+.. image:: https://raw.githubusercontent.com/RViMLab/oflibpytorch/main/docs/_static/index_flow_1.png
     :width: 50%
     :alt: Visualisation of optical flow representing a rotation
 
@@ -36,7 +36,7 @@ A user's guide as well as full documentation of the library is available at Read
     result = of.combine_flows(flow, flow_2, mode=3)
     result.show(show_mask=True, show_mask_borders=True)
 
-.. image:: ../docs/_static/index_result.png
+.. image:: https://raw.githubusercontent.com/RViMLab/oflibpytorch/main/docs/_static/index_result.png
     :width: 50%
     :alt: Visualisation of optical flow representing a rotation, translated to the right
 
@@ -44,7 +44,7 @@ A user's guide as well as full documentation of the library is available at Read
 
     result.show_arrows(show_mask=True, show_mask_borders=True)
 
-.. image:: ../docs/_static/index_result_arrows.png
+.. image:: https://raw.githubusercontent.com/RViMLab/oflibpytorch/main/docs/_static/index_result_arrows.png
     :width: 50%
     :alt: Visualisation of optical flow representing a rotation, translated to the right
 
