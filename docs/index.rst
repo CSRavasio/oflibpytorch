@@ -19,6 +19,15 @@ An equivalent flow library based on NumPy arrays exists. Its documentation can b
 
 **Installation:**
 
+In order for oflibpytorch to work, the python environment needs to contain a PyTorch installation. To enable GPU usage,
+the CUDA Toolkit is required as well. As it is difficult to guarantee an automatic installation via pip will use the
+correct versions and work on all operating systems, it is left to the user to install :mod:`pytorch` and
+:mod:`cudatoolkit` independently. The easiest route is a virtual conda environment and the recommended install command
+from the `PyTorch website`_, configured for the user's specific system. To install oflibpytorch itself, use the
+following command:
+
+.. _PyTorch website: https://pytorch.org
+
 .. code-block::
 
     pip install oflibpytorch

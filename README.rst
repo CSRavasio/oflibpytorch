@@ -51,7 +51,14 @@ A user's guide as well as full documentation of the library is available at Read
 
 Installation
 ------------
-Oflibpytorch is based on Python>=3.7. Install it by running:
+In order for oflibpytorch to work, the python environment needs to contain a PyTorch installation. To enable GPU usage,
+the CUDA Toolkit is required as well. As it is difficult to guarantee an automatic installation via pip will use the
+correct versions and work on all operating systems, it is left to the user to install PyTorch and Cudatoolkit
+independently. The easiest route is a virtual conda environment and the recommended install command
+from the `PyTorch website`_, configured for the user's specific system. To install oflibpytorch itself, use the
+following command:
+
+.. _PyTorch website: https://pytorch.org
 
 .. code-block::
 
