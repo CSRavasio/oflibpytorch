@@ -291,8 +291,9 @@ from oflibpytorch.utils import to_numpy, to_tensor, show_masked_image
 # img = cv2.imread('_static/thames_300x400.jpg')[60:-40]
 # shape = (200, 400)
 # flow = of.Flow.from_transforms([['rotation', 200, 100, -30]], shape)
-# warped = flow.apply(img)
+# warped = flow.apply(to_tensor(img, True))
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/img.png', img)
-# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/warped.png', warped)
-# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/flow.png', flow.visualise('bgr'))
-# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/arrows.png', flow.visualise_arrows(50, None, .5, thickness=6))
+# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/warped.png', to_numpy(warped, True))
+# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/flow.png', flow.visualise('bgr', return_tensor=False))
+# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/arrows.png',
+#             flow.visualise_arrows(50, None, .5, thickness=6, return_tensor=False))
