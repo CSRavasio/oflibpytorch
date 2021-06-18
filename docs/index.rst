@@ -4,8 +4,8 @@ Introduction
     :width: 100%
     :alt: Oflibpytorch cover image
 
-Oflibpytorch: a handy python **o**\ ptical **f**\ low **lib**\ rary, based on **PyTorch** tensors, that enables the
-manipulation and combination of flow fields while keeping track of valid areas (see "Usage"). It is mostly code
+**Oflibpytorch:** a handy python **o**\ ptical **f**\ low **lib**\ rary, based on **PyTorch** tensors, that enables
+the manipulation and combination of flow fields while keeping track of valid areas (see "Usage"). It is mostly code
 written from scratch, but also contains useful wrappers for specific functions from libraries such as PyTorch's
 ``grid_sample``, to integrate them with the custom flow field class introduced by oflibpytorch.
 
