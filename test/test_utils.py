@@ -33,7 +33,6 @@ class TestMoveAxis(unittest.TestCase):
                 active_dim = ip_shape[i]
                 ip_shape_copy.pop(i)
                 expected_shape = ip_shape_copy[:j] + [active_dim] + ip_shape_copy[j:]
-                print("source {}, destination {}".format(i, j))
                 self.assertEqual(list(op_tensor.shape), expected_shape)
 
         for i in range(4):
@@ -43,7 +42,6 @@ class TestMoveAxis(unittest.TestCase):
                 active_dim = ip_shape_copy[i]
                 ip_shape_copy.pop(i)
                 expected_shape = ip_shape_copy[:j] + [active_dim] + ip_shape_copy[j:]
-                print("source {}, destination {}".format(-i - 1, -j - 1))
                 self.assertEqual(list(op_tensor.shape), list(reversed(expected_shape)))
 
 
