@@ -1228,9 +1228,9 @@ class Flow(object):
         # Scale flow
         if range_max is None:
             if np.percentile(mag, 99) > 0:  # Use 99th percentile to avoid extreme outliers skewing the scaling
-                range_max = np.percentile(mag, 99)
+                range_max = float(np.percentile(mag, 99))
             elif np.max(mag):  # If the 99th percentile is 0, use the actual maximum instead
-                range_max = np.max(mag)
+                range_max = float(np.max(mag))
             else:  # If the maximum is 0 too (i.e. the flow field is entirely 0)
                 range_max = 1
         if not isinstance(range_max, (float, int)):
