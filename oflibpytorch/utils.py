@@ -361,8 +361,12 @@ def apply_flow(flow: torch.Tensor, target: torch.Tensor, ref: str = None, mask: 
         field = normalise_coords(grid.unsqueeze(0) - flow.unsqueeze(-1).transpose(-1, 0), (h, w))
         if target.shape[0] > 1:  # target wasn't just unsqueezed, but has a true N dimension
             field = field.repeat(target.shape[0], 1, 1, 1)
-        # noinspection PyArgumentList
-        result = f.grid_sample(target, field, align_corners=True)
+        torch_version = globals()['torch'].__version__
+        if int(torch_version[0]) == 1 and float(torch_version[2:4]) <= 3:
+            result = f.grid_sample(target, field)
+        else:
+            # noinspection PyArgumentList
+            result = f.grid_sample(target, field, align_corners=True)
         # Comment on grid_sample: given grid_sample(input, grid), the input is sampled at grid points.
         #   For this to work:
         #   - input is shape NCHW (containing data vals in C)
