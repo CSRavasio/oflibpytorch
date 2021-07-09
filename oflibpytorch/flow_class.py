@@ -942,7 +942,7 @@ class Flow(object):
                     flow_vecs = f.grid_sample(self._vecs.unsqueeze(0), pts_4d, align_corners=True).flip(1)
                     #  vecs are 1-2-H-W, pts_4d is 1-1-N-2, output will be 1-2-1-N
                     flow_vecs = flow_vecs.transpose(0, -1).squeeze(-1).squeeze(-1)  # flow_vecs now N-2
-                warped_pts = pts + flow_vecs
+                warped_pts = pts.float() + flow_vecs
             else:  # self._ref == 't'
                 x, y = np.mgrid[:self.shape[0], :self.shape[1]]
                 grid = np.swapaxes(np.vstack([x.ravel(), y.ravel()]), 0, 1)
