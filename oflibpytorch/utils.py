@@ -37,7 +37,7 @@ def get_valid_vecs(vecs: Any, desired_shape: Union[tuple, list] = None, error_st
     # Check type and dimensions
     if not isinstance(vecs, (np.ndarray, torch.Tensor)):
         raise TypeError(error_string + "Input is not a numpy array or a torch tensor")
-    if vecs.ndim != 3:
+    if len(vecs.shape) != 3:
         raise ValueError(error_string + "Input is not 3-dimensional")
 
     # Transform to tensor if necessary
@@ -134,8 +134,8 @@ def move_axis(input_tensor: torch.Tensor, source: int, destination: int) -> torc
     :return: Output torch tensor, e.g. N-C-H-W
     """
 
-    source %= input_tensor.ndim
-    destination %= input_tensor.ndim
+    source %= input_tensor.dim()
+    destination %= input_tensor.dim()
     if source < destination:
         destination += 1  # Otherwise e.g. source = 0, destination = 1 won't give correct result
     elif source > destination:
@@ -347,7 +347,7 @@ def apply_flow(flow: torch.Tensor, target: torch.Tensor, ref: str = None, mask: 
     target = target.to(torch.float)
     if target.device != flow.device:
         target = target.to(flow.device)
-    target_dims = target.ndim
+    target_dims = target.dim()
     if target_dims == 2:  # shape H-W to 1-1-H-W
         target = target.unsqueeze(0).unsqueeze(0)
     elif target_dims == 3:  # shape C-H-W to 1-C-H-W
