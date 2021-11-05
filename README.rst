@@ -73,6 +73,18 @@ following command:
     pip install oflibpytorch
 
 
+Testing
+------------
+Oflibpytorch contains a large number of tests to verify it is working as intended. To run them, ensure the ``unittest``
+package is installed. Then, use the command line to navigate to ``oflibpytorch/test`` and run the following code:
+
+.. code-block::
+
+    python -m unittest discover .
+
+The tests will take several minutes to run. Successful completion will be marked with ``OK``.
+
+
 Contribution & Support
 ----------------------
 - Source Code: https://github.com/RViMLab/oflibpytorch
