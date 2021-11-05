@@ -39,6 +39,14 @@ following command:
 
     pip install oflibpytorch
 
+**Testing:**
+
+Make sure ``unittest`` is installed. In the command line, navigate to the folder ``oflibpytorch/test`` and run:
+
+.. code-block::
+
+    python -m unittest discover .
+
 **Code example:**
 
 .. code-block:: python
