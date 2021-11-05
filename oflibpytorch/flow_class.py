@@ -114,6 +114,9 @@ class Flow(object):
         any other position). The flow reference ``t`` is the default, meaning the regular grid refers to the
         coordinates the pixels whose motion is being recorded by the vectors end up at.
 
+        Applying a flow with reference ``s`` is known as "forward" warping, while reference ``t`` corresponds to what
+        is termed "backward" or "reverse" warping.
+
         .. caution::
 
             The :meth:`~oflibpytorch.Flow.apply` method for warping an image is significantly faster with a flow in

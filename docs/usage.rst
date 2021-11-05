@@ -145,11 +145,11 @@ definitions or frames of reference for flow vectors:
 
 The flow reference ``t`` is the default, and it is significantly faster to warp an image with a flow in that
 reference. The reason is that reference ``t`` requires interpolating unstructured points from a regular
-grid, while reference ``s`` requires interpolating a regular grid from unstructured points. The former uses the
-fast PyTorch :func:`grid_sample` function, the latter is much more operationally complex and relies on the SciPy
-:func:`griddata` function. On the other hand, the :meth:`~oflibpytorch.Flow.track` method for tracking points (see the
-section ":ref:`Tracking Points`") is significantly faster with a flow in ``s`` reference, again due to not requiring
-a call to SciPy's :func:`griddata` function.
+grid (also known as "backward" or "reverse" warping), while reference ``s`` requires interpolating a regular grid
+from unstructured points ("forward" warping). The former uses the fast PyTorch :func:`grid_sample` function, the
+latter is much more operationally complex and relies on the SciPy :func:`griddata` function. On the other hand, the
+:meth:`~oflibpytorch.Flow.track` method for tracking points (see the section ":ref:`Tracking Points`") is significantly
+faster with a flow in ``s`` reference, again due to not requiring a call to SciPy's :func:`griddata` function.
 
 As the images below show, the same rotation will lead to slightly different flow vectors depending on which reference
 is chosen. This illustrates that the reference attribute :attr:`~oflibpytorch.Flow.ref` cannot simply be set to a
