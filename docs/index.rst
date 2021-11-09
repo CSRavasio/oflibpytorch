@@ -41,7 +41,7 @@ following command:
 
 **Testing:**
 
-Make sure ``unittest`` is installed. In the command line, navigate to the folder ``oflibpytorch/test`` and run:
+In the command line, navigate to the folder ``oflibpytorch/test`` and run:
 
 .. code-block::
 

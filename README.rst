@@ -75,8 +75,8 @@ following command:
 
 Testing
 ------------
-Oflibpytorch contains a large number of tests to verify it is working as intended. To run them, ensure the ``unittest``
-package is installed. Then, use the command line to navigate to ``oflibpytorch/test`` and run the following code:
+Oflibpytorch contains a large number of tests to verify it is working as intended. Use the command line to navigate
+to ``oflibpytorch/test`` and run the following code:
 
 .. code-block::
 
