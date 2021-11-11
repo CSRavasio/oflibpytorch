@@ -116,7 +116,7 @@ def get_valid_padding(padding: Any, error_string: str = None) -> list:
     return padding
 
 
-def validate_shape(shape: Any) -> Union[tuple, list]:
+def validate_shape(shape: Any):
     if not isinstance(shape, (list, tuple)):
         raise TypeError("Error creating flow from matrix: Dims need to be a list or a tuple")
     if len(shape) != 2:
