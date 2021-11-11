@@ -9,7 +9,7 @@
 #       Imaging Sciences (BMEIS) at King's College London (KCL)
 #   Prof Lyndon Da Cruz, consultant ophthalmic surgeon, Moorfields Eye Hospital, London UK
 #
-# This file is part of oflibpytorch
+# This file is part of oflibpytorch. It contains functions needed by the methods of the custom flow class in flow_class.
 
 import math
 import torch
