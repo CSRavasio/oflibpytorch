@@ -16,8 +16,10 @@ import torch
 import cv2
 import numpy as np
 import math
-from oflibpytorch.flow_class import Flow
-from oflibpytorch.utils import to_numpy, apply_flow, matrix_from_transforms
+import sys
+sys.path.append('..')
+from src.oflibpytorch.flow_class import Flow
+from src.oflibpytorch.utils import to_numpy, apply_flow, matrix_from_transforms
 
 
 class FlowTest(unittest.TestCase):

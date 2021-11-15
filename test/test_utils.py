@@ -16,10 +16,12 @@ import unittest
 import cv2
 import numpy as np
 import math
-from oflibpytorch.utils import get_valid_vecs, get_valid_ref, get_valid_padding, validate_shape, get_valid_device, \
+import sys
+sys.path.append('..')
+from src.oflibpytorch.utils import get_valid_vecs, get_valid_ref, get_valid_padding, validate_shape, get_valid_device, \
     to_numpy, move_axis, flow_from_matrix, matrix_from_transform, matrix_from_transforms, reverse_transform_values, \
     normalise_coords, apply_flow, threshold_vectors
-from oflibpytorch.flow_class import Flow
+from src.oflibpytorch.flow_class import Flow
 
 
 class TestMoveAxis(unittest.TestCase):

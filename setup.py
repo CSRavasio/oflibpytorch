@@ -56,6 +56,7 @@ setup(
         'Source': 'https://github.com/RViMLab/oflibpytorch',
         'Tracker': 'https://github.com/RViMLab/oflibpytorch/issues',
     },
+    package_dir={'': 'src'},
     packages=['oflibpytorch'],
     install_requires=[
         'numpy',

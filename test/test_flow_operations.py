@@ -15,8 +15,10 @@ import unittest
 import cv2
 import numpy as np
 import torch
-from oflibpytorch.flow_class import Flow
-from oflibpytorch.flow_operations import combine_flows, visualise_definition
+import sys
+sys.path.append('..')
+from src.oflibpytorch.flow_class import Flow
+from src.oflibpytorch.flow_operations import combine_flows, visualise_definition
 
 
 class TestFlowOperations(unittest.TestCase):
