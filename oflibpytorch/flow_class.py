@@ -1315,6 +1315,11 @@ class Flow(object):
         grid_dist = 20 if grid_dist is None else grid_dist
         if not isinstance(grid_dist, int):
             raise TypeError("Error visualising flow arrows: Grid_dist needs to be an integer value")
+        if grid_dist > min(self.shape) // 2:
+            print("Warning: grid_dist in visualise_arrows is '{}', which is too large for a flow field of shape "
+                  "({}, {}). grid_dist will be reset to '{}'."
+                  .format(grid_dist, *self.shape, min(self.shape) // 2))
+            grid_dist = min(self.shape) // 2
         if not grid_dist > 0:
             raise ValueError("Error visualising flow arrows: Grid_dist needs to be an integer larger than zero")
         if img is None:
