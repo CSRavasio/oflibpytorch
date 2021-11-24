@@ -406,6 +406,21 @@ class TestApplyFlow(unittest.TestCase):
                     self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img[:-20, 10:]),
                                                               to_numpy(img[20:, :-10])))
 
+    def test_apply_flow_failed(self):
+        flow = Flow.from_transforms([['translation', 2, 0]], (10, 10)).vecs
+        with self.assertRaises(TypeError):  # target is not torch tensor
+            apply_flow(flow, target='test')
+        with self.assertRaises(ValueError):  # target torch tensor too few dimensions
+            apply_flow(flow, target=torch.zeros(5))
+        with self.assertRaises(ValueError):  # target torch tensor too many dimensions
+            apply_flow(flow, target=torch.zeros((1, 1, 1, 1, 5)))
+        with self.assertRaises(ValueError):  # target torch tensor shape does not match flow shape
+            apply_flow(flow, target=torch.zeros((11, 10)))
+        with self.assertRaises(ValueError):  # target torch tensor shape does not match flow shape
+            apply_flow(flow, target=torch.zeros((1, 11, 10)))
+        with self.assertRaises(ValueError):  # target torch tensor shape does not match flow shape
+            apply_flow(flow, target=torch.zeros((1, 1, 11, 10)))
+
 
 class TestThresholdVectors(unittest.TestCase):
     def test_threshold(self):

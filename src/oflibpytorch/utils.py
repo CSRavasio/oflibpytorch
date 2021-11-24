@@ -356,22 +356,39 @@ def normalise_coords(coords: torch.Tensor, shape: Union[tuple, list]) -> torch.T
     return normalised_coords
 
 
-def apply_flow(flow: torch.Tensor, target: torch.Tensor, ref: str = None, mask: torch.Tensor = None) -> torch.Tensor:
-    """Warps target according to flow of given reference
+def apply_flow(
+    flow: Union[np.ndarray, torch.Tensor],
+    target: torch.Tensor,
+    ref: str = None,
+    mask: Union[np.ndarray, torch.Tensor] = None
+) -> torch.Tensor:
+    """Uses a given flow to warp a target. The flow reference, if not given, is assumed to be ``t``. Optionally, a mask
+    can be passed which (only for flows in ``s`` reference) masks undesired (e.g. undefined or invalid) flow vectors.
 
-    :param flow: Torch tensor 2-H-W containing the flow vectors in cv2 convention (1st channel hor, 2nd channel ver)
-    :param target: Torch tensor H-W, C-H-W, or N-C-H-W containing the content to be warped
-    :param ref: Reference of the flow, 't' or 's'. Defaults to 't'
-    :param mask: Torch tensor H-W containing the flow mask, only relevant for 's' flows. Defaults to True everywhere
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param target: Torch tensor containing the content to be warped, with shape :math:`(H, W)`, :math:`(H, W, C)`, or
+        :math:`(N, C, H, W)`
+    :param ref: Reference of the flow, ``t`` or ``s``
+    :param mask: Flow mask as numpy array or torch tensor, with shape :math:`(H, W)`. Only relevant for ``s``
+        flows. Defaults to ``True`` everywhere
     :return: Torch tensor of the same shape as the target, with the content warped by the flow
     """
 
-    # Check if all flow vectors are almost zero
-    if torch.all(torch.norm(flow, dim=0) <= DEFAULT_THRESHOLD):  # If the flow field is actually 0 or very close
+    # Input validity check
+    ref = get_valid_ref(ref)
+    flow = get_valid_vecs(flow, error_string="Error applying flow to a target: ")
+    if is_zero_flow(flow, thresholded=True):  # If the flow field is actually 0 or very close
         return target
+    if not isinstance(target, torch.Tensor):
+        raise TypeError("Error applying flow to a target: Target needs to be a torch tensor")
+    if len(target.shape) not in [2, 3, 4]:
+        raise ValueError("Error applying flow to a target: Target tensor needs to have shape H-W, C-H-W, or N-C-H-W")
+    if target.shape[-2:] != flow.shape[1:]:
+        raise ValueError("Error applying flow to a target: Target height and width needs to match flow field array")
+    if mask is not None:
+        mask = get_valid_mask(mask, desired_shape=flow.shape[1:])
 
     # Set up
-    ref = get_valid_ref(ref)
     device = flow.device.type
     h, w = flow.shape[1:]
 
