@@ -649,7 +649,7 @@ def load_sintel_mask(path: str) -> torch.Tensor:
     return to_tensor(mask)
 
 
-def resize_flow(flow: torch.Tensor, scale: Union[float, int, list, tuple]) -> torch.Tensor:
+def resize_flow(flow: Union[np.ndarray, torch.Tensor], scale: Union[float, int, list, tuple]) -> torch.Tensor:
     """Resize a flow field numpy array or torch tensor, scaling the flow vectors values accordingly
 
     :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
