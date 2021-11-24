@@ -130,9 +130,7 @@ class FlowTest(unittest.TestCase):
         matrix_np = np.array([[math.sqrt(3) / 2, -.5, 26.3397459622],
                               [.5, math.sqrt(3) / 2, 1.69872981078],
                               [0, 0, 1]])
-        matrix_pt = torch.tensor([[math.sqrt(3) / 2, -.5, 26.3397459622],
-                                  [.5, math.sqrt(3) / 2, 1.69872981078],
-                                  [0, 0, 1]])
+        matrix_pt = torch.tensor(matrix_np)
         shape = [200, 300]
         matrix_device_list = ['cpu', 'cuda']
         flow_device_list = ['cpu', 'cuda', None]
@@ -156,91 +154,14 @@ class FlowTest(unittest.TestCase):
                                                                  atol=1e-4, rtol=1e-4))
                     self.assertIsNone(np.testing.assert_equal(flow.shape, shape))
 
-        # With and without inverse matrix for ref 't'
-        matrix = np.array([[1, 0, 10], [0, 1, 20], [0, 0, 1]])
-        inv_matrix = np.array([[1, 0, -10], [0, 1, -20], [0, 0, 1]])
-        vecs = Flow.from_matrix(matrix, shape, ref='t', matrix_is_inverse=False).vecs_numpy
-        inv_vecs = Flow.from_matrix(inv_matrix, shape, ref='t', matrix_is_inverse=True).vecs_numpy
-        self.assertIsNone(np.testing.assert_allclose(vecs, inv_vecs, rtol=1e-3))
-
-        # Invalid input
-        with self.assertRaises(TypeError):
-            Flow.from_matrix('test', [10, 10])
-        with self.assertRaises(ValueError):
-            Flow.from_matrix(np.eye(4), [10, 10])
-        with self.assertRaises(ValueError):
-            Flow.from_matrix(torch.eye(4), [10, 10])
-        with self.assertRaises(TypeError):
-            Flow.from_matrix(torch.eye(3), [10, 10], matrix_is_inverse='test')
-        with self.assertRaises(ValueError):
-            Flow.from_matrix(torch.eye(3), [10, 10], ref='s', matrix_is_inverse=True)
-
     def test_from_transforms(self):
-        shape = [200, 300]
-        # Invalid transform values
-        transforms = 'test'
-        with self.assertRaises(TypeError):
-            Flow.from_transforms(transforms, shape)
-        transforms = ['test']
-        with self.assertRaises(TypeError):
-            Flow.from_transforms(transforms, shape)
-        transforms = [['translation', 20, 10], ['rotation']]
-        with self.assertRaises(ValueError):
-            Flow.from_transforms(transforms, shape)
-        transforms = [['translation', 20, 10], ['rotation', 1]]
-        with self.assertRaises(ValueError):
-            Flow.from_transforms(transforms, shape)
-        transforms = [['translation', 20, 10], ['rotation', 1, 'test', 10]]
-        with self.assertRaises(ValueError):
-            Flow.from_transforms(transforms, shape)
-        transforms = [['translation', 20, 10], ['test', 1, 1, 10]]
-        with self.assertRaises(ValueError):
-            Flow.from_transforms(transforms, shape)
+        shape = [10, 20]
 
-        transforms = [['rotation', 10, 50, -30]]
+        transforms = [['rotation', 5, 10, -30]]
         for device in ['cpu', 'cuda', None]:
             flow = Flow.from_transforms(transforms, shape, device=device)
             expected_device = device if torch.cuda.is_available() and device is not None else 'cpu'
             self.assertEqual(flow.device, expected_device)
-        self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[50, 10], [0, 0], atol=1e-4))
-        self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[50, 299], [38.7186583063, 144.5]))
-        self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[199, 10], [-74.5, 19.9622148361], rtol=1e-6))
-        self.assertIsNone(np.testing.assert_equal(flow.shape, shape))
-        self.assertEqual(flow.ref, 't')
-
-        transforms = [['scaling', 20, 30, 2]]
-        flow = Flow.from_transforms(transforms, shape, 's')
-        self.assertIsNone(np.testing.assert_array_almost_equal(flow.vecs_numpy[30, 20], [0, 0]))
-        self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[30, 70], [50, 0]))
-        self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[80, 20], [0, 50]))
-        self.assertIsNone(np.testing.assert_equal(flow.shape, shape))
-        self.assertEqual(flow.ref, 's')
-
-        transforms = [
-            ['translation', -20, -30],
-            ['scaling', 0, 0, 2],
-            ['translation', 20, 30]
-        ]
-        flow = Flow.from_transforms(transforms, shape, 's')
-        self.assertIsNone(np.testing.assert_array_almost_equal(flow.vecs_numpy[30, 20], [0, 0]))
-        self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[30, 70], [50, 0]))
-        self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[80, 20], [0, 50]))
-        self.assertIsNone(np.testing.assert_equal(flow.shape, shape))
-        self.assertEqual(flow.ref, 's')
-
-        transforms = [
-            ['translation', -10, -50],
-            ['rotation', 0, 0, -30],
-            ['translation', 10, 50]
-        ]
-        flow = Flow.from_transforms(transforms, shape, 't')
-        self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[50, 10], [0, 0], atol=1e-4))
-        self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[50, 299], [38.7186583063, 144.5],
-                                                     atol=1e-4, rtol=1e-4))
-        self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[199, 10], [-74.5, 19.9622148361],
-                                                     atol=1e-4, rtol=1e-4))
-        self.assertIsNone(np.testing.assert_equal(flow.shape, shape))
-        self.assertEqual(flow.ref, 't')
 
     def test_from_kitti(self):
         path = 'kitti.png'

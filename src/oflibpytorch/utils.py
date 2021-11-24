@@ -437,6 +437,151 @@ def threshold_vectors(vecs: torch.Tensor, threshold: Union[float, int] = None) -
     return f
 
 
+def from_matrix(
+    matrix: Union[np.ndarray, torch.Tensor],
+    shape: Union[list, tuple],
+    ref: str = None,
+    matrix_is_inverse: bool = None
+) -> torch.Tensor:
+    """Flow vectors calculated from a transformation matrix input
+
+    :param matrix: Transformation matrix to be turned into a flow field, as numpy array or torch tensor of
+        shape :math:`(3, 3)`
+    :param shape: List or tuple of the shape :math:`(H, W)` of the flow field
+    :param ref: Flow reference, string of value ``t`` ("target") or ``s`` ("source"). Defaults to ``t``
+    :param matrix_is_inverse: Boolean determining whether the given matrix is already the inverse of the desired
+        transformation. Is useful for flow with reference ``t`` to avoid calculation of the pseudo-inverse, but
+        will throw a ``ValueError`` if used for flow with reference ``s`` to avoid accidental usage.
+        Defaults to ``False``
+    :return: Flow vectors of shape :math:`(2, H, W)`
+    """
+
+    # Check shape validity
+    validate_shape(shape)
+    # Check matrix validity
+    if not isinstance(matrix, (np.ndarray, torch.Tensor)):
+        raise TypeError("Error creating flow from matrix: Matrix needs to be a numpy array or a torch tensor")
+    if matrix.shape != (3, 3):
+        raise ValueError("Error creating flow from matrix: Matrix needs to be of shape (3, 3)")
+    if isinstance(matrix, np.ndarray):
+        matrix = torch.tensor(matrix)
+    matrix = matrix.to(torch.float)
+    # Get valid ref
+    ref = get_valid_ref(ref)
+    # Get valid inverse flag
+    matrix_is_inverse = False if matrix_is_inverse is None else matrix_is_inverse
+    if not isinstance(matrix_is_inverse, bool):
+        raise TypeError("Error creating flow from matrix: Matrix_is_inverse needs to be None or a Boolean")
+
+    if ref == 's':
+        # Coordinates correspond to the meshgrid of the original ('s'ource) image. They are transformed according
+        # to the transformation matrix. The start points are subtracted from the end points to yield flow vectors.
+        if matrix_is_inverse:
+            raise ValueError("Error creating flow from matrix: Matrix_is_inverse cannot be True when ref is 's'")
+        flow_vectors = flow_from_matrix(matrix, shape)
+    else:  # ref == 't':
+        # Coordinates correspond to the meshgrid of the warped ('t'arget) image. They are inversely transformed
+        # according to the transformation matrix. The end points, which correspond to the flow origin for the
+        # meshgrid in the warped image, are subtracted from the start points to yield flow vectors.
+        if not matrix_is_inverse:
+            matrix = torch.pinverse(matrix)
+        flow_vectors = -flow_from_matrix(matrix, shape)
+    return flow_vectors
+
+
+def from_transforms(
+    transform_list: list,
+    shape: Union[list, tuple],
+    ref: str = None,
+) -> torch.Tensor:
+    """Flow vectors calculated from a list of transforms
+
+    :param transform_list: List of transforms to be turned into a flow field, where each transform is expressed as
+        a list of [``transform name``, ``transform value 1``, ... , ``transform value n``]. Supported options:
+
+        - Transform ``translation``, with values ``horizontal shift in px``, ``vertical shift in px``
+        - Transform ``rotation``, with values ``horizontal centre in px``, ``vertical centre in px``,
+          ``angle in degrees, counter-clockwise``
+        - Transform ``scaling``, with values ``horizontal centre in px``, ``vertical centre in px``,
+          ``scaling fraction``
+    :param shape: List or tuple of the shape :math:`(H, W)` of the flow field
+    :param ref: Flow reference, string of value ``t`` ("target") or ``s`` ("source"). Defaults to ``t``
+    :return: Flow vectors of shape :math:`(2, H, W)`
+    """
+
+    # Check shape validity
+    validate_shape(shape)
+    # Get valid reference
+    ref = get_valid_ref(ref)
+    # Check transform_list validity
+    if not isinstance(transform_list, list):
+        raise TypeError("Error creating flow from transforms: Transform_list needs to be a list")
+    if not all(isinstance(item, list) for item in transform_list):
+        raise TypeError("Error creating flow from transforms: Transform_list needs to be a list of lists")
+    if not all(len(item) > 1 for item in transform_list):
+        raise ValueError("Error creating flow from transforms: Invalid transforms passed")
+    for t in transform_list:
+        if t[0] == 'translation':
+            if not len(t) == 3:
+                raise ValueError("Error creating flow from transforms: Not enough transform values passed for "
+                                 "'translation' - expected 2, got {}".format(len(t) - 1))
+        elif t[0] == 'rotation':
+            if not len(t) == 4:
+                raise ValueError("Error creating flow from transforms: Not enough transform values passed for "
+                                 "'rotation' - expected 3, got {}".format(len(t) - 1))
+        elif t[0] == 'scaling':
+            if not len(t) == 4:
+                raise ValueError("Error creating flow from transforms: Not enough transform values passed for "
+                                 "'scaling' - expected 3, got {}".format(len(t) - 1))
+        else:
+            raise ValueError("Error creating flow from transforms: Transform '{}' not recognised".format(t[0]))
+        if not all(isinstance(item, (float, int)) for item in t[1:]):
+            raise ValueError("Error creating flow from transforms: "
+                             "Transform values for '{}' need to be integers or floats".format(t[0]))
+
+    # Process for flow reference 's' is straightforward: get the transformation matrix for each given transform in
+    #   the transform_list, and get the final transformation matrix by multiplying the transformation matrices for
+    #   each individual transform sequentially. Finally, call flow_from_matrix to get the corresponding flow field,
+    #   which works by applying that final transformation matrix to a meshgrid of vector locations, and subtracting
+    #   the start points from the end points.
+    #   flow_s = transformed_coords - coords
+    #          = final_transform * coords - coords
+    #          = t_1 * ... * t_n * coords - coords
+    #
+    # Process for flow reference 't' can be done in two ways:
+    #   1) get the transformation matrix for each given transform in the transform_list, and get the final
+    #     transformation matrix by multiplying the transformation matrices for each individual transform in inverse
+    #     order. Then, call flow_from_matrix on the *inverse* of this final transformation matrix to get the
+    #     negative of the corresponding flow field, which means applying the inverse of that final transformation
+    #     matrix to a meshgrid of vector locations, and subtracting the end points from the start points.
+    #     flow_t = coords - transformed_coords
+    #            = coords - inv(final_transform) * coords
+    #            = coords - inv(t_1 * ... * t_n) * coords
+    #   2) get the transformation matrix for the reverse of each given transform in the "inverse inverse order",
+    #     i.e. in the given order of the transform_list, and get the final transformation matrix by multiplying the
+    #     results sequentially. Then, call flow_from_matrix on this final transformation matrix (already
+    #     corresponding to the inverse as in method 1)) to get the negative of the corresponding flow field as
+    #     before. This method is more complicated, but avoids any numerical issues potentially arising from
+    #     calculating the inverse of a matrix.
+    #     flow_t = coords - transformed_coords
+    #            = coords - final_transform * coords
+    #            = coords - inv(t_n) * ... * inv(t_1) * coords
+    #     ... because: inv(t_n) * ... * inv(t_1) = inv(t_1 * ... * t_n)
+
+    # Following lines, commented out, correspond to method 1
+    # matrix = matrix_from_transforms(transform_list)
+    # return cls.from_matrix(matrix, shape, ref, mask, device)
+
+    # Here implemented: method 2, via calling from_matrix where the inverse of the matrix is used if reference 't'
+    if ref == 's':
+        matrix = matrix_from_transforms(transform_list)
+        return from_matrix(matrix, shape, ref, matrix_is_inverse=False)
+    else:  # ref == 't'
+        transform_list = reverse_transform_values(transform_list)
+        matrix = matrix_from_transforms(list(reversed(transform_list)))
+        return from_matrix(matrix, shape, ref, matrix_is_inverse=True)
+
+
 def load_kitti(path: str) -> Union[List[torch.Tensor], torch.Tensor]:
     """Loads the flow field contained in KITTI ``uint16`` png images files, including the valid pixels.
     Follows the official instructions on how to read the provided .png files

@@ -20,7 +20,8 @@ import sys
 sys.path.append('..')
 from src.oflibpytorch.utils import get_valid_vecs, get_valid_ref, get_valid_padding, validate_shape, get_valid_device, \
     to_numpy, move_axis, flow_from_matrix, matrix_from_transform, matrix_from_transforms, reverse_transform_values, \
-    normalise_coords, apply_flow, threshold_vectors, load_kitti, load_sintel, load_sintel_mask
+    normalise_coords, apply_flow, threshold_vectors, from_matrix, from_transforms,  load_kitti, load_sintel, \
+    load_sintel_mask
 from src.oflibpytorch.flow_class import Flow
 
 
@@ -406,6 +407,106 @@ class TestThresholdVectors(unittest.TestCase):
         thresholded = threshold_vectors(vecs, threshold=1e-5)
         thresholded = to_numpy(thresholded[0, :4, 0])
         self.assertIsNone(np.testing.assert_allclose(thresholded, [1e-5, 1e-4, 1e-3, 1]))
+
+
+class TestFromMatrix(unittest.TestCase):
+    def test_from_matrix(self):
+        # With reference 's', this simply corresponds to using flow_from_matrix, tested in test_utils.
+        # With reference 't':
+        # Rotation of 30 degrees clockwise around point [10, 50] (hor, ver)
+        matrix = np.array([[math.sqrt(3) / 2, -.5, 26.3397459622],
+                           [.5, math.sqrt(3) / 2, 1.69872981078],
+                           [0, 0, 1]])
+        shape = [200, 300]
+        flow = from_matrix(matrix, shape, 't')
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 50, 10]), [0, 0], atol=1e-4))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 50, 299]), [38.7186583063, 144.5], rtol=1e-4))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 199, 10]), [-74.5, 19.9622148361], rtol=1e-4))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[1:], shape))
+
+        # With and without inverse matrix for ref 't'
+        matrix = np.array([[1, 0, 10], [0, 1, 20], [0, 0, 1]])
+        inv_matrix = np.array([[1, 0, -10], [0, 1, -20], [0, 0, 1]])
+        vecs = to_numpy(from_matrix(matrix, shape, ref='t', matrix_is_inverse=False), switch_channels=True)
+        inv_vecs = to_numpy(from_matrix(inv_matrix, shape, ref='t', matrix_is_inverse=True), switch_channels=True)
+        self.assertIsNone(np.testing.assert_allclose(vecs, inv_vecs, rtol=1e-3))
+
+    def test_failed_from_matrix(self):
+        with self.assertRaises(TypeError):  # Invalid matrix type
+            from_matrix('test', [10, 10], 't')
+        with self.assertRaises(ValueError):  # Invalid matrix shape
+            from_matrix(np.eye(4), [10, 10], 't')
+        with self.assertRaises(TypeError):  # Invalid matrix_is_inverse type
+            from_matrix(torch.eye(3), [10, 10], matrix_is_inverse='test')
+        with self.assertRaises(ValueError):  # matrix_is_inverse True despite ref = 's'
+            from_matrix(torch.eye(3), [10, 10], ref='s', matrix_is_inverse=True)
+
+
+class TestFromTransforms(unittest.TestCase):
+    def test_from_transforms_rotation(self):
+        shape = [200, 300]
+        transforms = [['rotation', 10, 50, -30]]
+        flow = from_transforms(transforms, shape, 't')
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 50, 10]), [0, 0]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 50, 299]), [38.7186583063, 144.5]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 199, 10]), [-74.5, 19.9622148361], rtol=1e-6))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[1:], shape))
+
+    def test_from_transforms_scaling(self):
+        shape = [200, 300]
+        transforms = [['scaling', 20, 30, 2]]
+        flow = from_transforms(transforms, shape, 's')
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 30, 20]), [0, 0]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 30, 70]), [50, 0]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 80, 20]), [0, 50]))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[1:], shape))
+
+    def test_from_transforms_multiple_s(self):
+        shape = [200, 300]
+        transforms = [
+            ['translation', -20, -30],
+            ['scaling', 0, 0, 2],
+            ['translation', 20, 30]
+        ]
+        flow = from_transforms(transforms, shape, 's')
+        self.assertIsNone(np.testing.assert_equal(to_numpy(flow[:, 30, 20]), [0, 0]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 30, 70]), [50, 0]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 80, 20]), [0, 50]))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[1:], shape))
+
+    def test_from_transforms_multiple_t(self):
+        shape = [200, 300]
+        transforms = [
+            ['translation', -10, -50],
+            ['rotation', 0, 0, -30],
+            ['translation', 10, 50]
+        ]
+        flow = from_transforms(transforms, shape, 't')
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 50, 10]), [0, 0]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 50, 299]), [38.7186583063, 144.5]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 199, 10]), [-74.5, 19.9622148361], rtol=1e-6))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[1:], shape))
+
+    def test_failed_from_transforms(self):
+        shape = [200, 300]
+        transforms = 'test'
+        with self.assertRaises(TypeError):  # transforms not a list
+            from_transforms(transforms, shape, 't')
+        transforms = ['test']
+        with self.assertRaises(TypeError):  # transform not a list
+            from_transforms(transforms, shape, 't')
+        transforms = [['translation', 20, 10], ['rotation']]
+        with self.assertRaises(ValueError):  # transform missing information
+            from_transforms(transforms, shape, 't')
+        transforms = [['translation', 20, 10], ['rotation', 1]]
+        with self.assertRaises(ValueError):  # transform with incomplete information
+            from_transforms(transforms, shape, 't')
+        transforms = [['translation', 20, 10], ['rotation', 1, 'test', 10]]
+        with self.assertRaises(ValueError):  # transform with invalid information
+            from_transforms(transforms, shape, 't')
+        transforms = [['translation', 20, 10], ['test', 1, 1, 10]]
+        with self.assertRaises(ValueError):  # transform type invalid
+            from_transforms(transforms, shape, 't')
 
 
 class TestFromKITTI(unittest.TestCase):
