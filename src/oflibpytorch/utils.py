@@ -359,7 +359,7 @@ def normalise_coords(coords: torch.Tensor, shape: Union[tuple, list]) -> torch.T
 def apply_flow(
     flow: Union[np.ndarray, torch.Tensor],
     target: torch.Tensor,
-    ref: str = None,
+    ref: str,
     mask: Union[np.ndarray, torch.Tensor] = None
 ) -> torch.Tensor:
     """Uses a given flow to warp a target. The flow reference, if not given, is assumed to be ``t``. Optionally, a mask
