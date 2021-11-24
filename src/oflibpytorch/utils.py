@@ -641,3 +641,57 @@ def load_sintel_mask(path: str) -> torch.Tensor:
         raise ValueError("Error loading flow from Sintel data: Invalid mask could not be loaded from path")
     mask = ~(mask.astype('bool'))
     return to_tensor(mask)
+
+
+def resize_flow(flow: torch.Tensor, scale: Union[float, int, list, tuple]) -> torch.Tensor:
+    """Resize a flow field numpy array or torch tensor, scaling the flow vectors values accordingly
+
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param scale: Scale used for resizing, options:
+
+        - Integer or float of value ``scaling`` applied both vertically and horizontally
+        - List or tuple of shape :math:`(2)` with values ``[vertical scaling, horizontal scaling]``
+    :return: Scaled flow field as a torch tensor, shape :math:`(2, H, W)`
+    """
+
+    # Check validity
+    flow = get_valid_vecs(flow, error_string="Error resizing flow: ")
+    if isinstance(scale, (float, int)):
+        scale = [scale, scale]
+    elif isinstance(scale, (tuple, list)):
+        if len(scale) != 2:
+            raise ValueError("Error resizing flow: Scale {} must have a length of 2".format(type(scale)))
+        if not all(isinstance(item, (float, int)) for item in scale):
+            raise ValueError("Error resizing flow: Scale {} items must be integers or floats".format(type(scale)))
+    else:
+        raise TypeError("Error resizing flow: "
+                        "Scale must be an integer, float, or list or tuple of integers or floats")
+    if any(s <= 0 for s in scale):
+        raise ValueError("Error resizing flow: Scale values must be larger than 0")
+
+    # Resize and adjust values
+    resized = f.interpolate(flow.unsqueeze(0), scale_factor=scale, mode='bilinear').squeeze(0)
+    resized[0] *= scale[1]
+    resized[1] *= scale[0]
+
+    return resized
+
+
+def is_zero_flow(flow: Union[np.ndarray, torch.Tensor], thresholded: bool = None) -> bool:
+    """Check whether all flow vectors are zero. Optionally, a threshold flow magnitude value of ``1e-3`` is used.
+    This can be useful to filter out motions that are equal to very small fractions of a pixel, which might just be
+    a computational artefact to begin with.
+
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param thresholded: Boolean determining whether the flow is thresholded, defaults to ``True``
+    :return: ``True`` if the flow field is zero everywhere, otherwise ``False``
+    """
+
+    # Check input validity
+    flow = get_valid_vecs(flow, error_string="Error checking whether flow is zero: ")
+    thresholded = True if thresholded is None else thresholded
+    if not isinstance(thresholded, bool):
+        raise TypeError("Error checking whether flow is zero: Thresholded needs to be a boolean")
+
+    f = threshold_vectors(flow) if thresholded else flow
+    return torch.all(f == 0)

@@ -19,7 +19,7 @@ import math
 import sys
 sys.path.append('..')
 from src.oflibpytorch.flow_class import Flow
-from src.oflibpytorch.utils import to_numpy, apply_flow, matrix_from_transforms
+from src.oflibpytorch.utils import to_numpy, apply_flow, matrix_from_transforms, resize_flow
 
 
 class FlowTest(unittest.TestCase):
@@ -579,31 +579,8 @@ class FlowTest(unittest.TestCase):
         # Different scales
         scales = [.2, .5, 1, 1.5, 2, 10]
         for scale in scales:
-            resized_flow = flow.resize(scale)
-            resized_shape = scale * np.array(shape)
-            self.assertIsNone(np.testing.assert_equal(resized_flow.shape, resized_shape))
-            self.assertIsNone(np.testing.assert_allclose(resized_flow.vecs_numpy[0, 0],
-                                                         flow.vecs_numpy[0, 0] * scale,
-                                                         rtol=.1))
-
-        # Scale list
-        scale = [.5, 2]
-        resized_flow = flow.resize(scale)
-        resized_shape = np.array(scale) * np.array(shape)
-        self.assertIsNone(np.testing.assert_equal(resized_flow.shape, resized_shape))
-        self.assertIsNone(np.testing.assert_allclose(resized_flow.vecs_numpy[0, 0],
-                                                     flow.vecs_numpy[0, 0] * np.array(scale)[::-1],
-                                                     rtol=.1))
-
-        # Scale tuple
-        scale = (2, .5)
-        resized_flow = flow.resize(scale)
-        resized_shape = np.array(scale) * np.array(shape)
-        self.assertIsNone(np.testing.assert_equal(resized_flow.shape, resized_shape))
-        self.assertIsNone(np.testing.assert_allclose(resized_flow.vecs_numpy[0, 0],
-                                                     flow.vecs_numpy[0, 0] * np.array(scale)[::-1],
-                                                     rtol=.1))
-
+            self.assertIsNone(np.testing.assert_equal(flow.resize(scale).vecs_numpy,
+                                                      to_numpy(resize_flow(flow.vecs, scale), switch_channels=True)))
         # Scale mask
         shape_small = (20, 40)
         shape_large = (30, 80)
@@ -621,18 +598,6 @@ class FlowTest(unittest.TestCase):
         flow_large = Flow.from_transforms([['rotation', 0, 0, 30]], (150, 240), ref)
         flow_resized = flow_large.resize(1/3)
         self.assertIsNone(np.testing.assert_allclose(flow_resized.vecs_numpy, flow_small.vecs_numpy, atol=1, rtol=.1))
-
-        # Invalid input
-        with self.assertRaises(TypeError):
-            flow.resize('test')
-        with self.assertRaises(ValueError):
-            flow.resize(['test', 0])
-        with self.assertRaises(ValueError):
-            flow.resize([1, 2, 3])
-        with self.assertRaises(ValueError):
-            flow.resize(0)
-        with self.assertRaises(ValueError):
-            flow.resize(-0.1)
 
     def test_pad(self):
         shape = [100, 80]
@@ -1056,25 +1021,17 @@ class FlowTest(unittest.TestCase):
 
     def test_is_zero(self):
         shape = (10, 10)
-        flow = Flow.zero(shape)
-        self.assertEqual(flow.is_zero(thresholded=True), True)
-        self.assertEqual(flow.is_zero(thresholded=False), True)
+        mask = np.ones(shape, 'bool')
+        mask[0, 0] = False
+        flow = np.zeros(shape + (2,))
+        flow[0, 0] = 10
+        flow = Flow(flow, mask=mask)
+        self.assertEqual(flow.is_zero(), True)
+        self.assertEqual(flow.is_zero(masked=True), True)
+        self.assertEqual(flow.is_zero(masked=False), False)
 
-        flow.vecs[:3, :, 0] = 1e-4
-        self.assertEqual(flow.is_zero(thresholded=True), True)
-        self.assertEqual(flow.is_zero(thresholded=False), False)
-
-        flow.vecs[:3, :, 1] = -1e-3
-        self.assertEqual(flow.is_zero(thresholded=True), False)
-        self.assertEqual(flow.is_zero(thresholded=False), False)
-
-        transforms = [['rotation', 0, 0, 45]]
-        flow = Flow.from_transforms(transforms, shape)
-        self.assertEqual(flow.is_zero(thresholded=True), False)
-        self.assertEqual(flow.is_zero(thresholded=False), False)
-
-        with self.assertRaises(TypeError):
-            flow.is_zero('test')
+        with self.assertRaises(TypeError):  # Masked wrong type
+            flow.is_zero(masked='test')
 
     def test_visualise(self):
         # Correct values for the different modes

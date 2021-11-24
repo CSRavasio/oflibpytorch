@@ -21,7 +21,7 @@ import math
 from typing import Union, Tuple
 import warnings
 from .utils import get_valid_vecs, get_valid_ref, get_valid_device, get_valid_padding, validate_shape, to_numpy, \
-    move_axis, apply_flow, threshold_vectors, normalise_coords, \
+    move_axis, apply_flow, threshold_vectors, normalise_coords, resize_flow, is_zero_flow, \
     from_matrix, from_transforms, load_kitti, load_sintel, load_sintel_mask
 
 
@@ -612,29 +612,13 @@ class Flow(object):
         :return: New flow object scaled as desired
         """
 
-        # Check validity
+        resized_flow = resize_flow(self._vecs, scale)
         if isinstance(scale, (float, int)):
             scale = [scale, scale]
-        elif isinstance(scale, (tuple, list)):
-            if len(scale) != 2:
-                raise ValueError("Error resizing flow: Scale {} must have a length of 2".format(type(scale)))
-            if not all(isinstance(item, (float, int)) for item in scale):
-                raise ValueError("Error resizing flow: Scale {} items must be integers or floats".format(type(scale)))
-        else:
-            raise TypeError("Error resizing flow: "
-                            "Scale must be an integer, float, or list or tuple of integers or floats")
-        if any(s <= 0 for s in scale):
-            raise ValueError("Error resizing flow: Scale values must be larger than 0")
-
-        # Resize vectors and mask
-        to_resize = torch.cat((self._vecs, self._mask.to(torch.float).unsqueeze(0)), dim=0).unsqueeze(0)
-        resized = f.interpolate(to_resize, scale_factor=scale, mode='bilinear').squeeze(0)
-
-        # Adjust values
-        resized[0] *= scale[1]
-        resized[1] *= scale[0]
-
-        return Flow(resized[:2], self._ref, torch.round(resized[2]))
+        mask_to_resize = self._mask.float().unsqueeze(0).unsqueeze(0)
+        resized_mask = f.interpolate(mask_to_resize, scale_factor=scale, mode='bilinear').squeeze(0).squeeze(0)
+        # Note: scale can be used with no validity checks because already validated in resize_flows
+        return Flow(resized_flow, self._ref, torch.round(resized_mask), device=self._device)
 
     def pad(self, padding: list = None, mode: str = None) -> FlowAlias:
         """Pad the flow with the given padding. Padded flow :attr:`vecs` values are either constant (set to ``0``),
@@ -1097,24 +1081,22 @@ class Flow(object):
         # padding = [int(np.ceil(p)) for p in padding]
         # return padding
 
-    def is_zero(self, thresholded: bool = None) -> bool:
+    def is_zero(self, thresholded: bool = None, masked: bool = None) -> bool:
         """Check whether all flow vectors (where :attr:`mask` is ``True``) are zero. Optionally, a threshold flow
         magnitude value of ``1e-3`` is used. This can be useful to filter out motions that are equal to very small
         fractions of a pixel, which might just be a computational artefact to begin with.
 
         :param thresholded: Boolean determining whether the flow is thresholded, defaults to ``True``
+        :param masked: Boolean determining whether the flow is masked with :attr:`mask`, defaults to ``True``
         :return: ``True`` if the flow field is zero everywhere, otherwise ``False``
         """
 
-        thresholded = True if thresholded is None else thresholded
-        if not isinstance(thresholded, bool):
-            raise TypeError("Error checking whether flow is zero: Thresholded needs to be a boolean")
+        masked = True if masked is None else masked
+        if not isinstance(masked, bool):
+            raise TypeError("Error checking whether flow is zero: Masked needs to be a boolean")
 
-        if thresholded:
-            vecs = threshold_vectors(self._vecs)
-        else:
-            vecs = self._vecs
-        return torch.all(vecs == 0)
+        f = self._vecs[:, self._mask].unsqueeze(-1) if masked else self._vecs
+        return is_zero_flow(f, thresholded)
 
     def visualise(
         self,

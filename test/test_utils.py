@@ -21,7 +21,7 @@ sys.path.append('..')
 from src.oflibpytorch.utils import get_valid_vecs, get_valid_ref, get_valid_padding, validate_shape, get_valid_device, \
     to_numpy, move_axis, flow_from_matrix, matrix_from_transform, matrix_from_transforms, reverse_transform_values, \
     normalise_coords, apply_flow, threshold_vectors, from_matrix, from_transforms,  load_kitti, load_sintel, \
-    load_sintel_mask
+    load_sintel_mask, resize_flow, is_zero_flow
 from src.oflibpytorch.flow_class import Flow
 
 
@@ -551,6 +551,81 @@ class TestFromSintel(unittest.TestCase):
             load_sintel_mask(0)
         with self.assertRaises(ValueError):  # File does not exist
             load_sintel_mask('test.png')
+
+
+class TestResizeFlow(unittest.TestCase):
+    def test_resize(self):
+        shape = [20, 10]
+        ref = 's'
+        flow = Flow.from_transforms([['rotation', 30, 50, 30]], shape, ref).vecs
+        # Different scales
+        scales = [.2, .5, 1, 1.5, 2, 10]
+        for scale in scales:
+            resized_flow = resize_flow(flow, scale)
+            resized_shape = scale * np.array(shape)
+            self.assertIsNone(np.testing.assert_equal(resized_flow.shape[1:], resized_shape))
+            self.assertIsNone(np.testing.assert_allclose(to_numpy(resized_flow[:, 0, 0]),
+                                                         to_numpy(flow[:, 0, 0]) * scale, rtol=.1))
+
+        # Scale list
+        scale = [.5, 2]
+        resized_flow = resize_flow(flow, scale)
+        resized_shape = np.array(scale) * np.array(shape)
+        self.assertIsNone(np.testing.assert_equal(resized_flow.shape[1:], resized_shape))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(resized_flow[:, 0, 0]),
+                                                     to_numpy(flow[:, 0, 0]) * np.array(scale)[::-1], rtol=.1))
+
+        # Scale tuple
+        scale = (2, .5)
+        resized_flow = resize_flow(flow, scale)
+        resized_shape = np.array(scale) * np.array(shape)
+        self.assertIsNone(np.testing.assert_equal(resized_flow.shape[1:], resized_shape))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(resized_flow[:, 0, 0]),
+                                                     to_numpy(flow[:, 0, 0]) * np.array(scale)[::-1], rtol=.1))
+
+    def test_resize_on_fields(self):
+        # Check scaling is performed correctly based on the actual flow field
+        ref = 't'
+        flow_small = Flow.from_transforms([['rotation', 0, 0, 30]], (50, 80), ref).vecs_numpy
+        flow_large = Flow.from_transforms([['rotation', 0, 0, 30]], (150, 240), ref).vecs
+        flow_resized = to_numpy(resize_flow(flow_large, 1 / 3), switch_channels=True)
+        self.assertIsNone(np.testing.assert_allclose(flow_resized, flow_small, atol=1, rtol=.1))
+
+    def test_failed_resize(self):
+        flow = Flow.from_transforms([['rotation', 30, 50, 30]], [20, 10], 's').vecs
+        with self.assertRaises(TypeError):  # Wrong shape type
+            resize_flow(flow, 'test')
+        with self.assertRaises(ValueError):  # Wrong shape values
+            resize_flow(flow, ['test', 0])
+        with self.assertRaises(ValueError):  # Wrong shape shape
+            resize_flow(flow, [1, 2, 3])
+        with self.assertRaises(ValueError):  # Shape is 0
+            resize_flow(flow, 0)
+        with self.assertRaises(ValueError):  # Shape below 0
+            resize_flow(flow, -0.1)
+
+
+class TestIsZeroFlow(unittest.TestCase):
+    def test_is_zero_flow(self):
+        flow = np.zeros((10, 10, 2), 'float32')
+        self.assertEqual(is_zero_flow(flow, thresholded=True), True)
+        self.assertEqual(is_zero_flow(flow, thresholded=False), True)
+
+        flow[:3, :, 0] = 1e-4
+        self.assertEqual(is_zero_flow(flow, thresholded=True), True)
+        self.assertEqual(is_zero_flow(flow, thresholded=False), False)
+
+        flow[:3, :, 1] = -1e-3
+        self.assertEqual(is_zero_flow(flow, thresholded=True), False)
+        self.assertEqual(is_zero_flow(flow, thresholded=False), False)
+
+        flow[0, 0] = 10
+        self.assertEqual(is_zero_flow(flow, thresholded=True), False)
+        self.assertEqual(is_zero_flow(flow, thresholded=False), False)
+
+    def test_failed_is_zero_flow(self):
+        with self.assertRaises(TypeError):  # Wrong thresholded type
+            is_zero_flow(np.zeros((10, 10, 2)), 'test')
 
 
 if __name__ == '__main__':
