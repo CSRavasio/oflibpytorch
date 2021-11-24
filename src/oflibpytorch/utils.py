@@ -594,7 +594,7 @@ def load_kitti(path: str) -> Union[List[torch.Tensor], torch.Tensor]:
     inp = cv2.imread(path, cv2.IMREAD_UNCHANGED)  # cv2.IMREAD_UNCHANGED necessary to read uint16 correctly
     if inp is None:
         raise ValueError("Error loading flow from KITTI data: Flow data could not be loaded")
-    if inp.ndim != 3 or inp.shape[-1] != 3:
+    if len(inp.shape) != 3 or inp.shape[-1] != 3:
         raise ValueError("Error loading flow from KITTI data: Loaded flow data has the wrong shape")
     inp = inp[..., ::-1].astype('float64')  # Invert channels as cv2 loads as BGR instead of RGB
     inp[..., :2] = (inp[..., :2] - 2 ** 15) / 64
