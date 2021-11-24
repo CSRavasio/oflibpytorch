@@ -409,17 +409,17 @@ class TestApplyFlow(unittest.TestCase):
     def test_apply_flow_failed(self):
         flow = Flow.from_transforms([['translation', 2, 0]], (10, 10)).vecs
         with self.assertRaises(TypeError):  # target is not torch tensor
-            apply_flow(flow, target='test')
+            apply_flow(flow, target='test', ref='t')
         with self.assertRaises(ValueError):  # target torch tensor too few dimensions
-            apply_flow(flow, target=torch.zeros(5))
+            apply_flow(flow, target=torch.zeros(5), ref='t')
         with self.assertRaises(ValueError):  # target torch tensor too many dimensions
-            apply_flow(flow, target=torch.zeros((1, 1, 1, 1, 5)))
+            apply_flow(flow, target=torch.zeros((1, 1, 1, 1, 5)), ref='t')
         with self.assertRaises(ValueError):  # target torch tensor shape does not match flow shape
-            apply_flow(flow, target=torch.zeros((11, 10)))
+            apply_flow(flow, target=torch.zeros((11, 10)), ref='t')
         with self.assertRaises(ValueError):  # target torch tensor shape does not match flow shape
-            apply_flow(flow, target=torch.zeros((1, 11, 10)))
+            apply_flow(flow, target=torch.zeros((1, 11, 10)), ref='t')
         with self.assertRaises(ValueError):  # target torch tensor shape does not match flow shape
-            apply_flow(flow, target=torch.zeros((1, 1, 11, 10)))
+            apply_flow(flow, target=torch.zeros((1, 1, 11, 10)), ref='t')
 
 
 class TestThresholdVectors(unittest.TestCase):
