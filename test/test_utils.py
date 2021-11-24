@@ -21,7 +21,7 @@ sys.path.append('..')
 from src.oflibpytorch.utils import get_valid_vecs, get_valid_ref, get_valid_mask, get_valid_padding, validate_shape, \
     get_valid_device, to_numpy, move_axis, flow_from_matrix, matrix_from_transform, matrix_from_transforms, \
     reverse_transform_values, normalise_coords, apply_flow, threshold_vectors, from_matrix, from_transforms,  \
-    load_kitti, load_sintel, load_sintel_mask, resize_flow, is_zero_flow
+    load_kitti, load_sintel, load_sintel_mask, resize_flow, is_zero_flow, track_pts
 from src.oflibpytorch.flow_class import Flow
 
 
@@ -658,6 +658,61 @@ class TestIsZeroFlow(unittest.TestCase):
     def test_failed_is_zero_flow(self):
         with self.assertRaises(TypeError):  # Wrong thresholded type
             is_zero_flow(np.zeros((10, 10, 2)), 'test')
+
+
+class TestTrackPts(unittest.TestCase):
+    def test_track_pts(self):
+        f_s = Flow.from_transforms([['rotation', 0, 0, 30]], (512, 512), 's').vecs
+        f_t = Flow.from_transforms([['rotation', 0, 0, 30]], (512, 512), 't').vecs
+        pts = torch.tensor([[20.5, 10.5], [8.3, 7.2], [120.4, 160.2]])
+        desired_pts = [
+            [12.5035207776, 19.343266740],
+            [3.58801085141, 10.385382907],
+            [24.1694586156, 198.93726969]
+        ]
+
+        # Reference 's'
+        pts_tracked_s = track_pts(f_s, 's', pts)
+        self.assertIsInstance(pts_tracked_s, torch.Tensor)
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s), desired_pts, rtol=1e-6))
+
+        # Reference 't'
+        pts_tracked_t = track_pts(f_t, 't', pts)
+        self.assertIsInstance(pts_tracked_t, torch.Tensor)
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_t), desired_pts))
+
+        # Reference 't', integer output
+        pts_tracked_t = track_pts(f_t, 't', pts, int_out=True)
+        self.assertIsInstance(pts_tracked_t, torch.Tensor)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(pts_tracked_t), np.round(desired_pts)))
+        self.assertEqual(pts_tracked_t.dtype, torch.long)
+
+        # Test tracking for 's' flow and int pts (checked via debugger)
+        f = Flow.from_transforms([['translation', 10, 20]], (512, 512), 's').vecs
+        pts = np.array([[20, 10], [8, 7]])
+        desired_pts = [[40, 20], [28, 17]]
+        pts_tracked_s = track_pts(f, 's', torch.tensor(pts))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(pts_tracked_s), desired_pts))
+
+    def test_device_track_pts(self):
+        for d1 in ['cpu', 'cuda']:
+            for d2 in ['cpu', 'cuda']:
+                f = Flow.from_transforms([['translation', 10, 20]], (512, 512), 's', device=d1).vecs
+                pts = torch.tensor([[20, 10], [8, 7]]).to(d2)
+                pts_tracked = track_pts(f, 's', pts)
+                self.assertEqual(pts_tracked.device, f.device)
+
+    def test_failed_track_pts(self):
+        pts = torch.tensor([[20, 10], [20, 10], [8, 7]])
+        flow = torch.zeros((2, 10, 10))
+        with self.assertRaises(TypeError):  # Wrong pts type
+            track_pts(flow, 's', pts='test')
+        with self.assertRaises(ValueError):  # Wrong pts shape
+            track_pts(flow, 's', pts=torch.zeros((10, 10, 2)))
+        with self.assertRaises(ValueError):  # Pts channel not of size 2
+            track_pts(flow, 's', pts=pts.transpose(0, -1))
+        with self.assertRaises(TypeError):  # Wrong int_out type
+            track_pts(flow, 's', pts, int_out='test')
 
 
 if __name__ == '__main__':

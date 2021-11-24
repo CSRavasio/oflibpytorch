@@ -751,3 +751,76 @@ def is_zero_flow(flow: Union[np.ndarray, torch.Tensor], thresholded: bool = None
 
     f = threshold_vectors(flow) if thresholded else flow
     return torch.all(f == 0)
+
+
+def track_pts(
+    flow: Union[np.ndarray, torch.Tensor],
+    ref: str,
+    pts: torch.Tensor,
+    int_out: bool = None
+) -> torch.Tensor:
+    """Warp input points with a flow field, returning the warped point coordinates as integers if required
+
+    .. tip::
+        Calling :meth:`~oflibpytorch.track_pts` on a flow field with reference ``s`` ("source") is
+        significantly faster, as this does not require a call to :func:`scipy.interpolate.griddata`.
+
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param ref: Flow field reference, either ``s`` or ``t``
+    :param pts: Torch tensor of shape :math:`(N, 2)` containing the point coordinates. ``pts[:, 0]`` corresponds
+        to the vertical coordinate, ``pts[:, 1]`` to the horizontal coordinate
+    :param int_out: Boolean determining whether output points are returned as rounded integers, defaults to
+        ``False``
+    :return: Torch tensor of warped ('tracked') points, tensor device same as the input flow field
+    """
+
+    # Validate inputs
+    flow = get_valid_vecs(flow, error_string="Error tracking points: ")
+    ref = get_valid_ref(ref)
+    if not isinstance(pts, torch.Tensor):
+        raise TypeError("Error tracking points: Pts needs to be a numpy array or a torch tensor")
+    if len(pts.shape) != 2:
+        raise ValueError("Error tracking points: Pts needs to have shape N-2")
+    if pts.shape[1] != 2:
+        raise ValueError("Error tracking points: Pts needs to have shape N-2")
+    int_out = False if int_out is None else int_out
+    if not isinstance(int_out, bool):
+        raise TypeError("Error tracking points: Int_out needs to be a boolean")
+
+    pts = pts.to(flow.device)
+
+    if is_zero_flow(flow, thresholded=True):
+        warped_pts = pts
+    else:
+        if ref == 's':
+            # noinspection PyUnresolvedReferences
+            if not pts.dtype.is_floating_point:
+                flow_vecs = flow[:, pts[:, 0].long(), pts[:, 1].long()]  # flow_vecs shape 2-N
+                flow_vecs = flow_vecs.transpose(0, 1).flip(-1)  # flow_vecs shape N-2 and (y, x) instead of (x, y)
+            else:
+                pts_4d = pts.unsqueeze(0).unsqueeze(0).to(torch.float).flip(-1)  # pts_4d now 1-1-N-2 and (x, y)
+                pts_4d = normalise_coords(pts_4d, flow.shape[1:])
+                torch_version = globals()['torch'].__version__
+                if int(torch_version[0]) == 1 and float(torch_version[2:4]) <= 3:
+                    flow_vecs = f.grid_sample(flow.unsqueeze(0), pts_4d).flip(1)
+                else:
+                    # noinspection PyArgumentList
+                    flow_vecs = f.grid_sample(flow.unsqueeze(0), pts_4d, align_corners=True).flip(1)
+                #  vecs are 1-2-H-W, pts_4d is 1-1-N-2, output will be 1-2-1-N
+                flow_vecs = flow_vecs.transpose(0, -1).squeeze(-1).squeeze(-1)  # flow_vecs now N-2
+            warped_pts = pts.float() + flow_vecs
+        else:  # self._ref == 't'
+            x, y = np.mgrid[:flow.shape[1], :flow.shape[2]]
+            grid = np.swapaxes(np.vstack([x.ravel(), y.ravel()]), 0, 1)
+            flow_flat = np.reshape(to_numpy(flow, switch_channels=True)[..., ::-1], (-1, 2))
+            origin_points = grid - flow_flat
+            flow_vecs = griddata(origin_points, flow_flat, (pts[:, 0], pts[:, 1]), method='linear')
+            warped_pts = pts + torch.tensor(flow_vecs, device=pts.device)
+        nan_vals = torch.isnan(warped_pts)
+        nan_vals = nan_vals[:, 0] | nan_vals[:, 1]
+        warped_pts[nan_vals] = 0
+
+    if int_out:
+        warped_pts = torch.round(warped_pts).long()
+
+    return warped_pts
