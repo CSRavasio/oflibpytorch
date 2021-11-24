@@ -81,10 +81,10 @@ def get_valid_ref(ref: Any) -> str:
 
 
 def get_valid_device(device: Any) -> str:
-    """Checks tensor device input for validity
+    """Checks tensor device input for validity, defaults to 'cpu' for input 'None'
 
     :param device: Tensor device to be checked
-    :return: Valid tensor device, either 'cpu' or 'cuda'
+    :return: Valid tensor device, either 'cpu' (default for input 'None') or 'cuda'
     """
     if device is None:
         device = 'cpu'
