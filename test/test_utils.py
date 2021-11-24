@@ -18,10 +18,10 @@ import numpy as np
 import math
 import sys
 sys.path.append('..')
-from src.oflibpytorch.utils import get_valid_vecs, get_valid_ref, get_valid_padding, validate_shape, get_valid_device, \
-    to_numpy, move_axis, flow_from_matrix, matrix_from_transform, matrix_from_transforms, reverse_transform_values, \
-    normalise_coords, apply_flow, threshold_vectors, from_matrix, from_transforms,  load_kitti, load_sintel, \
-    load_sintel_mask, resize_flow, is_zero_flow
+from src.oflibpytorch.utils import get_valid_vecs, get_valid_ref, get_valid_mask, get_valid_padding, validate_shape, \
+    get_valid_device, to_numpy, move_axis, flow_from_matrix, matrix_from_transform, matrix_from_transforms, \
+    reverse_transform_values, normalise_coords, apply_flow, threshold_vectors, from_matrix, from_transforms,  \
+    load_kitti, load_sintel, load_sintel_mask, resize_flow, is_zero_flow
 from src.oflibpytorch.flow_class import Flow
 
 
@@ -92,6 +92,22 @@ class TestValidityChecks(unittest.TestCase):
             get_valid_ref(0)
         with self.assertRaises(ValueError):
             get_valid_ref('test')
+
+    def test_get_valid_mask(self):
+        with self.assertRaises(TypeError):  # mask input not numpy array or torch tensor
+            get_valid_mask('test')
+        with self.assertRaises(ValueError):  # mask numpy array input wrong number of dimensions
+            get_valid_mask(np.zeros((2, 100, 200)))
+        with self.assertRaises(ValueError):  # mask torch tensor input wrong number of dimensions
+            get_valid_mask(torch.zeros((2, 100, 200)))
+        with self.assertRaises(ValueError):  # mask numpy array height H does not match desired shape
+            get_valid_mask(np.zeros((101, 200)), desired_shape=(100, 200))
+        with self.assertRaises(ValueError):  # mask torch tensor width W does not match desired shape
+            get_valid_mask(torch.ones(100, 201), desired_shape=(100, 200))
+        with self.assertRaises(ValueError):  # mask numpy array values not either 0 or 1
+            get_valid_mask(np.ones((100, 200)) * 20)
+        with self.assertRaises(ValueError):  # mask torch tensor values not either 0 or 1
+            get_valid_mask(torch.ones(100, 200) * 10)
 
     def test_get_valid_device(self):
         self.assertEqual(get_valid_device(None), 'cpu')

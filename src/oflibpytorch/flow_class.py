@@ -20,8 +20,8 @@ import cv2
 import math
 from typing import Union, Tuple
 import warnings
-from .utils import get_valid_vecs, get_valid_ref, get_valid_device, get_valid_padding, validate_shape, to_numpy, \
-    move_axis, apply_flow, threshold_vectors, normalise_coords, resize_flow, is_zero_flow, \
+from .utils import get_valid_vecs, get_valid_ref, get_valid_mask, get_valid_device, get_valid_padding, validate_shape, \
+    to_numpy, move_axis, apply_flow, threshold_vectors, normalise_coords, resize_flow, is_zero_flow, \
     from_matrix, from_transforms, load_kitti, load_sintel, load_sintel_mask
 
 
@@ -176,23 +176,8 @@ class Flow(object):
         if input_mask is None:
             self._mask = torch.ones(*self.shape).to(torch.bool)
         else:
-            # Check type, dimensions, shape
-            if not isinstance(input_mask, (np.ndarray, torch.Tensor)):
-                raise TypeError("Error setting flow mask: Input is not a numpy array or a torch tensor")
-            if len(input_mask.shape) != 2:
-                raise ValueError("Error setting flow mask: Input is not 2-dimensional")
-            if input_mask.shape != self.shape:
-                raise ValueError("Error setting flow mask: Input has a different shape than the flow vectors")
-
-            # Transform to tensor if necessary
-            if isinstance(input_mask, np.ndarray):
-                input_mask = torch.tensor(input_mask, device=self._vecs.device)
-
-            # Check for invalid values
-            if ((input_mask != 0) & (input_mask != 1)).any():
-                raise ValueError("Error setting flow mask: Values must be 0 or 1")
-
-            self._mask = input_mask.to(torch.bool)
+            m = get_valid_mask(input_mask, desired_shape=self.shape, error_string="Error setting flow mask: ")
+            self._mask = m.to(self._vecs.device)
 
     @property
     def mask_numpy(self) -> np.ndarray:

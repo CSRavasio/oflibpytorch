@@ -80,6 +80,39 @@ def get_valid_ref(ref: Any) -> str:
     return ref
 
 
+def get_valid_mask(mask: Any, desired_shape: Union[tuple, list] = None, error_string: str = None) -> torch.Tensor:
+    """Checks array or tensor input for validity and returns H-W tensor for use as flow mask
+
+    :param mask: Valid if numpy array or torch tensor of shape H-W
+    :param desired_shape: List or tuple of (H, W) the input vecs should be compared about. Optional
+    :param error_string: Optional string to be added before the error message if input is invalid. Optional
+    :return: Tensor valid for flow mask, shape H-W, dtype float
+    """
+
+    error_string = '' if error_string is None else error_string
+
+    # Check type, dimensions, shape
+    if not isinstance(mask, (np.ndarray, torch.Tensor)):
+        raise TypeError(error_string + "Input is not a numpy array or a torch tensor")
+    if len(mask.shape) != 2:
+        raise ValueError(error_string + "Input is not 2-dimensional")
+
+    # Check shape if necessary
+    if desired_shape is not None:
+        if mask.shape[0] != desired_shape[0] or mask.shape[1] != desired_shape[1]:
+            raise ValueError(error_string + "Input shape H or W does not match the desired shape")
+
+    # Transform to tensor if necessary
+    if isinstance(mask, np.ndarray):
+        mask = torch.tensor(mask)
+
+    # Check for invalid values
+    if ((mask != 0) & (mask != 1)).any():
+        raise ValueError(error_string + "Values must be 0 or 1")
+
+    return mask.to(torch.bool)
+
+
 def get_valid_device(device: Any) -> str:
     """Checks tensor device input for validity, defaults to 'cpu' for input 'None'
 
