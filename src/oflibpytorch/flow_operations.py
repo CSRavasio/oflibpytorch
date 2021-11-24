@@ -198,12 +198,12 @@ def combine_flows(input_1: FlowAlias, input_2: FlowAlias, mode: int, thresholded
         if input_1._ref == input_2._ref == 's':
             # Explanation: f1 is (f3 minus f2), when S2 is moved to S3, achieved by applying f2 to move S2 to E3,
             # then inverted(f3) to move from E3 to S3.
-            # F1_s = F2_s - combine(F2_s, F3_s^-1_s, 3){F2_s}
+            # F1_s = F3_s - combine(F2_s, F3_s^-1_s, 3){F2_s}
             # result = input_2 - combine_flows(input_1, input_2.invert(), mode=3).apply(input_1)
             #
             # Alternative: this should take an equivalent amount of time (same number of griddata calls), but is
             # slightly faster in tests
-            # F1_s = F2_s - combine(F2_s-as-t, F3_s^-1_t, 3){F2_s}
+            # F1_s = F3_s - combine(F2_s-as-t, F3_s^-1_t, 3){F2_s}
             # result = input_2 - combine_flows(input_1.switch_ref(), input_2.invert('t'), mode=3).apply(input_1)
             # To avoid call to combine_flows and associated overhead, do the corresponding operations directly:
             input_2_inv_t = input_2.invert('t')
@@ -211,13 +211,13 @@ def combine_flows(input_1: FlowAlias, input_2: FlowAlias, mode: int, thresholded
 
         elif input_1._ref == input_2._ref == 't':
             # Explanation: currently no native implementation to ref 't', so just "translated" from ref 's'
-            # F1_t = (F2_t-as-s - combine(F2_t, F3_t^-1_t, 3){F2_t-as-s})_as-t
+            # F1_t = (F3_t-as-s - combine(F2_t, F3_t^-1_t, 3){F2_t-as-s})_as-t
             # result = input_2.switch_ref() - combine_flows(input_1,
             #                                               input_2.invert(), mode=3).apply(input_1.switch_ref())
             # result = result.switch_ref()
             #
             # Alternative: saves one call to griddata. However, test shows barely a difference - not sure as to reason
-            # F1_t = (F2_t-as-s - combine(F2_t-as-s, F3_t^-1_s, 3){F2_t-as-s})_as-t
+            # F1_t = (F3_t-as-s - combine(F2_t-as-s, F3_t^-1_s, 3){F2_t-as-s})_as-t
             # input_1_s = input_1.switch_ref()
             # result = input_2.switch_ref() - combine_flows(input_1_s, input_2.invert('s'), mode=3).apply(input_1_s)
             # result = result.switch_ref()
