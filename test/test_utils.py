@@ -398,15 +398,16 @@ class TestThresholdVectors(unittest.TestCase):
         vecs[0, 1, 0] = 1e-4
         vecs[0, 2, 0] = 1e-3
         vecs[0, 3, 0] = 1
-        thresholded = threshold_vectors(vecs, threshold=1e-3)
-        thresholded = to_numpy(thresholded[0, :4, 0])
-        self.assertIsNone(np.testing.assert_allclose(thresholded, [0, 0, 1e-3, 1]))
-        thresholded = threshold_vectors(vecs, threshold=1e-4)
-        thresholded = to_numpy(thresholded[0, :4, 0])
-        self.assertIsNone(np.testing.assert_allclose(thresholded, [0, 1e-4, 1e-3, 1]))
-        thresholded = threshold_vectors(vecs, threshold=1e-5)
-        thresholded = to_numpy(thresholded[0, :4, 0])
-        self.assertIsNone(np.testing.assert_allclose(thresholded, [1e-5, 1e-4, 1e-3, 1]))
+        for use_mag in [True, False]:
+            thresholded = threshold_vectors(vecs, threshold=1e-3, use_mag=use_mag)
+            thresholded = to_numpy(thresholded[0, :4, 0])
+            self.assertIsNone(np.testing.assert_allclose(thresholded, [0, 0, 1e-3, 1]))
+            thresholded = threshold_vectors(vecs, threshold=1e-4, use_mag=use_mag)
+            thresholded = to_numpy(thresholded[0, :4, 0])
+            self.assertIsNone(np.testing.assert_allclose(thresholded, [0, 1e-4, 1e-3, 1]))
+            thresholded = threshold_vectors(vecs, threshold=1e-5, use_mag=use_mag)
+            thresholded = to_numpy(thresholded[0, :4, 0])
+            self.assertIsNone(np.testing.assert_allclose(thresholded, [1e-5, 1e-4, 1e-3, 1]))
 
 
 class TestFromMatrix(unittest.TestCase):
