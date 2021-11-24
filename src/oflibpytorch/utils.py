@@ -17,7 +17,7 @@ import torch.nn.functional as f
 from scipy.interpolate import griddata
 import numpy as np
 import cv2
-from typing import Any, Union
+from typing import Any, Union, List
 
 
 DEFAULT_THRESHOLD = 1e-3
@@ -435,3 +435,64 @@ def threshold_vectors(vecs: torch.Tensor, threshold: Union[float, int] = None) -
     f = vecs.clone()
     f[:, mags < threshold] = 0
     return f
+
+
+def load_kitti(path: str) -> Union[List[torch.Tensor], torch.Tensor]:
+    """Loads the flow field contained in KITTI ``uint16`` png images files, including the valid pixels.
+    Follows the official instructions on how to read the provided .png files
+
+    :param path: String containing the path to the KITTI flow data (``uint16``, .png file)
+    :param
+    :return: A torch tensor of shape :math:`(3, H, W)` with the KITTI flow data (with valid pixels in the 3rd channel)
+    """
+
+    inp = cv2.imread(path, cv2.IMREAD_UNCHANGED)  # cv2.IMREAD_UNCHANGED necessary to read uint16 correctly
+    if inp is None:
+        raise ValueError("Error loading flow from KITTI data: Flow data could not be loaded")
+    if inp.ndim != 3 or inp.shape[-1] != 3:
+        raise ValueError("Error loading flow from KITTI data: Loaded flow data has the wrong shape")
+    inp = inp[..., ::-1].astype('float64')  # Invert channels as cv2 loads as BGR instead of RGB
+    inp[..., :2] = (inp[..., :2] - 2 ** 15) / 64
+    inp[inp[..., 2] > 0, 2] = 1
+    return to_tensor(inp, switch_channels=True)
+
+
+def load_sintel(path: str) -> torch.Tensor:
+    """Loads the flow field contained in Sintel .flo byte files. Follows the official instructions provided with
+    the Sintel .flo data.
+
+    :param path: String containing the path to the Sintel flow data (.flo byte file, little Endian)
+    :return: A torch tensor of shape :math:`(2, H, W)` containing the Sintel flow data
+    """
+
+    if not isinstance(path, str):
+        raise TypeError("Error loading flow from Sintel data: Path needs to be a string")
+    with open(path, 'rb') as file:
+        if file.read(4).decode('ascii') != 'PIEH':
+            raise ValueError("Error loading flow from Sintel data: Path not a valid .flo file")
+        w, h = int.from_bytes(file.read(4), 'little'), int.from_bytes(file.read(4), 'little')
+        if 99999 < w < 1:
+            raise ValueError("Error loading flow from Sintel data: Invalid width read from file ('{}')".format(w))
+        if 99999 < h < 1:
+            raise ValueError("Error loading flow from Sintel data: Invalid height read from file ('{}')".format(h))
+        dt = np.dtype('float32')
+        dt = dt.newbyteorder('<')
+        flow = np.fromfile(file, dtype=dt).reshape(h, w, 2)
+    return to_tensor(flow, switch_channels=True)
+
+
+def load_sintel_mask(path: str) -> torch.Tensor:
+    """Loads the invalid pixels contained in Sintel .png mask files. Follows the official instructions provided
+    with the .flo data.
+
+    :param path: String containing the path to the Sintel invalid pixel data (.png, black and white)
+    :return: A torch tensor containing the Sintel invalid pixels (mask) data
+    """
+
+    if not isinstance(path, str):
+        raise TypeError("Error loading flow from Sintel data: Path needs to be a string")
+    mask = cv2.imread(path, 0)
+    if mask is None:
+        raise ValueError("Error loading flow from Sintel data: Invalid mask could not be loaded from path")
+    mask = ~(mask.astype('bool'))
+    return to_tensor(mask)

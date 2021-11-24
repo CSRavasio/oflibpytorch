@@ -20,7 +20,7 @@ import sys
 sys.path.append('..')
 from src.oflibpytorch.utils import get_valid_vecs, get_valid_ref, get_valid_padding, validate_shape, get_valid_device, \
     to_numpy, move_axis, flow_from_matrix, matrix_from_transform, matrix_from_transforms, reverse_transform_values, \
-    normalise_coords, apply_flow, threshold_vectors
+    normalise_coords, apply_flow, threshold_vectors, load_kitti, load_sintel, load_sintel_mask
 from src.oflibpytorch.flow_class import Flow
 
 
@@ -406,6 +406,50 @@ class TestThresholdVectors(unittest.TestCase):
         thresholded = threshold_vectors(vecs, threshold=1e-5)
         thresholded = to_numpy(thresholded[0, :4, 0])
         self.assertIsNone(np.testing.assert_allclose(thresholded, [1e-5, 1e-4, 1e-3, 1]))
+
+
+class TestFromKITTI(unittest.TestCase):
+    def test_load(self):
+        output = load_kitti('kitti.png')
+        self.assertIsInstance(output, torch.Tensor)
+        desired_flow = np.arange(0, 10)[:, np.newaxis] * np.arange(0, 20)[np.newaxis, :]
+        self.assertIsNone(np.testing.assert_equal(to_numpy(output[0, ...]), desired_flow))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(output[1, ...]), 0))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(output[2, :, 0]), 1))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(output[2, :, 10]), 0))
+
+    def test_failed_load(self):
+        with self.assertRaises(ValueError):  # Wrong path
+            load_kitti('test')
+        with self.assertRaises(ValueError):  # Wrong flow shape
+            load_kitti('kitti_wrong.png')
+
+
+class TestFromSintel(unittest.TestCase):
+    def test_load_flow(self):
+        f = load_sintel('sintel.flo')
+        self.assertIsInstance(f, torch.Tensor)
+        desired_flow = np.arange(0, 10)[:, np.newaxis] * np.arange(0, 20)[np.newaxis, :]
+        self.assertIsNone(np.testing.assert_equal(to_numpy(f[0, ...]), desired_flow))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(f[1, ...]), 0))
+
+    def test_failed_load_flow(self):
+        with self.assertRaises(TypeError):  # Path not a string
+            load_sintel(0)
+        with self.assertRaises(ValueError):  # Wrong tag
+            load_sintel('sintel_wrong.flo')
+
+    def test_load_mask(self):
+        m = load_sintel_mask('sintel_invalid.png')
+        self.assertIsInstance(m, torch.Tensor)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(m[:, 0]), True))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(m[:, 10]), False))
+
+    def test_failed_load_mask(self):
+        with self.assertRaises(TypeError):  # Path not a string
+            load_sintel_mask(0)
+        with self.assertRaises(ValueError):  # File does not exist
+            load_sintel_mask('test.png')
 
 
 if __name__ == '__main__':

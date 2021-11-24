@@ -242,6 +242,41 @@ class FlowTest(unittest.TestCase):
         self.assertIsNone(np.testing.assert_equal(flow.shape, shape))
         self.assertEqual(flow.ref, 't')
 
+    def test_from_kitti(self):
+        path = 'kitti.png'
+        f = Flow.from_kitti(path, load_valid=True)
+        desired_flow = np.arange(0, 10)[:, np.newaxis] * np.arange(0, 20)[np.newaxis, :]
+        self.assertIsNone(np.testing.assert_equal(f.vecs_numpy[..., 0], desired_flow))
+        self.assertIsNone(np.testing.assert_equal(f.vecs_numpy[..., 1], 0))
+        self.assertIsNone(np.testing.assert_equal(f.mask_numpy[:, 0], True))
+        self.assertIsNone(np.testing.assert_equal(f.mask_numpy[:, 10], False))
+        f = Flow.from_kitti(path, load_valid=False)
+        self.assertIsNone(np.testing.assert_equal(f.mask_numpy, True))
+
+        with self.assertRaises(TypeError):  # Wrong load_valid type
+            Flow.from_kitti(path, load_valid='test')
+        with self.assertRaises(ValueError):  # Wrong path
+            Flow.from_kitti('test')
+        with self.assertRaises(ValueError):  # Wrong flow shape
+            Flow.from_kitti('kitti_wrong.png')
+
+    def test_from_sintel(self):
+        path = 'sintel.flo'
+        f = Flow.from_sintel(path)
+        desired_flow = np.arange(0, 10)[:, np.newaxis] * np.arange(0, 20)[np.newaxis, :]
+        self.assertIsNone(np.testing.assert_equal(f.vecs_numpy[..., 0], desired_flow))
+        self.assertIsNone(np.testing.assert_equal(f.mask_numpy, True))
+        f = Flow.from_sintel(path, 'sintel_invalid.png')
+        self.assertIsNone(np.testing.assert_equal(f.mask_numpy[:, 0], True))
+        self.assertIsNone(np.testing.assert_equal(f.mask_numpy[:, 10], False))
+
+        with self.assertRaises(ValueError):  # Wrong tag
+            Flow.from_sintel('sintel_wrong.flo')
+        with self.assertRaises(ValueError):  # Wrong mask path
+            Flow.from_sintel(path, 'test.png')
+        with self.assertRaises(ValueError):  # Wrong mask shape
+            Flow.from_sintel(path, 'sintel_invalid_wrong.png')
+
     def test_copy(self):
         vectors = np.random.rand(200, 200, 2)
         mask = np.random.rand(200, 200) > 0.5

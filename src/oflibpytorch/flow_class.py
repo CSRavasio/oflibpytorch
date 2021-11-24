@@ -22,7 +22,7 @@ from typing import Union, Tuple
 import warnings
 from .utils import get_valid_vecs, get_valid_ref, get_valid_device, get_valid_padding, validate_shape, to_numpy, \
     move_axis, flow_from_matrix, matrix_from_transforms, reverse_transform_values, apply_flow, threshold_vectors, \
-    normalise_coords
+    normalise_coords, load_kitti, load_sintel, load_sintel_mask
 
 
 FlowAlias = 'Flow'
@@ -430,6 +430,43 @@ class Flow(object):
             transform_list = reverse_transform_values(transform_list)
             matrix = matrix_from_transforms(list(reversed(transform_list)))
             return cls.from_matrix(matrix, shape, ref, mask, device, matrix_is_inverse=True)
+
+    @classmethod
+    def from_kitti(cls, path: str, load_valid: bool = None, device: str = None) -> FlowAlias:
+        """Loads the flow field contained in KITTI ``uint16`` png images files, optionally including the valid pixels.
+        Follows the official instructions on how to read the provided .png files
+
+        :param path: String containing the path to the KITTI flow data (``uint16``, .png file)
+        :param load_valid: Boolean determining whether the valid pixels are loaded as the flow :attr:`mask`. Defaults
+            to ``True``
+        :param device: Tensor device, either ``cpu`` or ``cuda`` (if available). Defaults to ``cpu``
+        :return: A flow object corresponding to the KITTI flow data, with flow reference :attr:`ref` ``s``.
+        """
+
+        load_valid = True if load_valid is None else load_valid
+        if not isinstance(load_valid, bool):
+            raise TypeError("Error loading flow from KITTI data: Load_valid needs to be boolean")
+
+        data = load_kitti(path)
+        if load_valid:
+            return cls(data[:2, ...], 's', data[2, ...], device=device)
+        else:
+            return cls(data[:2, ...], 's', device=device)
+
+    @classmethod
+    def from_sintel(cls, path: str, inv_path: str = None, device: str = None) -> FlowAlias:
+        """Loads the flow field contained in Sintel .flo byte files, including the invalid pixels if required. Follows
+        the official instructions provided alongside the .flo data.
+
+        :param path: String containing the path to the Sintel flow data (.flo byte file, little Endian)
+        :param inv_path: String containing the path to the Sintel invalid pixel data (.png, black and white)
+        :param device: Tensor device, either ``cpu`` or ``cuda`` (if available). Defaults to ``cpu``
+        :return: A flow object corresponding to the Sintel flow data, with flow reference :attr:`ref` ``s``
+        """
+
+        flow = load_sintel(path)
+        mask = None if inv_path is None else load_sintel_mask(inv_path)
+        return cls(flow, 's', mask, device=device)
 
     def copy(self) -> FlowAlias:
         """Copy a flow object by constructing a new one with the same vectors :attr:`vecs`, reference :attr:`ref`,
