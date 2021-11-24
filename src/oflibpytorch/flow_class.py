@@ -35,11 +35,11 @@ class Flow(object):
     _device: str
 
     def __init__(
-            self,
-            flow_vectors: Union[np.ndarray, torch.Tensor],
-            ref: str = None,
-            mask: Union[np.ndarray, torch.Tensor] = None,
-            device: str = None
+        self,
+        flow_vectors: Union[np.ndarray, torch.Tensor],
+        ref: str = None,
+        mask: Union[np.ndarray, torch.Tensor] = None,
+        device: str = None
     ):
         """Flow object constructor. For a more detailed explanation of the arguments, see the class attributes
         :attr:`vecs`, :attr:`ref`, :attr:`mask`, and :attr:`device`.
@@ -249,11 +249,11 @@ class Flow(object):
 
     @classmethod
     def zero(
-            cls,
-            shape: Union[list, tuple],
-            ref: str = None,
-            mask: Union[np.ndarray, torch.Tensor] = None,
-            device: str = None,
+        cls,
+        shape: Union[list, tuple],
+        ref: str = None,
+        mask: Union[np.ndarray, torch.Tensor] = None,
+        device: str = None,
     ) -> FlowAlias:
         """Flow object constructor, zero everywhere
 
