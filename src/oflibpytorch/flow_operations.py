@@ -265,3 +265,209 @@ def combine_flows(input_1: FlowAlias, input_2: FlowAlias, mode: int, thresholded
             result = input_2 + input_2.apply(input_1)
 
     return result
+
+
+def switch_flow_ref(flow: Union[np.ndarray, torch.Tensor], input_ref: str) -> torch.Tensor:
+    """Recalculate flow vectors to correspond to a switched flow reference (see Flow reference
+    :attr:`~oflibnumpy.Flow.ref`)
+
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param input_ref: The reference of the input flow field, either ``s`` or ``t``
+    :return: Flow field as a torch tensor of shape :math:`(2, H, W)`
+    """
+
+    f = Flow(flow, input_ref).switch_ref()
+    return f.vecs
+
+
+def invert_flow(flow: Union[np.ndarray, torch.Tensor], input_ref: str, output_ref: str = None) -> torch.Tensor:
+    """Inverting a flow: `img`\\ :sub:`1` -- `f` --> `img`\\ :sub:`2` becomes `img`\\ :sub:`1` <-- `f` --
+    `img`\\ :sub:`2`. The smaller the input flow, the closer the inverse is to simply multiplying the flow by -1.
+
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param input_ref: Reference of the input flow field,  either ``s`` or ``t``
+    :param output_ref: Desired reference of the output field, either ``s`` or ``t``. Defaults to ``input_ref``
+    :return: Flow field as a torch tensor of shape :math:`(2, H, W)`
+    """
+
+    output_ref = input_ref if output_ref is None else output_ref
+    f = Flow(flow, input_ref).invert(output_ref)
+    return f.vecs
+
+
+def valid_target(flow: Union[np.ndarray, torch.Tensor], ref: str) -> torch.Tensor:
+    """Find the valid area in the target domain
+
+    Given a source image and a flow, both of shape :math:`(H, W)`, the target image is created by warping the source
+    with the flow. The valid area is then a boolean numpy array of shape :math:`(H, W)` that is ``True`` wherever
+    the value in the target img stems from warping a value from the source, and ``False`` where no valid information
+    is known.
+
+    Pixels that are ``False`` will often be black (or 'empty') in the warped target image - but not necessarily, due
+    to warping artefacts etc. The valid area also allows a distinction between pixels that are black due to no
+    actual information being available at this position (validity ``False``), and pixels that are black due to black
+    pixel values having been warped to that (valid) location by the flow.
+
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param ref: Reference of the flow field, ``s`` or ``t``
+    :return: Boolean torch tensor of the same shape :math:`(H, W)` as the flow
+    """
+
+    return Flow(flow, ref).valid_target()
+
+
+def valid_source(flow: Union[np.ndarray, torch.Tensor], ref: str) -> torch.Tensor:
+    """Finds the area in the source domain that will end up being valid in the target domain (see
+    :meth:`~oflibnumpy.valid_target`) after warping
+
+    Given a source image and a flow, both of shape :math:`(H, W)`, the target image is created by warping the source
+    with the flow. The source area is then a boolean numpy array of shape :math:`(H, W)` that is ``True`` wherever
+    the value in the source will end up somewhere inside the valid target area, and ``False`` where the value in the
+    source will either be warped outside of the target image, or not be warped at all due to a lack of valid flow
+    vectors connecting to this position.
+
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param ref: Reference of the flow field, ``s`` or ``t``
+    :return: Boolean torch tensor of the same shape :math:`(H, W)` as the flow
+    """
+
+    return Flow(flow, ref).valid_source()
+
+
+def get_flow_padding(flow: Union[np.ndarray, torch.Tensor], ref: str) -> list:
+    """Determine necessary padding from the flow field:
+
+    - When the flow reference is ``t`` ("target"), this corresponds to the padding needed in a source image which
+      ensures that every flow vector will find a value in the source domain to warp towards the target domain.
+      I.e. any invalid locations in the area :math:`H \\times W` of the target domain (see
+      :func:`~oflibnumpy.valid_target`) are purely due to no valid flow vector being available to pull a
+      source value to this target location, rather than no source value being available in the first place.
+    - When the flow reference is ``s`` ("source"), this corresponds to the padding needed for
+      the flow itself, so that applying it to a source image will result in no input image information being lost in
+      the warped output, i.e each input image pixel will come to lie inside the padded area.
+
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param ref: Reference of the flow field, ``s`` or ``t``
+    :return: A list of shape :math:`(4)` with the values ``[top, bottom, left, right]``
+    """
+
+    return Flow(flow, ref).get_padding()
+
+
+def get_flow_matrix(
+    flow: Union[np.ndarray, torch.Tensor],
+    ref: str,
+    dof: int = None,
+    method: str = None
+) -> torch.Tensor:
+    """Fit a transformation matrix to the flow field using OpenCV functions
+
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param ref: Reference of the flow field, ``s`` or ``t``
+    :param dof: Integer describing the degrees of freedom in the transformation matrix to be fitted, defaults to
+        ``8``. Options are:
+
+        - ``4``: Partial affine transform with rotation, translation, scaling
+        - ``6``: Affine transform with rotation, translation, scaling, shearing
+        - ``8``: Projective transform, i.e estimation of a homography
+    :param method: String describing the method used to fit the transformations matrix by OpenCV, defaults to
+        ``ransac``. Options are:
+
+        - ``lms``: Least mean squares
+        - ``ransac``: RANSAC-based robust method
+        - ``lmeds``: Least-Median robust method
+    :return: Torch tensor of shape :math:`(3, 3)` containing the transformation matrix
+    """
+
+    return Flow(flow, ref).matrix(dof=dof, method=method)
+
+
+def visualise_flow(
+    flow: Union[np.ndarray, torch.Tensor],
+    mode: str,
+    range_max: float = None,
+    return_tensor: bool = None
+) -> Union[np.ndarray, torch.Tensor]:
+    """Visualises the flow as an rgb / bgr / hsv image
+
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param mode: Output mode, options: ``rgb``, ``bgr``, ``hsv``
+    :param range_max: Maximum vector magnitude expected, corresponding to the HSV maximum Value of 255 when scaling
+        the flow magnitudes. Defaults to the 99th percentile of the flow field magnitudes
+    :param return_tensor: Boolean determining whether the result is returned as a tensor. Note that the result is
+        originally a numpy array. Defaults to ``True``
+    :return: Numpy array of shape :math:`(H, W, 3)` or torch tensor of shape :math:`(3, H, W)` containing the
+        flow visualisation
+    """
+
+    return Flow(flow).visualise(mode=mode, range_max=range_max, return_tensor=return_tensor)
+
+
+def visualise_flow_arrows(
+    flow: Union[np.ndarray, torch.Tensor],
+    ref: str,
+    grid_dist: int = None,
+    img: np.ndarray = None,
+    scaling: Union[float, int] = None,
+    colour: tuple = None,
+    thickness: int = None,
+    return_tensor: bool = None
+) -> Union[np.ndarray, torch.Tensor]:
+    """Visualises the flow as arrowed lines
+
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param ref: Reference of the flow field, ``s`` or ``t``
+    :param grid_dist: Integer of the distance of the flow points to be used for the visualisation, defaults to
+        ``20``
+    :param img: Numpy array with the background image to use (in BGR mode), defaults to white
+    :param scaling: Float or int of the flow line scaling, defaults to scaling the 99th percentile of arrowed line
+        lengths to be equal to twice the grid distance (empirical value)
+    :param colour: Tuple of the flow arrow colour, defaults to hue based on flow direction as in
+        :func:`~oflibnumpy.visualise`
+    :param thickness: Integer of the flow arrow thickness, larger than zero. Defaults to ``1``
+    :param return_tensor: Boolean determining whether the result is returned as a tensor. Note that the result is
+        originally a numpy array. Defaults to ``True``
+    :return: Numpy array of shape :math:`(H, W, 3)` or torch tensor of shape :math:`(3, H, W)` containing the
+        flow visualisation
+    """
+
+    return Flow(flow, ref).visualise_arrows(grid_dist=grid_dist, img=img, scaling=scaling,
+                                            colour=colour, thickness=thickness, return_tensor=return_tensor)
+
+
+def show_flow(flow: Union[np.ndarray, torch.Tensor], wait: int = None):
+    """Shows the flow in an OpenCV window using :func:`~oflibnumpy.visualise`
+
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param wait: Integer determining how long to show the flow for, in milliseconds. Defaults to ``0``, which means
+        it will be shown until the window is closed, or the process is terminated
+    """
+
+    Flow(flow).show(wait=wait)
+
+
+def show_flow_arrows(
+    flow: Union[np.ndarray, torch.Tensor],
+    ref: str,
+    wait: int = None,
+    grid_dist: int = None,
+    img: np.ndarray = None,
+    scaling: Union[float, int] = None,
+    colour: tuple = None
+):
+    """Shows the flow in an OpenCV window using :func:`~oflibnumpy.visualise_arrows`
+
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param ref: Reference of the flow field, ``s`` or ``t``
+    :param wait: Integer determining how long to show the flow for, in milliseconds. Defaults to ``0``, which means
+        it will be shown until the window is closed, or the process is terminated
+    :param grid_dist: Integer of the distance of the flow points to be used for the visualisation, defaults to
+        ``20``
+    :param img: Numpy array with the background image to use (in BGR colour space), defaults to black
+    :param scaling: Float or int of the flow line scaling, defaults to scaling the 99th percentile of arrowed line
+        lengths to be equal to twice the grid distance (empirical value)
+    :param colour: Tuple of the flow arrow colour, defaults to hue based on flow direction as in
+        :func:`~oflibnumpy.visualise`
+    """
+
+    return Flow(flow, ref).show_arrows(wait=wait, grid_dist=grid_dist, img=img, scaling=scaling, colour=colour)

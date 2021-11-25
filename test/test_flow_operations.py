@@ -18,7 +18,9 @@ import torch
 import sys
 sys.path.append('..')
 from src.oflibpytorch.flow_class import Flow
-from src.oflibpytorch.flow_operations import combine_flows, visualise_definition
+from src.oflibpytorch.flow_operations import combine_flows, switch_flow_ref, invert_flow, valid_target, valid_source, \
+    get_flow_padding, get_flow_matrix, visualise_flow, visualise_flow_arrows
+from src.oflibpytorch.utils import to_numpy, matrix_from_transforms
 
 
 class TestFlowOperations(unittest.TestCase):
@@ -78,6 +80,92 @@ class TestFlowOperations(unittest.TestCase):
             combine_flows(f1, f2, 0)
         with self.assertRaises(TypeError):  # wrong thresholded
             combine_flows(f1, f2, 1, thresholded='test')
+
+    def test_switch_flow_ref(self):
+        shape = [10, 20]
+        transforms = [['rotation', 5, 10, 30]]
+        flow_s = Flow.from_transforms(transforms, shape, 's')
+        flow_t = Flow.from_transforms(transforms, shape, 't')
+        fl_op_switched_s = to_numpy(switch_flow_ref(flow_s.vecs, 's'), switch_channels=True)
+        fl_op_switched_t = to_numpy(switch_flow_ref(flow_t.vecs_numpy, 't'), switch_channels=True)
+        self.assertIsNone(np.testing.assert_equal(flow_s.switch_ref().vecs_numpy, fl_op_switched_s))
+        self.assertIsNone(np.testing.assert_equal(flow_t.switch_ref().vecs_numpy, fl_op_switched_t))
+
+    def test_invert_flow(self):
+        shape = [10, 20]
+        transforms = [['rotation', 5, 10, 30]]
+        flow_s = Flow.from_transforms(transforms, shape, 's')
+        flow_t = Flow.from_transforms(transforms, shape, 't')
+        s_invert = to_numpy(invert_flow(flow_s.vecs, 's'), switch_channels=True)
+        s_invert_t = to_numpy(invert_flow(flow_s.vecs_numpy, 's', 't'), switch_channels=True)
+        t_invert = to_numpy(invert_flow(flow_t.vecs_numpy, 't'), switch_channels=True)
+        t_invert_s = to_numpy(invert_flow(flow_t.vecs, 't', 's'), switch_channels=True)
+        self.assertIsNone(np.testing.assert_equal(flow_s.invert().vecs_numpy, s_invert))
+        self.assertIsNone(np.testing.assert_equal(flow_s.invert('t').vecs_numpy, s_invert_t))
+        self.assertIsNone(np.testing.assert_equal(flow_t.invert().vecs_numpy, t_invert))
+        self.assertIsNone(np.testing.assert_equal(flow_t.invert('s').vecs_numpy, t_invert_s))
+
+    def test_valid_target(self):
+        transforms = [['rotation', 0, 0, 45]]
+        shape = (7, 7)
+        f_s = Flow.from_transforms(transforms, shape, 's')
+        f_t = Flow.from_transforms(transforms, shape, 't')
+        target_s = to_numpy(valid_target(f_s.vecs_numpy, 's'))
+        target_t = to_numpy(valid_target(f_t.vecs, 't'))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(f_s.valid_target()), target_s))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(f_t.valid_target()), target_t))
+
+    def test_valid_source(self):
+        transforms = [['rotation', 0, 0, 45]]
+        shape = (7, 7)
+        f_s = Flow.from_transforms(transforms, shape, 's')
+        f_t = Flow.from_transforms(transforms, shape, 't')
+        source_s = to_numpy(valid_source(f_s.vecs, 's'))
+        source_t = to_numpy(valid_source(f_t.vecs_numpy, 't'))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(f_s.valid_source()), source_s))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(f_t.valid_source()), source_t))
+
+    def test_get_flow_padding(self):
+        transforms = [['rotation', 0, 0, 45]]
+        shape = (7, 7)
+        f_s = Flow.from_transforms(transforms, shape, 's')
+        f_t = Flow.from_transforms(transforms, shape, 't')
+        padding_s = get_flow_padding(to_numpy(f_s.vecs), 's')
+        padding_t = get_flow_padding(torch.tensor(f_t.vecs_numpy), 't')
+        self.assertIsNone(np.testing.assert_equal(f_s.get_padding(), padding_s))
+        self.assertIsNone(np.testing.assert_equal(f_t.get_padding(), padding_t))
+
+    def test_get_flow_matrix(self):
+        # Partial affine transform, test reconstruction with all methods
+        transforms = [
+            ['translation', 20, 10],
+            ['rotation', 200, 200, 30],
+            ['scaling', 100, 100, 1.1]
+        ]
+        matrix = matrix_from_transforms(transforms)
+        flow_s = Flow.from_matrix(matrix, (1000, 2000), 's')
+        flow_t = Flow.from_matrix(matrix, (1000, 2000), 't')
+        m_s_f = to_numpy(flow_s.matrix(dof=4, method='ransac'))
+        m_t_f = to_numpy(flow_t.matrix(dof=4, method='ransac'))
+        m_s = to_numpy(get_flow_matrix(to_numpy(flow_s.vecs), 's', dof=4, method='ransac'))
+        m_t = to_numpy(get_flow_matrix(torch.tensor(flow_t.vecs_numpy), 't', dof=4, method='ransac'))
+        self.assertIsNone(np.testing.assert_allclose(m_s_f, m_s))
+        self.assertIsNone(np.testing.assert_allclose(m_t_f, m_t))
+
+    def test_visualise_flow(self):
+        flow = Flow.from_transforms([['translation', 1, 0]], [200, 300])
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('bgr', return_tensor=False),
+                                                  visualise_flow(flow.vecs, 'bgr', return_tensor=False)))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('rgb', return_tensor=False),
+                                                  visualise_flow(flow.vecs_numpy, 'rgb', return_tensor=False)))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False),
+                                                  visualise_flow(to_numpy(flow.vecs), 'hsv', return_tensor=False)))
+
+    def test_visualise_flow_arrows(self):
+        for ref in ['s', 't']:
+            flow = Flow.from_transforms([['rotation', 10, 10, 30]], [20, 20], ref)
+            self.assertIsNone(np.testing.assert_equal(flow.visualise_arrows(return_tensor=False),
+                                                      visualise_flow_arrows(flow.vecs, ref, return_tensor=False)))
 
 
 if __name__ == '__main__':
