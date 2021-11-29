@@ -21,7 +21,7 @@ import math
 from typing import Union, Tuple
 import warnings
 from .utils import get_valid_vecs, get_valid_ref, get_valid_mask, get_valid_device, get_valid_padding, validate_shape, \
-    to_numpy, move_axis, apply_flow, threshold_vectors, normalise_coords, resize_flow, is_zero_flow, \
+    to_numpy, move_axis, apply_flow, threshold_vectors, resize_flow, is_zero_flow, \
     from_matrix, from_transforms, load_kitti, load_sintel, load_sintel_mask, track_pts
 
 
@@ -1384,3 +1384,184 @@ class Flow(object):
         else:
             matrix = dof_lookup[dof](src_pts, dst_pts, method=method_lookup[method])[0]
         return torch.tensor(matrix).to(self._device)
+
+    def combine_with(self, flow: FlowAlias, mode: int, thresholded: bool = None) -> FlowAlias:
+        """Function that returns the result of the combination of two flow objects of the same shape :attr:`shape` and
+        reference :attr:`ref`
+
+        .. tip::
+           All of the flow field combinations in this function rely on some combination of the
+           :meth:`~oflibnumpy.Flow.apply`, :meth:`~oflibnumpy.Flow.invert`, and :meth:`~oflibnumpy.Flow.combine_with`
+           methods, and can be very slow (several seconds) due to calling :func:`scipy.interpolate.griddata` multiple
+           times. The table below aids decision-making with regards to which reference a flow field should be provided
+           in to obtain the fastest result.
+
+            .. list-table:: Calls to :func:`scipy.interpolate.griddata`
+               :header-rows: 1
+               :stub-columns: 1
+               :widths: 10, 15, 15
+               :align: center
+
+               * - `mode`
+                 - ``ref = 's'``
+                 - ``ref = 't'``
+               * - 1
+                 - 1
+                 - 3
+               * - 2
+                 - 1
+                 - 1
+               * - 3
+                 - 0
+                 - 0
+
+        All formulas used in this function have been derived from first principles. The base formula is
+        :math:`flow_1 ⊕ flow_2 = flow_3`, where :math:`⊕` is a non-commutative flow composition operation.
+        This can be visualised with the start / end points of the flows as follows:
+
+        .. code-block::
+
+            S = Start point    S1 = S3 ─────── f3 ────────────┐
+            E = End point       │                             │
+            f = flow           f1                             v
+                                └───> E1 = S2 ── f2 ──> E2 = E3
+
+        The main difficulty in combining flow fields is that it would be incorrect to simply add up or subtract
+        flow vectors at one location in the flow field area :math:`H \\times W`. This appears to work given e.g.
+        a translation to the right, and a translation downwards: the result will be the linear combination of the
+        two vectors, or a translation towards the bottom right. However, looking more closely, it becomes evident
+        that this approach isn't actually correct: A pixel that has been moved from `S1` to `E1` by the first flow
+        field `f1` is then moved from that location by the flow vector of the flow field `f2` that corresponds to
+        the new pixel location `E1`, *not* the original location `S1`. If the flow vectors are the same everywhere
+        in the field, the difference will not be noticeable. However, if the flow vectors of `f2` vary throughout
+        the field, such as with a rotation around some point, it will!
+
+        In this case (corresponding to calling :func:`f1.combine_with(f2, mode=3)<combine_with>`), and if the
+        flow reference :attr:`ref` is ``s`` ("source"), the solution is to first apply the inverse of `f1` to `f2`,
+        essentially linking up each location `E1` back to `S1`, and *then* to add up the flow vectors. Analogous
+        observations apply for the other permutations of flow combinations and reference :attr:`ref` values.
+
+        .. note::
+           This is consistent with the observation that two translations are commutative in their application -
+           the order does not matter, and the vectors can simply be added up at every pixel location -, while a
+           translation followed by a rotation is not the same as a rotation followed by a translation: adding up
+           vectors at each pixel cannot be the correct solution as there wouldn't be a difference based on the
+           order of vector addition.
+
+        :param flow: Flow object to combine with
+        :param mode: Integer determining how the input flows are combined, where the number corresponds to the
+            position in the formula :math:`flow_1 ⊕ flow_2 = flow_3`:
+
+            - Mode ``1``: `self` corresponds to :math:`flow_2`, `flow` corresponds to :math:`flow_3`, the result will
+              be :math:`flow_1`
+            - Mode ``2``: `self` corresponds to :math:`flow_1`, `flow` corresponds to :math:`flow_3`, the result will
+              be :math:`flow_2`
+            - Mode ``3``: `self` corresponds to :math:`flow_1`, `flow` corresponds to :math:`flow_2`, the result will
+              be :math:`flow_3`
+        :param thresholded: Boolean determining whether flows are thresholded during an internal call to
+            :meth:`~oflibnumpy.Flow.is_zero`, defaults to ``False``
+        :return: New flow object
+        """
+
+        # Check input validity
+        if not isinstance(flow, Flow):
+            raise TypeError("Error combining flows: Flow need to be of type 'Flow'")
+        if self.shape != flow.shape:
+            raise ValueError("Error combining flows: Flow fields need to have the same shape")
+        if self.ref != flow.ref:
+            raise ValueError("Error combining flows: Flow fields need to have the same reference")
+        if self._device != flow._device:
+            flow = flow.to_device(self._device)
+        if mode not in [1, 2, 3]:
+            raise ValueError("Error combining flows: Mode needs to be 1, 2 or 3")
+        thresholded = False if thresholded is None else thresholded
+        if not isinstance(thresholded, bool):
+            raise TypeError("Error combining flows: Thresholded needs to be a boolean")
+
+        # Check if one input is zero, return early if so
+        if self.is_zero(thresholded=thresholded):
+            # if mode == 1:  # Flows are in order (desired_result, self=0, flow)
+            #     return flow
+            # elif mode == 2:  # Flows are in order (self=0, desired_result, flow)
+            #     return flow
+            # elif mode == 3:  # Flows are in order (self=0, flow, desired_result)
+            #     return flow
+            # Above code simplifies to:
+            return flow
+        elif flow.is_zero(thresholded=thresholded):
+            if mode == 1:  # Flows are in order (desired_result, self, flow=0)
+                return self.invert()
+            elif mode == 2:  # Flows are in order (self, desired_result, flow=0)
+                return self.invert()
+            elif mode == 3:  # Flows are in order (self, flow=0, desired_result)
+                return self
+
+        result = None
+        if mode == 1:  # Flows are in order (desired_result, self, flow)
+            if self._ref == flow._ref == 's':
+                # Explanation: f1 is (f3 minus f2), when S2 is moved to S3, achieved by applying f2 to move S2 to E3,
+                # then inverted(f3) to move from E3 to S3.
+                # F1_s = F3_s - F2_s.combine_with(F3_s^-1_s, 3){F2_s}
+                # result = flow - self.combine_with(flow.invert(), mode=3).apply(self)
+                #
+                # Alternative: this should take an equivalent amount of time (same number of griddata calls), but is
+                # slightly faster in tests
+                # F1_s = F3_s - F2_s-as-t.combine_with(F3_s^-1_t, 3){F2_s}
+                # result = flow - self.switch_ref().combine_with(flow.invert('t'), mode=3).apply(self)
+                # To avoid call to combine_with and associated overhead, do the corresponding operations directly:
+                flow_inv_t = flow.invert('t')
+                result = flow - (flow_inv_t + flow_inv_t.apply(self.switch_ref())).apply(self)
+            elif self._ref == flow._ref == 't':
+                # Explanation: currently no native implementation to ref 't', so just "translated" from ref 's'
+                # F1_t = (F3_t-as-s - F2_t.combine_with(F3_t^-1_t, 3){F2_t-as-s})_as-t
+                # result = flow.switch_ref() - self.combine_with(flow.invert(), mode=3).apply(self.switch_ref())
+                # result = result.switch_ref()
+                #
+                # Alternative: saves one call to griddata. However, test shows barely a difference - not sure why
+                # F1_t = (F3_t-as-s - F2_t-as-s.combine_with(F3_t^-1_s, 3){F2_t-as-s})_as-t
+                # self_s = self.switch_ref()
+                # result = flow.switch_ref() - self_s.combine_with(flow.invert('s'), mode=3).apply(self_s)
+                # result = result.switch_ref()
+                # To avoid call to combine_with and associated overhead, do the corresponding operations directly:
+                self_s = self.switch_ref()
+                result = flow.switch_ref() - (self_s + self_s.invert(ref='t').apply(flow.invert('s'))).apply(self_s)
+                result = result.switch_ref()
+        elif mode == 2:  # Flows are in order (self, desired_result, flow)
+            if self._ref == flow._ref == 's':
+                # Explanation: f2 is (f3 minus f1), when S1 = S3 is moved to S2, achieved by applying f1
+                # F2_s = F1_s{F3_s - F1_s}
+                result = self.apply(flow - self)
+            elif self._ref == flow._ref == 't':
+                # Strictly "translated" version from the ref 's' case:
+                # F2_t = F1_t{F3_t-as-s - F1_t-as-s}_as-t)
+                # result = (self.apply(flow.switch_ref() - self.switch_ref())).switch_ref()
+                #
+                # Improved version cutting down on operational complexity
+                # F3 - F1, where F1 has been resampled to the source positions of F3.
+                coord_1 = -self.vecs_numpy
+                coord_1[:, :, 0] += np.arange(coord_1.shape[1])
+                coord_1[:, :, 1] += np.arange(coord_1.shape[0])[:, np.newaxis]
+                coord_1_flat = np.reshape(coord_1, (-1, 2))
+                vecs_with_mask = np.concatenate((self.vecs_numpy, self.mask_numpy[..., np.newaxis]), axis=-1)
+                vals_flat = np.reshape(vecs_with_mask, (-1, 3))
+                coord_3 = -flow.vecs_numpy
+                coord_3[:, :, 0] += np.arange(coord_3.shape[1])
+                coord_3[:, :, 1] += np.arange(coord_3.shape[0])[:, np.newaxis]
+                vals_resampled = griddata(coord_1_flat, vals_flat,
+                                          (coord_3[..., 0], coord_3[..., 1]),
+                                          method='linear', fill_value=0)
+                result = flow - Flow(vals_resampled[..., :-1], 't', vals_resampled[..., -1] > .99)
+        elif mode == 3:  # Flows are in order (self, flow, desired_result)
+            if self._ref == flow._ref == 's':
+                # Explanation: f3 is (f1 plus f2), when S2 is moved to S1, achieved by applying inverted(f1)
+                # F3_s = F1_s + (F1_s)^-1_t{F2_s}
+                # Note: instead of inverting the ref-s flow field to a ref-s flow field (slow) which is then applied
+                #   to the other flow field (also slow), it is inverted to a ref-t flow field (fast) which is then
+                #   also much faster to apply to the other flow field.
+                result = self + self.invert(ref='t').apply(flow)
+            elif self._ref == flow._ref == 't':
+                # Explanation: f3 is (f2 plus f1), with f1 pulled towards the f2 grid by applying f2 to f1.
+                # F3_t = F2_t + F2_t{F1_t}
+                result = flow + flow.apply(self)
+
+        return result

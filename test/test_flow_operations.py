@@ -37,49 +37,46 @@ class TestFlowOperations(unittest.TestCase):
             f3 = Flow.from_transforms(transforms, shape, ref)
 
             # Mode 1
-            f1_actual = combine_flows(f2, f3, 1)
+            f1_actual_f = combine_flows(f2, f3, 1)
+            f1_actual = combine_flows(f2.vecs_numpy, f3.vecs, 1, ref)
             # f1.show(500, show_mask=True, show_mask_borders=True)
-            # f1_actual.show(show_mask=True, show_mask_borders=True)
-            self.assertIsInstance(f1_actual, Flow)
-            self.assertEqual(f1_actual.ref, ref)
-            comb_mask = f1_actual.mask & f1.mask
-            self.assertIsNone(np.testing.assert_allclose(f1_actual.vecs_numpy[comb_mask], f1.vecs_numpy[comb_mask],
+            # f1_actual_f.show(show_mask=True, show_mask_borders=True)
+            self.assertIsInstance(f1_actual_f, Flow)
+            self.assertEqual(f1_actual_f.ref, ref)
+            comb_mask = f1_actual_f.mask_numpy & f1.mask_numpy
+            self.assertIsNone(np.testing.assert_allclose(f1_actual_f.vecs_numpy[comb_mask], f1.vecs_numpy[comb_mask],
                                                          atol=5e-2))
+            self.assertIsInstance(f1_actual, torch.Tensor)
+            self.assertIsNone(np.testing.assert_equal(f1_actual_f.vecs_numpy,
+                                                      to_numpy(f1_actual, switch_channels=True)))
 
             # Mode 2
-            f2_actual = combine_flows(f1, f3, 2)
+            f2_actual_f = combine_flows(f1, f3, 2)
+            f2_actual = combine_flows(f1.vecs, f3.vecs_numpy, 2, ref)
             # f2.show(500, show_mask=True, show_mask_borders=True)
-            # f2_actual.show(show_mask=True, show_mask_borders=True)
-            self.assertIsInstance(f2_actual, Flow)
-            self.assertEqual(f2_actual.ref, ref)
-            comb_mask = f2_actual.mask & f2.mask
-            self.assertIsNone(np.testing.assert_allclose(f2_actual.vecs_numpy[comb_mask], f2.vecs_numpy[comb_mask],
+            # f2_actual_f.show(show_mask=True, show_mask_borders=True)
+            self.assertIsInstance(f2_actual_f, Flow)
+            self.assertEqual(f2_actual_f.ref, ref)
+            comb_mask = f2_actual_f.mask_numpy & f2.mask_numpy
+            self.assertIsNone(np.testing.assert_allclose(f2_actual_f.vecs_numpy[comb_mask], f2.vecs_numpy[comb_mask],
                                                          atol=5e-2))
+            self.assertIsInstance(f2_actual, torch.Tensor)
+            self.assertIsNone(np.testing.assert_equal(f2_actual_f.vecs_numpy,
+                                                      to_numpy(f2_actual, switch_channels=True)))
 
             # Mode 3
-            f3_actual = combine_flows(f1, f2, 3)
+            f3_actual_f = combine_flows(f1, f2, 3)
+            f3_actual = combine_flows(torch.tensor(f1.vecs_numpy), to_numpy(f2.vecs), 3, ref)
             # f3.show(500, show_mask=True, show_mask_borders=True)
-            # f3_actual.show(show_mask=True, show_mask_borders=True)
-            self.assertIsInstance(f3_actual, Flow)
-            self.assertEqual(f3_actual.ref, ref)
-            comb_mask = f3_actual.mask & f3.mask
-            self.assertIsNone(np.testing.assert_allclose(f3_actual.vecs_numpy[comb_mask], f3.vecs_numpy[comb_mask],
+            # f3_actual_f.show(show_mask=True, show_mask_borders=True)
+            self.assertIsInstance(f3_actual_f, Flow)
+            self.assertEqual(f3_actual_f.ref, ref)
+            comb_mask = f3_actual_f.mask_numpy & f3.mask_numpy
+            self.assertIsNone(np.testing.assert_allclose(f3_actual_f.vecs_numpy[comb_mask], f3.vecs_numpy[comb_mask],
                                                          atol=5e-2))
-
-        with self.assertRaises(TypeError):  # wrong type
-            combine_flows(torch.ones(shape), f2, 3)
-        with self.assertRaises(ValueError):  # wrong shape
-            combine_flows(f1.resize(.5), f2, 3)
-        with self.assertRaises(ValueError):  # wrong ref
-            combine_flows(Flow.from_transforms(transforms[0:1], shape, 's'),
-                          Flow.from_transforms(transforms[1:2], shape, 't'), 3)
-        if torch.cuda.is_available():  # The following test assumes 'cuda' device is available
-            with self.assertRaises(ValueError):  # wrong device
-                combine_flows(f1.to_device('cuda'), f2, 3)
-        with self.assertRaises(ValueError):  # wrong mode
-            combine_flows(f1, f2, 0)
-        with self.assertRaises(TypeError):  # wrong thresholded
-            combine_flows(f1, f2, 1, thresholded='test')
+            self.assertIsInstance(f3_actual, torch.Tensor)
+            self.assertIsNone(np.testing.assert_equal(f3_actual_f.vecs_numpy,
+                                                      to_numpy(f3_actual, switch_channels=True)))
 
     def test_switch_flow_ref(self):
         shape = [10, 20]

@@ -1257,6 +1257,63 @@ class FlowTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             flow_s.matrix(dof=4, method='lms', masked='test')
 
+    def test_combine_with(self):
+        img = cv2.imread('smudge.png')
+        shape = img.shape[:2]
+        transforms = [
+            ['rotation', 255.5, 255.5, -30],
+            ['scaling', 100, 100, 0.8],
+        ]
+        for ref in ['s', 't']:
+            f1 = Flow.from_transforms(transforms[0:1], shape, ref)
+            f2 = Flow.from_transforms(transforms[1:2], shape, ref)
+            f3 = Flow.from_transforms(transforms, shape, ref)
+
+            # Mode 1
+            f1_actual = f2.combine_with(f3, 1)
+            # f1.show(500, show_mask=True, show_mask_borders=True)
+            # f1_actual.show(show_mask=True, show_mask_borders=True)
+            self.assertIsInstance(f1_actual, Flow)
+            self.assertEqual(f1_actual.ref, ref)
+            comb_mask = f1_actual.mask_numpy & f1.mask_numpy
+            self.assertIsNone(np.testing.assert_allclose(f1_actual.vecs_numpy[comb_mask], f1.vecs_numpy[comb_mask],
+                                                         atol=5e-2))
+
+            # Mode 2
+            f2_actual = f1.combine_with(f3, 2)
+            # f2.show(500, show_mask=True, show_mask_borders=True)
+            # f2_actual.show(show_mask=True, show_mask_borders=True)
+            self.assertIsInstance(f2_actual, Flow)
+            self.assertEqual(f2_actual.ref, ref)
+            comb_mask = f2_actual.mask_numpy & f2.mask_numpy
+            self.assertIsNone(np.testing.assert_allclose(f2_actual.vecs_numpy[comb_mask], f2.vecs_numpy[comb_mask],
+                                                         atol=5e-2))
+
+            # Mode 3
+            f3_actual = f1.combine_with(f2, 3)
+            # f3.show(500, show_mask=True, show_mask_borders=True)
+            # f3_actual.show(show_mask=True, show_mask_borders=True)
+            self.assertIsInstance(f3_actual, Flow)
+            self.assertEqual(f3_actual.ref, ref)
+            comb_mask = f3_actual.mask_numpy & f3.mask_numpy
+            self.assertIsNone(np.testing.assert_allclose(f3_actual.vecs_numpy[comb_mask], f3.vecs_numpy[comb_mask],
+                                                         atol=5e-2))
+
+        # Invalid inputs
+        fs = Flow.from_transforms(transforms[0:1], [20, 20], 's')
+        ft = Flow.from_transforms(transforms[1:2], [20, 20], 't')
+        fs2 = Flow.from_transforms(transforms[0:1], [20, 30], 's')
+        with self.assertRaises(TypeError):  # Flow not a Flow object
+            fs.combine_with(fs.vecs, 1)
+        with self.assertRaises(ValueError):  # Flow not the same shape
+            fs.combine_with(fs2, 1)
+        with self.assertRaises(ValueError):  # Flow not the same reference
+            fs.combine_with(ft, 1)
+        with self.assertRaises(ValueError):  # Mode not 1, 2 or 3
+            fs.combine_with(fs, mode=0)
+        with self.assertRaises(TypeError):  # Thresholded not boolean
+            fs.combine_with(fs, 1, thresholded='test')
+
 
 if __name__ == '__main__':
     unittest.main()
