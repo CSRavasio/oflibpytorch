@@ -425,20 +425,20 @@ class TestApplyFlow(unittest.TestCase):
 class TestThresholdVectors(unittest.TestCase):
     def test_threshold(self):
         vecs = torch.zeros((2, 10, 1))
-        vecs[0, 0, 0] = 1e-5
+        vecs[0, 0, 0] = -1e-5
         vecs[0, 1, 0] = 1e-4
-        vecs[0, 2, 0] = 1e-3
+        vecs[0, 2, 0] = -1e-3
         vecs[0, 3, 0] = 1
         for use_mag in [True, False]:
             thresholded = threshold_vectors(vecs, threshold=1e-3, use_mag=use_mag)
             thresholded = to_numpy(thresholded[0, :4, 0])
-            self.assertIsNone(np.testing.assert_allclose(thresholded, [0, 0, 1e-3, 1]))
+            self.assertIsNone(np.testing.assert_allclose(thresholded, [0, 0, -1e-3, 1]))
             thresholded = threshold_vectors(vecs, threshold=1e-4, use_mag=use_mag)
             thresholded = to_numpy(thresholded[0, :4, 0])
-            self.assertIsNone(np.testing.assert_allclose(thresholded, [0, 1e-4, 1e-3, 1]))
+            self.assertIsNone(np.testing.assert_allclose(thresholded, [0, 1e-4, -1e-3, 1]))
             thresholded = threshold_vectors(vecs, threshold=1e-5, use_mag=use_mag)
             thresholded = to_numpy(thresholded[0, :4, 0])
-            self.assertIsNone(np.testing.assert_allclose(thresholded, [1e-5, 1e-4, 1e-3, 1]))
+            self.assertIsNone(np.testing.assert_allclose(thresholded, [-1e-5, 1e-4, -1e-3, 1]))
 
 
 class TestFromMatrix(unittest.TestCase):

@@ -489,7 +489,7 @@ def threshold_vectors(vecs: torch.Tensor, threshold: Union[float, int] = None, u
         mags = torch.norm(vecs, dim=0)
         f[:, mags < threshold] = 0
     else:
-        f[vecs < threshold] = 0
+        f[(vecs < threshold) & (vecs > -threshold)] = 0
     return f
 
 
