@@ -32,7 +32,7 @@ numpy arrays as far as currently feasible, and on the GPU if required.
 **Features:**
 
 - Provides a custom flow field :class:`~oflibpytorch.Flow` class for both forwards and backwards ('source' / 'target'
-    based) flow fields
+  based) flow fields
 - Provides a number of class methods to create flow fields from lists of affine transforms, or a transformation matrix
 - Provides a number of functions to resize the flow field, visualise it, warp images, find necessary image padding
 - Provides a class method to process three different types of flow field combination operations
