@@ -1130,13 +1130,13 @@ class FlowTest(unittest.TestCase):
     def test_matrix(self):
         # Partial affine transform, test reconstruction with all methods
         transforms = [
-            ['translation', 20, 10],
-            ['rotation', 200, 200, 30],
-            ['scaling', 100, 100, 1.1]
+            ['translation', 2, 1],
+            ['rotation', 20, 20, 30],
+            ['scaling', 10, 10, 1.1]
         ]
         matrix = matrix_from_transforms(transforms)
-        flow_s = Flow.from_matrix(matrix, (1000, 2000), 's')
-        flow_t = Flow.from_matrix(matrix, (1000, 2000), 't')
+        flow_s = Flow.from_matrix(matrix, (100, 200), 's')
+        flow_t = Flow.from_matrix(matrix, (100, 200), 't')
         actual_matrix_s = flow_s.matrix(dof=4, method='ransac')
         actual_matrix_t = flow_t.matrix(dof=4, method='ransac')
         self.assertIsNone(np.testing.assert_allclose(to_numpy(actual_matrix_s), matrix, rtol=1e-6))
@@ -1183,15 +1183,10 @@ class FlowTest(unittest.TestCase):
                 failed += 1
         self.assertTrue(failed <= 50)
 
-        # Partial affine transform reconstruction in the presence of noise
-        transforms = [
-            ['translation', 20, 10],
-            ['rotation', 200, 200, 30],
-            ['scaling', 100, 100, 1.1]
-        ]
+        # Partial affine transform reconstruction in the presence of noise, only check first 4 values
         matrix = matrix_from_transforms(transforms)
-        flow_s = Flow.from_matrix(matrix, (1000, 2000), 's')
-        flow_noise = (np.random.rand(1000, 2000, 2) - .5) * 5
+        flow_s = Flow.from_matrix(matrix, (100, 200), 's')
+        flow_noise = (np.random.rand(100, 200, 2) - .5) * 5
         actual_matrix_4_ransac = (flow_s + flow_noise).matrix(4, 'ransac')
         actual_matrix_4_lmeds = (flow_s + flow_noise).matrix(4, 'lmeds')
         actual_matrix_6_ransac = (flow_s + flow_noise).matrix(6, 'ransac')
@@ -1199,28 +1194,18 @@ class FlowTest(unittest.TestCase):
         actual_matrix_8_lms = (flow_s + flow_noise).matrix(8, 'lms')
         actual_matrix_8_ransac = (flow_s + flow_noise).matrix(8, 'ransac')
         actual_matrix_8_lmeds = (flow_s + flow_noise).matrix(8, 'lmeds')
-        rtol = .05
-        atol = .06
-        self.assertIsNone(np.testing.assert_allclose(actual_matrix_4_ransac, matrix, rtol=rtol, atol=atol))
-        self.assertIsNone(np.testing.assert_allclose(actual_matrix_4_lmeds, matrix, rtol=rtol, atol=atol))
-        self.assertIsNone(np.testing.assert_allclose(actual_matrix_6_ransac, matrix, rtol=rtol, atol=atol))
-        self.assertIsNone(np.testing.assert_allclose(actual_matrix_6_lmeds, matrix, rtol=rtol, atol=atol))
-        self.assertIsNone(np.testing.assert_allclose(actual_matrix_8_lms, matrix, rtol=rtol, atol=atol))
-        self.assertIsNone(np.testing.assert_allclose(actual_matrix_8_ransac, matrix, rtol=rtol, atol=atol))
-        self.assertIsNone(np.testing.assert_allclose(actual_matrix_8_lmeds, matrix, rtol=rtol, atol=atol))
+        for actual_matrix in [actual_matrix_4_ransac, actual_matrix_4_lmeds,
+                              actual_matrix_6_ransac, actual_matrix_6_lmeds,
+                              actual_matrix_8_lms, actual_matrix_8_ransac, actual_matrix_8_lmeds]:
+            self.assertIsNone(np.testing.assert_allclose(actual_matrix[:2, :2], matrix[:2, :2], atol=1e-2, rtol=1e-1))
 
         # Masked vs non-masked matrix fitting
-        transforms = [
-            ['translation', 20, 10],
-            ['rotation', 200, 200, 30],
-            ['scaling', 100, 100, 1.1]
-        ]
         matrix = matrix_from_transforms(transforms)
-        mask = np.zeros((1000, 2000), 'bool')
-        mask[:500, :500] = 1  # upper left corner will contain the real values
-        flow = Flow.from_matrix(matrix, (1000, 2000), 's', mask)
-        random_vecs = (np.random.rand(2, 1000, 2000) - 0.5) * 200
-        random_vecs[:, :500, :500] = flow.vecs[:, :500, :500]
+        mask = np.zeros((100, 200), 'bool')
+        mask[:50, :50] = 1  # upper left corner will contain the real values
+        flow = Flow.from_matrix(matrix, (100, 200), 's', mask)
+        random_vecs = (np.random.rand(2, 100, 200) - 0.5) * 200
+        random_vecs[:, :50, :50] = flow.vecs[:, :50, :50]
         flow.vecs = random_vecs
         # Make sure this fails with the 'lmeds' method:
         with self.assertRaises(AssertionError):
@@ -1229,25 +1214,15 @@ class FlowTest(unittest.TestCase):
         self.assertIsNone(np.testing.assert_allclose(flow.matrix(4, 'lmeds', True), matrix))
 
         # Fallback of 'lms' to 'ransac' when dof == 4 or dof == 6
-        transforms = [
-            ['translation', 20, 10],
-            ['rotation', 200, 200, 30],
-            ['scaling', 100, 100, 1.1]
-        ]
         matrix = matrix_from_transforms(transforms)
-        flow_s = Flow.from_matrix(matrix, (1000, 2000), 's')
+        flow_s = Flow.from_matrix(matrix, (100, 200), 's')
         actual_matrix_s_lms = flow_s.matrix(dof=4, method='lms')
         actual_matrix_s_ransac = flow_s.matrix(dof=4, method='ransac')
         self.assertIsNone(np.testing.assert_equal(to_numpy(actual_matrix_s_lms), to_numpy(actual_matrix_s_ransac)))
 
         # Invalid inputs
-        transforms = [
-            ['translation', 20, 10],
-            ['rotation', 200, 200, 30],
-            ['scaling', 100, 100, 1.1]
-        ]
         matrix = matrix_from_transforms(transforms)
-        flow_s = Flow.from_matrix(matrix, (1000, 2000), 's')
+        flow_s = Flow.from_matrix(matrix, (100, 200), 's')
         with self.assertRaises(ValueError):
             flow_s.matrix(dof='test')
         with self.assertRaises(ValueError):
