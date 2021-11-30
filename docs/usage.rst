@@ -1,15 +1,22 @@
 Usage
 =====
-This section aims to illustrate the benefits of :mod:`oflibpytorch` with examples. In all sample code, it is assumed that the
+This section aims to illustrate the benefits of ``oflibpytorch`` with examples. In all sample code, it is assumed that the
 library was imported using the command ``import oflibpytorch as of``, and therefore the flow class can be accessed using
-``of.Flow`` and the functions using ``of.<function>``.
+``of.Flow`` and the functions using ``of.<function>``. All the main examples use class methods instead of the
+alternative array-based functions. These work much the same way, but are more limited in their capabilities and
+therefore do not illustrate the full scope of ``oflibpytorch``. For some examples, see the section ":ref:`Tensor-Based
+Functions`".
 
-Note that :mod:`oflibpytorch` is an adaption of :mod:`oflibnumpy` to the use of torch tensors instead of numpy arrays
-as far as currently feasible, functionally largely equivalent. Using torch tensors is advantageous e.g. for work with
-deep learning models, where image data, points tracked, as well as the flow fields themselves might be available as a
-torch tensor, possibly on GPU. However, due to the current lack of a PyTorch function that interpolates from
-unstructured data, some :mod:`oflibpytorch` still need to fall back on the slower and CPU-only SciPy :func:`griddata`
-function (see the section ":ref:`The Flow Reference`" and :meth:`~oflibpytorch.Flow.apply`).
+Note that :mod:`oflibpytorch` is an adaption of :mod:`oflibnumpy` (see `code`_ and `documentation`_) to the use of
+torch tensors instead of numpy arrays as far as currently feasible, functionally largely equivalent. Using torch
+tensors is advantageous e.g. for work with deep learning models, where image data, points tracked, as well as the
+flow fields themselves might be available as a torch tensor, possibly on GPU. However, due to the current lack of
+a PyTorch function that interpolates from unstructured data, some :mod:`oflibpytorch` still need to fall back on
+the slower and CPU-only SciPy :func:`griddata` function (see the section ":ref:`The Flow Reference`" and
+:meth:`~oflibpytorch.Flow.apply`).
+
+.. _code:  https://github.com/RViMLab/oflibnumpy
+.. _documentation: https://oflibnumpy.rtfd.io
 
 The Flow Object
 ---------------
@@ -26,6 +33,13 @@ just a torch tensor or a numpy array containing the flow vectors, or with one of
 - :meth:`~oflibpytorch.Flow.from_transforms` requires a list of transforms, a desired shape :math:`(H, W)`, and
   optionally the flow reference, a mask, or the desired torch device. The given transforms are converted into a
   transformation matrix, from which a flow field is constructed as in :meth:`~oflibpytorch.Flow.from_matrix`.
+- :meth:`~oflibpytorch.Flow.from_kitti` loads the flow field (and optionally the valid pixels) from ``uint16`` ``png``
+  image files, as provided in the `KITTI optical flow dataset`_.
+- :meth:`~oflibpytorch.Flow.from_sintel` loads the flow field (and optionally the valid pixels) from ``flo`` files,
+  as provided in the `Sintel optical flow dataset`_.
+
+.. _KITTI optical flow dataset: http://www.cvlibs.net/datasets/kitti/eval_scene_flow.php?benchmark=flow
+.. _Sintel optical flow dataset: http://sintel.is.tue.mpg.de/
 
 Tensors are generally expected to follow the channel-first PyTorch convention (shape :math:`(C, H, W)`), and are the
 standard input the functions are meant to interact with. If NumPy arrays are a valid input, they are generally expected
@@ -40,8 +54,8 @@ with :meth:`~oflibpytorch.Flow.pad`, and sliced using square brackets ``[]`` ana
 :meth:`~oflibpytorch.Flow.__get_item__` internally. They can also be added with ``+``, subtracted with ``-``, multiplied
 with ``*``, divided with ``/``, exponentiated with ``**``, and negated by prepending ``-``. However, note that using
 the standard operator ``+`` is **not** the same as sequentially combining flow fields, and the same goes for a
-subtraction or a negation with ``-``. To do this correctly, use :meth:`~oflibpytorch.combine_flows` (see the section
-":ref:`Combining Flows`").
+subtraction or a negation with ``-``. To do this correctly, use :meth:`~oflibpytorch.Flow.combine_with` (see the
+section ":ref:`Combining Flows`").
 
 Visualisation
 -------------
@@ -232,7 +246,7 @@ section ":ref:`Combining Flows`"):
     flow_2 = of.Flow.from_transforms([['scaling', 100, 50, 0.7]], shape)
 
     # Combine the flow fields
-    result = of.combine_flows(flow, flow_2, mode=3)
+    result = flow_1.combine_with(flow_2, mode=3)
 
 .. image:: ../docs/_static/usage_mask_flow1.png
     :width: 49%
@@ -599,14 +613,14 @@ this is due to the new location of the point being outside of the image area.
 
 Combining Flows
 ---------------
-The :func:`~oflibpytorch.combine_flows` function was already used in the section ":ref:`The Flow Mask`" with ``mode = 3``
-to sequentially combine two different flow fields. This is a fast operation both for reference ``s`` and ``t``.
-In the formula :math:`flow_1 ⊕ flow_2 = flow_3`, where :math:`⊕` corresponds to a flow combination operation, this is
-equivalent to inputting :math:`flow_1` and :math:`flow_2`, and obtaining :math:`flow_3`. However, it is also possible
-to obtain either :math:`flow_1` or :math:`flow_2` when the other flows in the equation are known, by setting
-``mode = 1`` or ``mode = 2``, respectively. These operations are comparatively slow due to calls to SciPy's
-:func:`griddata`. The calculation will often lead to a flow field with some invalid areas, similar to the example in
-the section ":ref:`The Flow Mask`".
+The :meth:`~oflibpytorch.Flow.combine_with` function was already used in the section ":ref:`The Flow Mask`" with
+``mode = 3`` to sequentially combine two different flow fields. This is a fast operation both for reference ``s``
+and ``t``. In the formula :math:`flow_1 ⊕ flow_2 = flow_3`, where :math:`⊕` corresponds to a flow combination
+operation, this is equivalent to inputting :math:`flow_1` and :math:`flow_2`, and obtaining :math:`flow_3`.
+However, it is also possible to obtain either :math:`flow_1` or :math:`flow_2` when the other flows in the equation
+are known, by setting ``mode = 1`` or ``mode = 2``, respectively. These operations are comparatively slow due to
+calls to SciPy's :func:`griddata`. The calculation will often lead to a flow field with some invalid areas, similar
+to the example in the section ":ref:`The Flow Mask`".
 
 .. code-block:: python
 
@@ -615,9 +629,9 @@ the section ":ref:`The Flow Mask`".
     flow_2 = of.Flow.from_transforms([['scaling', 100, 50, 1.2]], shape)
     flow_3 = of.Flow.from_transforms([['rotation', 200, 150, -30], ['scaling', 100, 50, 1.2]], shape)
 
-    flow_1_result = of.combine_flows(flow_2, flow_3, mode=1)
-    flow_2_result = of.combine_flows(flow_1, flow_3, mode=2)
-    flow_3_result = of.combine_flows(flow_1, flow_2, mode=3)
+    flow_1_result = flow_2.combine_with(flow_3, mode=1)
+    flow_2_result = flow_1.combine_with(flow_3, mode=2)
+    flow_3_result = flow_1.combine_with(flow_2, mode=3)
 
 .. image:: ../docs/_static/usage_combining_1.png
     :width: 32%
@@ -639,5 +653,30 @@ the section ":ref:`The Flow Mask`".
     :alt: Calculated flow 3
 
 **Above:** *Top:* Flows 1 through 3. *Bottom:* Flows 1 through 3, as calculated using
-:func:`~oflibpytorch.combine_flows`, matching the original flow fields. Note that the first flow field has some invalid
-areas.
+:func:`~oflibpytorch.Flow.combine_with`, matching the original flow fields. Note that the first flow field
+has some invalid areas.
+
+Tensor-Based Functions
+----------------------
+Almost all the class methods discussed above are also available as functions that take torch tensors or numpy arrays
+representing flow fields as inputs directly. This can appear more straight-forward to use, but they are generally
+more limited in their scope, and the user has to keep track of potentially changing flow attributes such as the
+reference frame manually. Valid areas are also not tracked. It is recommended to make use of the custom flow class
+for anything but the simplest flow operations.
+
+.. code-block:: python
+
+    # Define Torch tensor flow fields
+    shape = (100, 100)
+    flow = of.from_transforms([['rotation', 50, 100, -30]], shape, 's')
+    flow_2 = of.from_transforms([['scaling', 100, 50, 1.2]], shape, 't')
+
+    # Visualise Torch tensor flow field as arrows
+    flow_vis = of.show_flow(flow, wait=2000)
+
+    # Combine two Torch tensor flow fields
+    flow_t = of.switch_flow_ref(flow, 's')
+    flow_3 = of.combine_flows(flow_t, flow_2, 3, 't')
+
+    # Visualise Torch tensor flow field
+    flow_3_vis = of.show_flow_arrows(flow_3, 't')
