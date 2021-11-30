@@ -28,7 +28,7 @@ flow.show()
 
 # Combine sequentially with another flow field, display the result
 flow_2 = of.Flow.from_transforms([['translation', 40, 0]], shape)
-result = of.combine_flows(flow, flow_2, mode=3)
+result = flow.combine_with(flow_2, mode=3)
 result.show(show_mask=True, show_mask_borders=True)
 
 # Display the result with arrows
