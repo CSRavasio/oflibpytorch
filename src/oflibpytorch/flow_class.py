@@ -316,7 +316,10 @@ class Flow(object):
     @classmethod
     def from_kitti(cls, path: str, load_valid: bool = None, device: str = None) -> FlowAlias:
         """Loads the flow field contained in KITTI ``uint16`` png images files, optionally including the valid pixels.
-        Follows the official instructions on how to read the provided .png files
+        Follows the official instructions on how to read the provided .png files on the
+        `KITTI optical flow dataset website`_.
+
+        .. _KITTI optical flow dataset website: http://www.cvlibs.net/datasets/kitti/eval_scene_flow.php?benchmark=flow
 
         :param path: String containing the path to the KITTI flow data (``uint16``, .png file)
         :param load_valid: Boolean determining whether the valid pixels are loaded as the flow :attr:`mask`. Defaults
@@ -338,7 +341,9 @@ class Flow(object):
     @classmethod
     def from_sintel(cls, path: str, inv_path: str = None, device: str = None) -> FlowAlias:
         """Loads the flow field contained in Sintel .flo byte files, including the invalid pixels if required. Follows
-        the official instructions provided alongside the .flo data.
+        the official instructions provided alongside the .flo data on the `Sintel optical flow dataset website`_.
+
+        .. _Sintel optical flow dataset website: http://sintel.is.tue.mpg.de/
 
         :param path: String containing the path to the Sintel flow data (.flo byte file, little Endian)
         :param inv_path: String containing the path to the Sintel invalid pixel data (.png, black and white)
