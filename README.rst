@@ -8,15 +8,15 @@ written from scratch, but also contains useful wrappers for specific functions f
 - Provides a custom flow field class for both backwards and forwards ('source' / 'target' based) flow fields
 - Provides a number of class methods to create flow fields from lists of affine transforms, or a transformation matrix
 - Provides a number of functions to resize the flow field, visualise it, warp images, find necessary image padding
-- Allows for three different types of flow field combination operations
+- Provides a class method to process three different types of flow field combination operations
 - Keeps track of valid flow field areas through said operations
+- Provides alternative functions to avoid the explicit use of the custom flow class, with slightly limited functionality
 
 Oflibpytorch is based on oflibnumpy (`code on GitHub`_, `documentation on ReadTheDocs`_) and is aimed at allowing the
 same operations to be performed with torch tensors instead of numpy arrays as far as currently feasible, and on the
 GPU if required.
 
 .. _code on GitHub: https://github.com/RViMLab/oflibnumpy
-
 .. _documentation on ReadTheDocs: https://oflibnumpy.rtfd.io
 
 Usage & Documentation
@@ -28,14 +28,22 @@ A user's guide as well as full documentation of the library is available at Read
 .. code-block:: python
 
     import oflibpytorch as of
-    # Make a flow field and display it
+
     shape = (300, 400)
-    flow = of.Flow.from_transforms([['rotation', 200, 150, -30]], shape)
+    transform = [['rotation', 200, 150, -30]]
+
+    # Make a flow field and display it
+    flow = of.Flow.from_transforms(transform, shape)
     flow.show()
+
+    # Alternative option without using the custom flow class
+    flow = of.from_transforms(transform, shape, 't')
+    of.show_flow(flow)
 
 .. image:: https://raw.githubusercontent.com/RViMLab/oflibpytorch/main/docs/_static/index_flow_1.png
     :width: 50%
-    :alt: Visualisation of optical flow representing a rotation
+
+**Above:** Visualisation of optical flow representing a rotation
 
 .. code-block:: python
 
@@ -44,17 +52,27 @@ A user's guide as well as full documentation of the library is available at Read
     result = of.combine_flows(flow, flow_2, mode=3)
     result.show(show_mask=True, show_mask_borders=True)
 
+    # Alternative option without using the custom flow class
+    flow_2 = of.from_transforms([['translation', 40, 0]], shape, 't')
+    result = of.combine_flows(flow, flow_2, mode=3, ref='t')
+    of.show_flow(result)  # Note: no way to show the valid flow area (see documentation)
+
 .. image:: https://raw.githubusercontent.com/RViMLab/oflibpytorch/main/docs/_static/index_result.png
     :width: 50%
-    :alt: Visualisation of optical flow representing a rotation, translated to the right
+
+**Above:** Visualisation of optical flow representing a rotation, translated to the right, using the custom flow class
 
 .. code-block:: python
 
     result.show_arrows(show_mask=True, show_mask_borders=True)
 
+    # Alternative option without using the custom flow class
+    of.show_flow_arrows(result, 't')  # Note: again no way to show the valid flow area
+
 .. image:: https://raw.githubusercontent.com/RViMLab/oflibpytorch/main/docs/_static/index_result_arrows.png
     :width: 50%
-    :alt: Visualisation of optical flow representing a rotation, translated to the right
+
+**Above:** Visualisation of optical flow representing a rotation, translated to the right, using the custom flow class
 
 
 Installation
@@ -103,3 +121,17 @@ College London (KCL), supervised by:
 This code is licensed under the `MIT License`_.
 
 .. _MIT License: https://opensource.org/licenses/MIT
+
+If you use this code, please acknowledge us with the following citation:
+
+.. code-block:: plaintext
+
+    @article{ravasio_oflib,
+      title     = {oflibnumpy {\&} oflibpytorch: Optical Flow Handling and Manipulation in Python},
+      author    = {Ravasio, Claudio S. and Da Cruz, Lyndon and Bergeles, Christos},
+      journal   = {Journal of Open Research Software (JORS)},
+      year      = {2021},
+      volume    = {9},
+      publisher = {Ubiquity Press, Ltd.},
+      doi       = {10.5334/jors.380}
+    }
