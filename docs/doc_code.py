@@ -1,8 +1,10 @@
 import numpy as np
 import cv2
 import torch
-import oflibpytorch as of
-from oflibpytorch.utils import to_numpy, to_tensor, show_masked_image
+import sys
+sys.path.append('..')
+import src.oflibpytorch as of
+from src.oflibpytorch.utils import to_numpy, to_tensor, show_masked_image
 
 
 # # # # Usage / Visualisation
@@ -45,7 +47,7 @@ from oflibpytorch.utils import to_numpy, to_tensor, show_masked_image
 # shape = (300, 400)
 # flow_1 = of.Flow.from_transforms([['rotation', 200, 150, -30]], shape)
 # flow_2 = of.Flow.from_transforms([['scaling', 100, 50, 0.7]], shape)
-# result = of.combine_flows(flow_1, flow_2, mode=3)
+# result = flow_1.combine_with(flow_2, mode=3)
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_mask_flow1.png',
 #             flow_1.visualise('bgr', return_tensor=False))
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_mask_flow2.png',
@@ -65,7 +67,7 @@ from oflibpytorch.utils import to_numpy, to_tensor, show_masked_image
 #             show_masked_image(warped_img, valid_area))
 # flow_1 = of.Flow.from_transforms([['rotation', 200, 150, -30]], img.shape[:2])
 # flow_2 = of.Flow.from_transforms([['scaling', 100, 50, 0.7]], img.shape[:2])
-# result = of.combine_flows(flow_1, flow_2, mode=3)
+# result = flow_1.combine_with(flow_2, mode=3)
 # warped_img, valid_area = result.apply(to_tensor(img, True), return_valid_area=True)
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_apply_thames_warped2.png',
 #             show_masked_image(warped_img, valid_area))
@@ -247,9 +249,9 @@ from oflibpytorch.utils import to_numpy, to_tensor, show_masked_image
 # flow_2 = of.Flow.from_transforms([['scaling', 100, 50, 1.2]], shape)
 # flow_3 = of.Flow.from_transforms([['rotation', 200, 150, -30], ['scaling', 100, 50, 1.2]], shape)
 #
-# flow_1_result = of.combine_flows(flow_2, flow_3, mode=1)
-# flow_2_result = of.combine_flows(flow_1, flow_3, mode=2)
-# flow_3_result = of.combine_flows(flow_1, flow_2, mode=3)
+# flow_1_result = flow_2.combine_with(flow_3, mode=1)
+# flow_2_result = flow_1.combine_with(flow_3, mode=2)
+# flow_3_result = flow_1.combine_with(flow_2, mode=3)
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_combining_1.png',
 #             flow_1.visualise('bgr', True, True, return_tensor=False))
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_combining_2.png',
@@ -272,20 +274,43 @@ from oflibpytorch.utils import to_numpy, to_tensor, show_masked_image
 # flow.show_arrows(grid_dist=50)
 
 
+# # # # Examples for functions not requiring flow class inputs
+# # Define Torch tensor flow fields
+# shape = (100, 100)
+# flow = of.from_transforms([['rotation', 50, 100, -30]], shape, 's')
+# flow_2 = of.from_transforms([['scaling', 100, 50, 1.2]], shape, 't')
+#
+# # Visualise Torch tensor flow field as arrows
+# flow_vis = of.show_flow(flow, wait=2000)
+#
+# # Combine two Torch tensor flow fields
+# flow_t = of.switch_flow_ref(flow, 's')
+# flow_3 = of.combine_flows(flow_t, flow_2, 3, 't')
+#
+# # Visualise Torch tensor flow field
+# flow_3_vis = of.show_flow_arrows(flow_3, 't')
+
+
 # # # # Flow field for README
 # # Make a flow field and display it
 # shape = (300, 400)
-# flow = of.Flow.from_transforms([['rotation', 200, 150, -30]], shape)
+# transform = [['rotation', 200, 150, -30]]
+# flow = of.Flow.from_transforms(transform, shape)
 # # flow.show()
-# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/index_flow_1.png', to_numpy(flow.visualise('bgr'), True))
 #
 # flow_2 = of.Flow.from_transforms([['translation', 40, 0]], shape)
-# result = of.combine_flows(flow, flow_2, mode=3)
-# # result.show(show_mask=True, show_mask_borders=True)
-# # result.show_arrows(show_mask=True, show_mask_borders=True)
-# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/index_result.png', to_numpy(result.visualise('bgr', True, True), True))
-# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/index_result_arrows.png',
-#             to_numpy(result.visualise_arrows(show_mask=True, show_mask_borders=True), True))
+# result = flow.combine_with(flow_2, mode=3)
+# result.show(show_mask=True, show_mask_borders=True)
+# result.show_arrows(show_mask=True, show_mask_borders=True)
+#
+# # Alternative option without using the custom flow class
+# flow = of.from_transforms(transform, shape, 't')
+# of.show_flow(flow)
+# flow_2 = of.from_transforms([['translation', 40, 0]], shape, 't')
+# result = of.combine_flows(flow, flow_2, mode=3, ref='t')
+# of.show_flow(result)  # Note: no way to show the valid flow area (see documentation)
+# of.show_flow_arrows(result, 't')  # Note: again no way to show the valid flow area
+
 
 # # # # Images for the repo "social preview"
 # img = cv2.imread('_static/thames_300x400.jpg')[60:-40]
