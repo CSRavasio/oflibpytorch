@@ -10,7 +10,7 @@ written from scratch, but also contains useful wrappers for specific functions f
 ``grid_sample``, to integrate them with the custom flow field class introduced by oflibpytorch. If you use this code,
 please acknowledge us with the following citation:
 
-.. code-block:: plaintext
+.. code-block:: text
 
     @article{ravasio_oflib,
       title     = {oflibnumpy {\&} oflibpytorch: Optical Flow Handling and Manipulation in Python},
