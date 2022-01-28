@@ -381,7 +381,9 @@ class Flow(object):
     def to_device(self, device) -> FlowAlias:
         """Returns a new flow object on the desired torch device
 
-        :param device: Device the flow object is to be moved to, either ``cpu`` or ``cuda`` (if available)
+        :param device: Tensor device, either a :class:`torch.device` or a valid input to ``torch.device()``, such as
+            a string (``cpu`` or ``cuda``). For a device of type ``cuda``, the device index defaults to
+            ``torch.cuda.current_device()``. If the input is ``None``, it defaults to ``torch.device('cpu')``
         :return: New flow object on the desired torch device
         """
 
