@@ -110,14 +110,14 @@ class TestValidityChecks(unittest.TestCase):
             get_valid_mask(torch.ones(100, 200) * 10)
 
     def test_get_valid_device(self):
-        self.assertEqual(get_valid_device(None), 'cpu')
-        self.assertEqual(get_valid_device('cpu'), 'cpu')
-        with self.assertRaises(ValueError):
-            get_valid_device(0)
+        self.assertEqual(get_valid_device(None), torch.device('cpu'))
+        self.assertEqual(get_valid_device('cpu'), torch.device('cpu'))
+        self.assertEqual(get_valid_device('cuda'), torch.device('cuda:0'))
+        self.assertEqual(get_valid_device(0), torch.device('cuda:0'))
         with self.assertRaises(ValueError):
             get_valid_device('test')
         if torch.cuda.is_available():
-            self.assertEqual(get_valid_device('cuda'), 'cuda')
+            self.assertEqual(get_valid_device('cuda'), torch.device('cuda:0'))
         else:
             with self.assertRaises(ValueError):
                 get_valid_device('cuda')
