@@ -114,18 +114,28 @@ def get_valid_mask(mask: Any, desired_shape: Union[tuple, list] = None, error_st
 
 
 def get_valid_device(device: Any) -> str:
-    """Checks tensor device input for validity, defaults to 'cpu' for input 'None'
+    """Checks tensor device input for validity, defaults to torch.device('cpu') for input 'None'. 'cuda' inputs without
+    an explicit device index default to cuda.current_device()
 
     :param device: Tensor device to be checked
-    :return: Valid tensor device, either 'cpu' (default for input 'None') or 'cuda'
+    :return: Valid torch.device
     """
+
     if device is None:
-        device = 'cpu'
+        device = torch.device('cpu')
+    elif isinstance(device, torch.device):
+        pass
     else:
-        if device not in ['cpu', 'cuda']:
-            raise ValueError("Error setting tensor device: Input is not 'cpu' or 'cuda', but {}".format(device))
-        if device == 'cuda' and not torch.cuda.is_available():
+        try:
+            device = torch.device(device)
+        except RuntimeError:
+            raise ValueError("Error setting tensor device: Input needs to be a torch.device, or valid input to "
+                             "torch.device(). Instead found {}".format(device))
+    if device.type == 'cuda':
+        if not torch.cuda.is_available():
             raise ValueError("Error setting tensor device: Input is 'cuda', but cuda is not available")
+        if device.index is None:
+            device = torch.device(torch.cuda.current_device())
     return device
 
 
