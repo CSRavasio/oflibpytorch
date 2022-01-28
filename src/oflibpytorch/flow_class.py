@@ -102,9 +102,9 @@ class Flow(object):
         """
 
         with torch.no_grad():
-            if self._device == 'cuda':
+            if self._device.type == 'cuda':
                 vecs = self._vecs.cpu().numpy()
-            else:  # self._device == 'cpu'
+            else:  # self._device.type == 'cpu'
                 vecs = self._vecs.detach().numpy()
         return np.moveaxis(vecs, 0, -1)
 
