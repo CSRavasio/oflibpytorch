@@ -32,14 +32,14 @@ class Flow(object):
     _vecs: torch.Tensor
     _mask: torch.Tensor
     _ref: str
-    _device: str
+    _device: torch.device
 
     def __init__(
         self,
         flow_vectors: Union[np.ndarray, torch.Tensor],
         ref: str = None,
         mask: Union[np.ndarray, torch.Tensor] = None,
-        device: str = None
+        device: Union[torch.device, int, str] = None
     ):
         """Flow object constructor. For a more detailed explanation of the arguments, see the class attributes
         :attr:`vecs`, :attr:`ref`, :attr:`mask`, and :attr:`device`.
@@ -53,8 +53,10 @@ class Flow(object):
         :param ref: Flow reference, either ``t`` for "target", or ``s`` for "source". Defaults to ``t``
         :param mask: Numpy array or pytorch tensor of shape :math:`(H, W)` containing a boolean mask indicating where
             the flow vectors are valid. Defaults to ``True`` everywhere
-        :param device: Tensor device, either ``cpu`` or ``cuda`` (if available). Defaults to the device of the given
-            flow_vectors, or to ``cpu`` if they were given as a numpy array
+        :param device: Tensor device, either a :class:`torch.device` or a valid input to ``torch.device()``, such as
+            a string (``cpu`` or ``cuda``). For a device of type ``cuda``, the device index defaults to
+            ``torch.cuda.current_device()``. If the input is ``None``, it defaults to the device of the given
+            flow_vectors, or ``torch.device('cpu')`` if the flow_vectors are a numpy array
         """
 
         # Fill attributes
@@ -199,23 +201,25 @@ class Flow(object):
         return mask
 
     @property
-    def device(self) -> str:
-        """The device of all flow object tensors, either ``cpu`` or ``cuda``
+    def device(self) -> torch.device:
+        """The device of all flow object tensors, as a :class:`torch.device`
 
-        :return: Tensor device as a string
+        :return: Tensor device as a :class:`torch.device`
         """
 
         return self._device
 
     @device.setter
-    def device(self, input_device: str = None):
+    def device(self, input_device: Union[torch.device, int, str] = None):
         """Sets the tensor device, after checking validity
 
-        :param input_device: Tensor device, either ``cpu`` or ``cuda`` (if available). Defaults to ``cpu``
+        :param input_device: Tensor device, either a :class:`torch.device` or a valid input to ``torch.device()``,
+            such as a string (``cpu`` or ``cuda``). For a device of type ``cuda``, the device index defaults to
+            ``torch.cuda.current_device()``. If the input is ``None``, it defaults to ``torch.device('cpu')``
         """
 
         if input_device is None:
-            device = self._vecs.device.type
+            device = self._vecs.device
         else:
             device = get_valid_device(input_device)
         self._device = device
