@@ -399,7 +399,7 @@ def apply_flow(
         mask = get_valid_mask(mask, desired_shape=flow.shape[1:])
 
     # Set up
-    device = flow.device.type
+    device = flow.device
     h, w = flow.shape[1:]
 
     # Prepare target dtype, device, and shape
