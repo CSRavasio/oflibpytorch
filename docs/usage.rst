@@ -23,7 +23,7 @@ The Flow Object
 The custom flow object introduced here has four attributes: vectors :attr:`~oflibpytorch.Flow.vecs`, reference
 :attr:`~oflibpytorch.Flow.ref` (see the section ":ref:`The Flow Reference`"), mask :attr:`~oflibpytorch.Flow.mask`
 (see the section ":ref:`The Flow Mask`"), and device :attr:`~oflibpytorch.Flow.device`. It can be initialised using
-just a torch tensor or a numpy array containing the flow vectors, or with one of three special constructors:
+just a torch tensor or a numpy array containing the flow vectors, or with one of several special constructors:
 
 - :meth:`~oflibpytorch.Flow.zero` requires a desired shape :math:`(H, W)`, and optionally the flow reference, a mask,
   or the desired torch device. As the name indicates, the vectors are zero everywhere.
