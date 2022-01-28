@@ -242,7 +242,7 @@ class Flow(object):
         shape: Union[list, tuple],
         ref: str = None,
         mask: Union[np.ndarray, torch.Tensor] = None,
-        device: str = None,
+        device: Union[torch.device, int, str] = None,
     ) -> FlowAlias:
         """Flow object constructor, zero everywhere
 
@@ -250,7 +250,9 @@ class Flow(object):
         :param ref: Flow reference, string of value ``t`` ("target") or ``s`` ("source"). Defaults to ``t``
         :param mask: Numpy array or torch tensor of shape :math:`(H, W)` and type ``bool`` indicating where the flow
             vectors are valid. Defaults to ``True`` everywhere
-        :param device: Tensor device, either ``cpu`` or ``cuda`` (if available). Defaults to ``cpu``
+        :param device: Tensor device, either a :class:`torch.device` or a valid input to ``torch.device()``,
+            such as a string (``cpu`` or ``cuda``). For a device of type ``cuda``, the device index defaults to
+            ``torch.cuda.current_device()``. If the input is ``None``, it defaults to ``torch.device('cpu')``
         :return: Flow object
         """
 
@@ -265,7 +267,7 @@ class Flow(object):
         shape: Union[list, tuple],
         ref: str = None,
         mask: Union[np.ndarray, torch.Tensor] = None,
-        device: str = None,
+        device: Union[torch.device, int, str] = None,
         matrix_is_inverse: bool = None
     ) -> FlowAlias:
         """Flow object constructor, based on transformation matrix input
@@ -276,7 +278,9 @@ class Flow(object):
         :param ref: Flow reference, string of value ``t`` ("target") or ``s`` ("source"). Defaults to ``t``
         :param mask: Numpy array or torch tensor of shape :math:`(H, W)` and type ``bool`` indicating where the flow
             vectors are valid. Defaults to ``True`` everywhere
-        :param device: Tensor device, either ``cpu`` or ``cuda`` (if available). Defaults to ``cpu``
+        :param device: Tensor device, either a :class:`torch.device` or a valid input to ``torch.device()``,
+            such as a string (``cpu`` or ``cuda``). For a device of type ``cuda``, the device index defaults to
+            ``torch.cuda.current_device()``. If the input is ``None``, it defaults to ``torch.device('cpu')``
         :param matrix_is_inverse: Boolean determining whether the given matrix is already the inverse of the desired
             transformation. Is useful for flow with reference ``t`` to avoid calculation of the pseudo-inverse, but
             will throw a ``ValueError`` if used for flow with reference ``s`` to avoid accidental usage.
@@ -294,7 +298,7 @@ class Flow(object):
         shape: Union[list, tuple],
         ref: str = None,
         mask: Union[np.ndarray, torch.Tensor] = None,
-        device: str = None,
+        device: Union[torch.device, int, str] = None,
     ) -> FlowAlias:
         """Flow object constructor, based on list of transforms
 
@@ -310,7 +314,9 @@ class Flow(object):
         :param ref: Flow reference, string of value ``t`` ("target") or ``s`` ("source"). Defaults to ``t``
         :param mask: Numpy array or torch tensor of shape :math:`(H, W)` and type ``bool`` indicating where the flow
             vectors are valid. Defaults to ``True`` everywhere
-        :param device: Tensor device, either ``cpu`` or ``cuda`` (if available). Defaults to ``cpu``
+        :param device: Tensor device, either a :class:`torch.device` or a valid input to ``torch.device()``,
+            such as a string (``cpu`` or ``cuda``). For a device of type ``cuda``, the device index defaults to
+            ``torch.cuda.current_device()``. If the input is ``None``, it defaults to ``torch.device('cpu')``
         :return: Flow object
         """
 
@@ -318,7 +324,7 @@ class Flow(object):
         return cls(flow_vectors, ref, mask=mask, device=device)
 
     @classmethod
-    def from_kitti(cls, path: str, load_valid: bool = None, device: str = None) -> FlowAlias:
+    def from_kitti(cls, path: str, load_valid: bool = None, device: Union[torch.device, int, str] = None) -> FlowAlias:
         """Loads the flow field contained in KITTI ``uint16`` png images files, optionally including the valid pixels.
         Follows the official instructions on how to read the provided .png files on the
         `KITTI optical flow dataset website`_.
@@ -328,7 +334,9 @@ class Flow(object):
         :param path: String containing the path to the KITTI flow data (``uint16``, .png file)
         :param load_valid: Boolean determining whether the valid pixels are loaded as the flow :attr:`mask`. Defaults
             to ``True``
-        :param device: Tensor device, either ``cpu`` or ``cuda`` (if available). Defaults to ``cpu``
+        :param device: Tensor device, either a :class:`torch.device` or a valid input to ``torch.device()``,
+            such as a string (``cpu`` or ``cuda``). For a device of type ``cuda``, the device index defaults to
+            ``torch.cuda.current_device()``. If the input is ``None``, it defaults to ``torch.device('cpu')``
         :return: A flow object corresponding to the KITTI flow data, with flow reference :attr:`ref` ``s``.
         """
 
@@ -343,7 +351,7 @@ class Flow(object):
             return cls(data[:2, ...], 's', device=device)
 
     @classmethod
-    def from_sintel(cls, path: str, inv_path: str = None, device: str = None) -> FlowAlias:
+    def from_sintel(cls, path: str, inv_path: str = None, device: Union[torch.device, int, str] = None) -> FlowAlias:
         """Loads the flow field contained in Sintel .flo byte files, including the invalid pixels if required. Follows
         the official instructions provided alongside the .flo data on the `Sintel optical flow dataset website`_.
 
@@ -351,7 +359,9 @@ class Flow(object):
 
         :param path: String containing the path to the Sintel flow data (.flo byte file, little Endian)
         :param inv_path: String containing the path to the Sintel invalid pixel data (.png, black and white)
-        :param device: Tensor device, either ``cpu`` or ``cuda`` (if available). Defaults to ``cpu``
+        :param device: Tensor device, either a :class:`torch.device` or a valid input to ``torch.device()``,
+            such as a string (``cpu`` or ``cuda``). For a device of type ``cuda``, the device index defaults to
+            ``torch.cuda.current_device()``. If the input is ``None``, it defaults to ``torch.device('cpu')``
         :return: A flow object corresponding to the Sintel flow data, with flow reference :attr:`ref` ``s``
         """
 
