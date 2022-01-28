@@ -194,9 +194,9 @@ class Flow(object):
         """
 
         with torch.no_grad():
-            if self._device == 'cuda':
+            if self._device.type == 'cuda':
                 mask = self._mask.cpu().numpy()
-            else:  # self._device == 'cpu'
+            else:  # self._device.type == 'cpu'
                 mask = self._mask.detach().numpy()
         return mask
 
