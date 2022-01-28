@@ -1,6 +1,14 @@
 Changelog
 =========
 
+1.1.1 [2022-01-28]
+------------------
+
+- Type of the flow attribute :attr:`device` changed from string to the :class:`torch.device` class
+- If the CUDA device index is left undefined, it defaults to ``torch.cuda.current_device()``. This avoids ambiguities
+  and possible CUDA device mismatches when working with multiple GPUs.
+
+
 1.1.0 [2021-11-30]
 ------------------
 
