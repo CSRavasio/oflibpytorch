@@ -44,7 +44,7 @@ class FlowTest(unittest.TestCase):
                         self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, vecs_np_hw2))
                         self.assertEqual(flow.ref, ref_expected)
                         self.assertIsNone(np.testing.assert_equal(to_numpy(flow.mask), mask_np))
-                        self.assertEqual(flow.device, device_expected)
+                        self.assertEqual(flow.device.type, device_expected)
                         self.assertEqual(flow.vecs.device.type, device_expected)
                         self.assertEqual(flow.mask.device.type, device_expected)
 
@@ -62,7 +62,7 @@ class FlowTest(unittest.TestCase):
                     self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, vecs_np_hw2))
                     self.assertEqual(flow.ref, ref_expected)
                     self.assertIsNone(np.testing.assert_equal(to_numpy(flow.mask), mask_np))
-                    self.assertEqual(flow.device, device_expected)
+                    self.assertEqual(flow.device.type, device_expected)
                     self.assertEqual(flow.vecs.device.type, device_expected)
                     self.assertEqual(flow.mask.device.type, device_expected)
 
@@ -146,7 +146,7 @@ class FlowTest(unittest.TestCase):
                     flow = Flow.from_matrix(matrix, shape, 't', device=flow_device)
                     if flow_expected_device is None:  # If no device passed, expect same device as the matrix passed in
                         flow_expected_device = matrix.device.type if isinstance(matrix, torch.Tensor) else 'cpu'
-                    self.assertEqual(flow.device, flow_expected_device)
+                    self.assertEqual(flow.device.type, flow_expected_device)
                     self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[50, 10], [0, 0], atol=1e-4))
                     self.assertIsNone(np.testing.assert_allclose(flow.vecs_numpy[50, 299], [38.7186583063, 144.5],
                                                                  atol=1e-4, rtol=1e-4))
@@ -161,7 +161,7 @@ class FlowTest(unittest.TestCase):
         for device in ['cpu', 'cuda', None]:
             flow = Flow.from_transforms(transforms, shape, device=device)
             expected_device = device if torch.cuda.is_available() and device is not None else 'cpu'
-            self.assertEqual(flow.device, expected_device)
+            self.assertEqual(flow.device.type, expected_device)
 
     def test_from_kitti(self):
         path = 'kitti.png'
@@ -222,12 +222,12 @@ class FlowTest(unittest.TestCase):
                     self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, f.vecs_numpy))
                     self.assertIsNone(np.testing.assert_equal(flow.mask_numpy, f.mask_numpy))
                     self.assertEqual(flow.ref, f.ref)
-                    self.assertEqual(f.device, target_device)
+                    self.assertEqual(f.device.type, target_device)
 
     def test_str(self):
         flow = Flow.zero(shape=(100, 200), ref='s', device='cuda')
         self.assertEqual(str(flow)[:54],
-                         "Flow object, reference s, shape 100*200, device cuda; ")
+                         "Flow object, reference s, shape 100*200, device cuda:0")
 
     def test_getitem(self):
         vectors = np.random.rand(200, 200, 2)
@@ -246,7 +246,7 @@ class FlowTest(unittest.TestCase):
         for device in ['cpu', 'cuda']:
             flow = Flow(vectors, device=device)
             expected_device = device if torch.cuda.is_available() else 'cpu'
-            self.assertEqual(flow[10:20].device, expected_device)
+            self.assertEqual(flow[10:20].device.type, expected_device)
 
     def test_add(self):
         mask1 = np.ones((100, 200), 'bool')
@@ -277,8 +277,8 @@ class FlowTest(unittest.TestCase):
                 v = np.moveaxis(v, 0, -1)
             self.assertIsNone(np.testing.assert_allclose((flow1 + vecs).vecs_numpy, vecs1 + v,
                                                          rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 + vecs).device, flow1.vecs.device.type)
-            self.assertEqual((flow1 + vecs).device, flow1.mask.device.type)
+            self.assertEqual((flow1 + vecs).device, flow1.vecs.device)
+            self.assertEqual((flow1 + vecs).device, flow1.mask.device)
         self.assertIsNone(np.testing.assert_allclose((flow1 + flow2).vecs_numpy, vecs1 + vecs2, rtol=1e-6, atol=1e-6))
         self.assertIsNone(np.testing.assert_equal(np.sum(to_numpy((flow1 + flow2).mask)), (60 - 40) * 200))
         with self.assertRaises(TypeError):
@@ -317,8 +317,8 @@ class FlowTest(unittest.TestCase):
                 v = np.moveaxis(v, 0, -1)
             self.assertIsNone(np.testing.assert_allclose((flow1 - vecs).vecs_numpy, vecs1 - v,
                                                          rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 + vecs).device, flow1.vecs.device.type)
-            self.assertEqual((flow1 + vecs).device, flow1.mask.device.type)
+            self.assertEqual((flow1 + vecs).device, flow1.vecs.device)
+            self.assertEqual((flow1 + vecs).device, flow1.mask.device)
         self.assertIsNone(np.testing.assert_allclose((flow1 - flow2).vecs_numpy, vecs1 - vecs2, rtol=1e-6, atol=1e-6))
         self.assertIsNone(np.testing.assert_equal(np.sum(to_numpy((flow1 - flow2).mask)), (60 - 40) * 200))
         with self.assertRaises(TypeError):
@@ -366,8 +366,8 @@ class FlowTest(unittest.TestCase):
                 v = vecs
             self.assertIsNone(np.testing.assert_allclose((flow1 * vecs[..., 0]).vecs_numpy, vecs1 * v[..., :1],
                                                          rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 * vecs[..., 0]).device, flow1.vecs.device.type)
-            self.assertEqual((flow1 * vecs[..., 0]).device, flow1.mask.device.type)
+            self.assertEqual((flow1 * vecs[..., 0]).device, flow1.vecs.device)
+            self.assertEqual((flow1 * vecs[..., 0]).device, flow1.mask.device)
         # ... using numpy arrays and torch tensors of the same shape as the flow vectors
         vecs2_np_2hw = np.random.rand(2, 100, 200)
         vecs2_pt_2hw = torch.rand(2, 100, 200)
@@ -385,8 +385,8 @@ class FlowTest(unittest.TestCase):
                 v = np.moveaxis(v, 0, -1)
             self.assertIsNone(np.testing.assert_allclose((flow1 * vecs).vecs_numpy, vecs1 * v,
                                                          rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 * vecs).device, flow1.vecs.device.type)
-            self.assertEqual((flow1 * vecs).device, flow1.mask.device.type)
+            self.assertEqual((flow1 * vecs).device, flow1.vecs.device)
+            self.assertEqual((flow1 * vecs).device, flow1.mask.device)
         # ... using a list of the wrong length
         with self.assertRaises(ValueError):
             flow1 * [0, 1, 2]
@@ -448,8 +448,8 @@ class FlowTest(unittest.TestCase):
                 v = vecs
             self.assertIsNone(np.testing.assert_allclose((flow1 / vecs[..., 0]).vecs_numpy, vecs1 / v[..., :1],
                                                          rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 / vecs[..., 0]).device, flow1.vecs.device.type)
-            self.assertEqual((flow1 / vecs[..., 0]).device, flow1.mask.device.type)
+            self.assertEqual((flow1 / vecs[..., 0]).device, flow1.vecs.device)
+            self.assertEqual((flow1 / vecs[..., 0]).device, flow1.mask.device)
         # ... using numpy arrays and torch tensors of the same shape as the flow vectors
         vecs2_np_2hw = np.random.rand(2, 100, 200) + .5
         vecs2_pt_2hw = torch.rand(2, 100, 200) + .5
@@ -467,8 +467,8 @@ class FlowTest(unittest.TestCase):
                 v = np.moveaxis(v, 0, -1)
             self.assertIsNone(np.testing.assert_allclose((flow1 / vecs).vecs_numpy, vecs1 / v,
                                                          rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 / vecs).device, flow1.vecs.device.type)
-            self.assertEqual((flow1 / vecs).device, flow1.mask.device.type)
+            self.assertEqual((flow1 / vecs).device, flow1.vecs.device)
+            self.assertEqual((flow1 / vecs).device, flow1.mask.device)
         # ... using a list of the wrong length
         with self.assertRaises(ValueError):
             flow1 / [1, 2, 3]
@@ -526,8 +526,8 @@ class FlowTest(unittest.TestCase):
                 v = vecs
             self.assertIsNone(np.testing.assert_allclose((flow1 ** vecs[..., 0]).vecs_numpy, vecs1 ** v[..., :1],
                                                          rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 ** vecs[..., 0]).device, flow1.vecs.device.type)
-            self.assertEqual((flow1 ** vecs[..., 0]).device, flow1.mask.device.type)
+            self.assertEqual((flow1 ** vecs[..., 0]).device, flow1.vecs.device)
+            self.assertEqual((flow1 ** vecs[..., 0]).device, flow1.mask.device)
         # ... using numpy arrays and torch tensors of the same shape as the flow vectors
         vecs2_np_2hw = np.random.rand(2, 100, 200)
         vecs2_pt_2hw = torch.rand(2, 100, 200)
@@ -545,8 +545,8 @@ class FlowTest(unittest.TestCase):
                 v = np.moveaxis(v, 0, -1)
             self.assertIsNone(np.testing.assert_allclose((flow1 ** vecs).vecs_numpy, vecs1 ** v,
                                                          rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 ** vecs).device, flow1.vecs.device.type)
-            self.assertEqual((flow1 ** vecs).device, flow1.mask.device.type)
+            self.assertEqual((flow1 ** vecs).device, flow1.vecs.device)
+            self.assertEqual((flow1 ** vecs).device, flow1.mask.device)
         # ... using a list of the wrong length
         with self.assertRaises(ValueError):
             flow1 ** [0, 1, 2]
@@ -640,7 +640,7 @@ class FlowTest(unittest.TestCase):
                         # Target is a 3D torch tensor
                         warped_img_desired = apply_flow(flow.vecs, img, ref, mask if consider_mask else None)
                         warped_img_actual = flow.apply(img, consider_mask=consider_mask)
-                        self.assertEqual(flow.device, warped_img_actual.device.type)
+                        self.assertEqual(flow.device, warped_img_actual.device)
                         self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
                                                                   to_numpy(warped_img_desired)))
                         warped_img_actual, _ = flow.apply(img, mask, True, consider_mask=consider_mask)
@@ -649,7 +649,7 @@ class FlowTest(unittest.TestCase):
                         # Target is a 2D torch tensor
                         warped_img_desired = apply_flow(flow.vecs, img[0], ref, mask if consider_mask else None)
                         warped_img_actual = flow.apply(img[0], consider_mask=consider_mask)
-                        self.assertEqual(flow.device, warped_img_actual.device.type)
+                        self.assertEqual(flow.device, warped_img_actual.device)
                         self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
                                                                   to_numpy(warped_img_desired)))
                         warped_img_actual, _ = flow.apply(img[0], mask, True, consider_mask=consider_mask)
