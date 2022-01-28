@@ -434,12 +434,12 @@ class Flow(object):
             if self.shape != other.shape:
                 raise ValueError("Error adding to flow: Augend and addend flow objects are not the same shape")
             else:
-                vecs = self._vecs + other._vecs.to(self._vecs.device)
-                mask = self._mask & other._mask.to(self._vecs.device)
+                vecs = self._vecs + other._vecs.to(self._device)
+                mask = self._mask & other._mask.to(self._device)
                 return Flow(vecs, self._ref, mask)
         if isinstance(other, (np.ndarray, torch.Tensor)):
             other = get_valid_vecs(other, desired_shape=self.shape, error_string="Error adding to flow: ")
-            vecs = self._vecs + other.to(self._vecs.device)
+            vecs = self._vecs + other.to(self._device)
             return Flow(vecs, self._ref, self._mask, self._device)
         else:
             raise TypeError("Error adding to flow: Addend is not a flow object, numpy array, or torch tensor")
@@ -466,12 +466,12 @@ class Flow(object):
                 raise ValueError("Error subtracting from flow: "
                                  "Minuend and subtrahend flow objects are not the same shape")
             else:
-                vecs = self._vecs - other._vecs.to(self._vecs.device)
-                mask = self._mask & other._mask.to(self._vecs.device)
+                vecs = self._vecs - other._vecs.to(self._device)
+                mask = self._mask & other._mask.to(self._device)
                 return Flow(vecs, self._ref, mask, self._device)
         if isinstance(other, (np.ndarray, torch.Tensor)):
             other = get_valid_vecs(other, desired_shape=self.shape, error_string="Error subtracting to flow: ")
-            vecs = self._vecs - other.to(self._vecs.device)
+            vecs = self._vecs - other.to(self._device)
             return Flow(vecs, self._ref, self._mask, self._device)
         else:
             raise TypeError("Error subtracting from flow: "
@@ -510,7 +510,7 @@ class Flow(object):
                 else:
                     raise ValueError("Error multiplying flow: Multiplier array or tensor needs to be of size 2, of the "
                                      "shape of the flow object (H-W), or either 2-H-W or H-W-2")
-                other = other.to(self._vecs.device)
+                other = other.to(self._device)
                 return Flow(self._vecs * other, self._ref, self._mask, self._device)
             else:
                 raise TypeError("Error multiplying flow: Multiplier cannot be converted to float, "
@@ -549,7 +549,7 @@ class Flow(object):
                 else:
                     raise ValueError("Error dividing flow: Divisor array or tensor needs to be of size 2, of the "
                                      "shape of the flow object (H-W), or either 2-H-W or H-W-2")
-                other = other.to(self._vecs.device)
+                other = other.to(self._device)
                 return Flow(self._vecs / other, self._ref, self._mask, self._device)
             else:
                 raise TypeError("Error dividing flow: Divisor cannot be converted to float, "
@@ -588,7 +588,7 @@ class Flow(object):
                 else:
                     raise ValueError("Error exponentiating flow: Exponent array or tensor needs to be of size 2, of "
                                      "the shape of the flow object (H-W), or either 2-H-W or H-W-2")
-                other = other.to(self._vecs.device)
+                other = other.to(self._device)
                 return Flow(self._vecs ** other, self._ref, self._mask, self._device)
             else:
                 raise TypeError("Error exponentiating flow: Exponent cannot be converted to float, "
@@ -715,20 +715,20 @@ class Flow(object):
         return_2d = False
         if isinstance(target, Flow):
             return_flow = True
-            t = target._vecs.to(self._vecs.device)
-            mask = target._mask.unsqueeze(0).to(self._vecs.device)
+            t = target._vecs.to(self._device)
+            mask = target._mask.unsqueeze(0).to(self._device)
         elif isinstance(target, torch.Tensor):
             return_flow = False
             if target.dim() == 3:
-                t = target.to(self._vecs.device)
+                t = target.to(self._device)
             elif target.dim() == 2:
                 return_2d = True
-                t = target.unsqueeze(0).to(self._vecs.device)
+                t = target.unsqueeze(0).to(self._device)
             else:
                 raise ValueError("Error applying flow: Target needs to have the shape H-W (2 dimensions) "
                                  "or H-W-C (3 dimensions)")
             if target_mask is None:
-                mask = torch.ones(1, *t.shape[1:]).to(torch.bool).to(self._vecs.device)
+                mask = torch.ones(1, *t.shape[1:]).to(torch.bool).to(self._device)
             else:
                 if not isinstance(target_mask, torch.Tensor):
                     raise TypeError("Error applying flow: Target_mask needs to be a torch tensor")
@@ -739,7 +739,7 @@ class Flow(object):
                 if not return_valid_area:
                     warnings.warn("Warning applying flow: a mask is passed, but return_valid_area is False - so the "
                                   "mask passed will not affect the output, but possibly make the function slower.")
-                mask = target_mask.unsqueeze(0).to(self._vecs.device)
+                mask = target_mask.unsqueeze(0).to(self._device)
             return_dtype = target.dtype
         else:
             raise ValueError("Error applying flow: Target needs to be either a flow object or a torch tensor")
