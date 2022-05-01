@@ -259,6 +259,22 @@ class FlowTest(unittest.TestCase):
         self.assertEqual(str(flow)[:68],
                          "Flow object, reference s, batch size 1, shape 100*200, device cuda:0")
 
+    def test_select(self):
+        matrix = torch.tensor([[math.sqrt(3) / 2, -.5, 26.3397459622],
+                               [.5, math.sqrt(3) / 2, 1.69872981078],
+                               [0, 0, 1]])
+        matrix = torch.stack((torch.eye(3), matrix), dim=0)
+        shape = [200, 300]
+        flow = Flow.from_matrix(matrix, shape)
+        self.assertIsNone(np.testing.assert_equal(flow.select(0).vecs_numpy, 0))
+        self.assertIsNone(np.testing.assert_allclose(flow.select(1).vecs_numpy[0, 50, 10], [0, 0], atol=1e-4))
+        self.assertIsNone(np.testing.assert_allclose(flow.select(-1).vecs_numpy[0, 50, 10], [0, 0], atol=1e-4))
+
+        with self.assertRaises(TypeError):  # item not an integer
+            flow.select(0.5)
+        with self.assertRaises(IndexError):  # item out of bounds
+            flow.select(2)
+
     def test_getitem(self):
         vectors = np.random.rand(200, 200, 2)
         flow = Flow(vectors)

@@ -402,6 +402,21 @@ class Flow(object):
         info_string += self.__repr__()
         return info_string
 
+    def select(self, item: int) -> FlowAlias:
+        """Returns a single-item flow object from a batched flow object, e.g. for iterating through and visualising
+
+        :param item: Element in batch to be selected
+        :return: New flow object with batch size :math:`N` of 1
+        """
+
+        if not isinstance(item, int):
+            raise TypeError("Error selecting from flow object: item needs to be an integer")
+        try:
+            return Flow(self._vecs[item], self._ref, self._mask[item], self._device)
+        except IndexError:
+            raise IndexError("Error selecting from flow object: item {} out of bounds for flow with batch size {}"
+                             .format(item, self.shape[0]))
+
     def __getitem__(self, item: Union[int, list, slice]) -> FlowAlias:
         """Mimics ``__getitem__`` of a torch tensor, returning a new flow object cut accordingly
 
