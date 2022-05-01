@@ -139,17 +139,19 @@ class FlowTest(unittest.TestCase):
             expected_device_list = ['cpu', 'cuda']
         else:
             expected_device_list = ['cpu', 'cpu']
-        shape = [200, 300]
-        zero_flow = Flow.zero(shape)
-        self.assertIsNone(np.testing.assert_equal(zero_flow.shape, shape))
-        self.assertIsNone(np.testing.assert_equal(zero_flow.vecs_numpy, 0))
-        self.assertIs(zero_flow.ref, 't')
-        zero_flow = Flow.zero(shape, 's')
-        self.assertIs(zero_flow.ref, 's')
-        for device, expected_device in zip(['cpu', 'cuda'], expected_device_list):
-            flow = Flow.zero(shape, device=device)
-            self.assertEqual(flow.vecs.device.type, expected_device)
-            self.assertEqual(flow.mask.device.type, expected_device)
+        shape_list = [[200, 300], [5, 200, 300]]
+        exp_shape_list = [[1, 200, 300], [5, 200, 300]]
+        for shape, exp_shape in zip(shape_list, exp_shape_list):
+            zero_flow = Flow.zero(shape)
+            self.assertIsNone(np.testing.assert_equal(zero_flow.shape, exp_shape))
+            self.assertIsNone(np.testing.assert_equal(zero_flow.vecs_numpy, 0))
+            self.assertIs(zero_flow.ref, 't')
+            zero_flow = Flow.zero(shape, 's')
+            self.assertIs(zero_flow.ref, 's')
+            for device, expected_device in zip(['cpu', 'cuda'], expected_device_list):
+                flow = Flow.zero(shape, device=device)
+                self.assertEqual(flow.vecs.device.type, expected_device)
+                self.assertEqual(flow.mask.device.type, expected_device)
 
     def test_from_matrix(self):
         # With reference 's', this simply corresponds to using flow_from_matrix, tested in test_utils.

@@ -20,7 +20,7 @@ import cv2
 import math
 from typing import Union, Tuple
 import warnings
-from .utils import get_valid_vecs, get_valid_ref, get_valid_mask, get_valid_device, get_valid_padding, validate_shape, \
+from .utils import get_valid_vecs, get_valid_ref, get_valid_mask, get_valid_device, get_valid_padding, get_valid_shape,\
     to_numpy, move_axis, apply_flow, threshold_vectors, resize_flow, is_zero_flow, \
     from_matrix, from_transforms, load_kitti, load_sintel, load_sintel_mask, track_pts
 
@@ -246,19 +246,19 @@ class Flow(object):
     ) -> FlowAlias:
         """Flow object constructor, zero everywhere
 
-        :param shape: List or tuple of the shape :math:`(H, W)` of the flow field
+        :param shape: List or tuple of the shape :math:`(H, W)` or :math:`(N, H, W)` of the flow field
         :param ref: Flow reference, string of value ``t`` ("target") or ``s`` ("source"). Defaults to ``t``
-        :param mask: Numpy array or torch tensor of shape :math:`(H, W)` and type ``bool`` indicating where the flow
-            vectors are valid. Defaults to ``True`` everywhere
+        :param mask: Numpy array or torch tensor of shape :math:`(H, W)` or :math:`(N, H, W)` and type ``bool``
+            indicating where the flow vectors are valid. Defaults to ``True`` everywhere
         :param device: Tensor device, either a :class:`torch.device` or a valid input to ``torch.device()``,
             such as a string (``cpu`` or ``cuda``). For a device of type ``cuda``, the device index defaults to
             ``torch.cuda.current_device()``. If the input is ``None``, it defaults to ``torch.device('cpu')``
-        :return: Flow object
+        :return: Flow object, zero everywhere
         """
 
         # Check shape validity
-        validate_shape(shape)
-        return cls(torch.zeros(2, *shape), ref, mask, device)
+        s = get_valid_shape(shape)
+        return cls(torch.zeros(s[0], 2, s[1], s[2]), ref, mask, device)
 
     @classmethod
     def from_matrix(
