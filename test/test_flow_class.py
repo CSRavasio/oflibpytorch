@@ -479,7 +479,7 @@ class FlowTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             flow1 * np.random.rand(200, 200, 2, 1)
         with self.assertRaises(ValueError):
-            flow1 * np.random.rand(200, 200, 2, 1)
+            f2 * np.random.rand(6, 2, 100, 200)
 
     def test_div(self):
         vecs1 = np.random.rand(100, 200, 2) + .5
