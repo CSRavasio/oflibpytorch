@@ -63,6 +63,19 @@ def get_valid_vecs(vecs: Any, desired_shape: Union[tuple, list] = None, error_st
     return vecs.float()
 
 
+def get_valid_shape(shape: Any) -> list:
+    if not isinstance(shape, (list, tuple)):
+        raise TypeError("Error creating flow from matrix: Dims need to be a list or a tuple")
+    if len(shape) != 2 and len(shape) != 3:
+        raise ValueError("Error creating flow from matrix: Dims need to be a list or a tuple of length 2 or 3")
+    if any((item <= 0 or not isinstance(item, int)) for item in shape):
+        raise ValueError("Error creating flow from matrix: Dims need to be a list or a tuple of integers above zero")
+    if len(shape) == 2:
+        return [1] + list(shape)
+    else:
+        return list(shape)
+
+
 def get_valid_ref(ref: Any) -> str:
     """Checks flow reference input for validity
 

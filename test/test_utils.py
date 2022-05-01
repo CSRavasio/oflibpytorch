@@ -18,7 +18,8 @@ import numpy as np
 import math
 import sys
 sys.path.append('..')
-from src.oflibpytorch.utils import get_valid_vecs, get_valid_ref, get_valid_mask, get_valid_padding, validate_shape, \
+from src.oflibpytorch.utils import get_valid_vecs, get_valid_shape, get_valid_ref, get_valid_mask, get_valid_padding, \
+    validate_shape, \
     get_valid_device, to_numpy, move_axis, flow_from_matrix, matrix_from_transform, matrix_from_transforms, \
     reverse_transform_values, normalise_coords, apply_flow, threshold_vectors, from_matrix, from_transforms,  \
     load_kitti, load_sintel, load_sintel_mask, resize_flow, is_zero_flow, track_pts
@@ -83,6 +84,24 @@ class TestValidityChecks(unittest.TestCase):
         vectors = torch.tensor(vectors)
         with self.assertRaises(ValueError):
             get_valid_vecs(vectors)
+
+    def test_get_valid_shape(self):
+        with self.assertRaises(TypeError):
+            get_valid_shape('test')
+        with self.assertRaises(ValueError):
+            get_valid_shape([10])
+        with self.assertRaises(ValueError):
+            get_valid_shape([10, 10, 10, 10])
+        with self.assertRaises(ValueError):
+            get_valid_shape([-1, 10])
+        with self.assertRaises(ValueError):
+            get_valid_shape([5, 0])
+        with self.assertRaises(ValueError):
+            get_valid_shape([10., 10])
+        self.assertEqual(get_valid_shape([2, 3]), [1, 2, 3])
+        self.assertEqual(get_valid_shape([4, 2, 3]), [4, 2, 3])
+        self.assertEqual(get_valid_shape((2, 3)), [1, 2, 3])
+        self.assertEqual(get_valid_shape((4, 2, 3)), [4, 2, 3])
 
     def test_get_valid_ref(self):
         self.assertEqual(get_valid_ref(None), 't')
