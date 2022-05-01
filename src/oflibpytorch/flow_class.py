@@ -397,7 +397,8 @@ class Flow(object):
         :return: String representation
         """
 
-        info_string = "Flow object, reference {}, shape {}*{}, device {}; ".format(self._ref, *self.shape, self._device)
+        info_string = "Flow object, reference {}, batch size {}, shape {}*{}, device {}; "\
+            .format(self._ref, *self.shape, self._device)
         info_string += self.__repr__()
         return info_string
 

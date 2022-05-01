@@ -256,8 +256,8 @@ class FlowTest(unittest.TestCase):
 
     def test_str(self):
         flow = Flow.zero(shape=(100, 200), ref='s', device='cuda')
-        self.assertEqual(str(flow)[:54],
-                         "Flow object, reference s, shape 100*200, device cuda:0")
+        self.assertEqual(str(flow)[:68],
+                         "Flow object, reference s, batch size 1, shape 100*200, device cuda:0")
 
     def test_getitem(self):
         vectors = np.random.rand(200, 200, 2)
