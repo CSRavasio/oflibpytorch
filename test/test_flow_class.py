@@ -361,6 +361,10 @@ class FlowTest(unittest.TestCase):
         flow1 = Flow(vecs1, mask=mask1)
         flow2 = Flow(vecs2, mask=mask2)
         flow3 = Flow(vecs3)
+        flow4 = Flow(np.random.rand(3, 200, 200, 2))
+        flow5 = Flow(np.random.rand(5, 200, 200, 2))
+        vecs6 = np.random.rand(5, 100, 200, 2)
+        flow6 = Flow(vecs6)
 
         # Subtraction
         for vecs in vec_list:
@@ -370,18 +374,23 @@ class FlowTest(unittest.TestCase):
                 v = vecs
             if v.shape[0] == 2:
                 v = np.moveaxis(v, 0, -1)
-            self.assertIsNone(np.testing.assert_allclose((flow1 - vecs).vecs_numpy, vecs1 - v,
+            self.assertIsNone(np.testing.assert_allclose((flow1 - vecs).vecs_numpy[0], vecs1 - v,
                                                          rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 + vecs).device, flow1.vecs.device)
-            self.assertEqual((flow1 + vecs).device, flow1.mask.device)
-        self.assertIsNone(np.testing.assert_allclose((flow1 - flow2).vecs_numpy, vecs1 - vecs2, rtol=1e-6, atol=1e-6))
+            self.assertEqual((flow1 - vecs).device, flow1.vecs.device)
+            self.assertEqual((flow1 - vecs).device, flow1.mask.device)
+        self.assertIsNone(np.testing.assert_allclose((flow1 - flow2).vecs_numpy[0],
+                                                     vecs1 - vecs2, rtol=1e-6, atol=1e-6))
         self.assertIsNone(np.testing.assert_equal(np.sum(to_numpy((flow1 - flow2).mask)), (60 - 40) * 200))
+        self.assertIsNone(np.testing.assert_allclose((flow1 - flow6).vecs_numpy,
+                                                     vecs1 - vecs6, rtol=1e-6, atol=1e-6))
         with self.assertRaises(TypeError):
             flow1 - 'test'
         with self.assertRaises(ValueError):
             flow1 - flow3
         with self.assertRaises(ValueError):
             flow1 - vecs3
+        with self.assertRaises(ValueError):
+            flow4 - flow5
 
     def test_mul(self):
         vecs1 = np.random.rand(100, 200, 2)
