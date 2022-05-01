@@ -215,11 +215,11 @@ class FlowTest(unittest.TestCase):
         path = 'sintel.flo'
         f = Flow.from_sintel(path)
         desired_flow = np.arange(0, 10)[:, np.newaxis] * np.arange(0, 20)[np.newaxis, :]
-        self.assertIsNone(np.testing.assert_equal(f.vecs_numpy[..., 0], desired_flow))
+        self.assertIsNone(np.testing.assert_equal(f.vecs_numpy[0, ..., 0], desired_flow))
         self.assertIsNone(np.testing.assert_equal(f.mask_numpy, True))
         f = Flow.from_sintel(path, 'sintel_invalid.png')
-        self.assertIsNone(np.testing.assert_equal(f.mask_numpy[:, 0], True))
-        self.assertIsNone(np.testing.assert_equal(f.mask_numpy[:, 10], False))
+        self.assertIsNone(np.testing.assert_equal(f.mask_numpy[0, :, 0], True))
+        self.assertIsNone(np.testing.assert_equal(f.mask_numpy[0, :, 10], False))
 
         with self.assertRaises(ValueError):  # Wrong tag
             Flow.from_sintel('sintel_wrong.flo')
