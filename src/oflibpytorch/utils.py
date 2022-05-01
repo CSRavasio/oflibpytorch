@@ -101,12 +101,12 @@ def get_valid_ref(ref: Any) -> str:
 
 
 def get_valid_mask(mask: Any, desired_shape: Union[tuple, list] = None, error_string: str = None) -> torch.Tensor:
-    """Checks array or tensor input for validity and returns H-W tensor for use as flow mask
+    """Checks array or tensor input for validity and returns N-H-W tensor for use as flow mask
 
-    :param mask: Valid if numpy array or torch tensor of shape H-W
-    :param desired_shape: List or tuple of (H, W) the input vecs should be compared about. Optional
+    :param mask: Valid if numpy array or torch tensor of shape (N-)H-W
+    :param desired_shape: List or tuple of ((N, )H, W) the input vecs should be compared about. Optional
     :param error_string: Optional string to be added before the error message if input is invalid. Optional
-    :return: Tensor valid for flow mask, shape H-W, dtype float
+    :return: Tensor valid for flow mask, shape N-H-W, dtype float
     """
 
     error_string = '' if error_string is None else error_string
@@ -114,13 +114,9 @@ def get_valid_mask(mask: Any, desired_shape: Union[tuple, list] = None, error_st
     # Check type, dimensions, shape
     if not isinstance(mask, (np.ndarray, torch.Tensor)):
         raise TypeError(error_string + "Input is not a numpy array or a torch tensor")
-    if len(mask.shape) != 2:
-        raise ValueError(error_string + "Input is not 2-dimensional")
-
-    # Check shape if necessary
-    if desired_shape is not None:
-        if mask.shape[0] != desired_shape[0] or mask.shape[1] != desired_shape[1]:
-            raise ValueError(error_string + "Input shape H or W does not match the desired shape")
+    ndim = len(mask.shape)
+    if ndim != 2 and ndim != 3:
+        raise ValueError(error_string + "Input has {} dimensions, should be 2 or 3".format(ndim))
 
     # Transform to tensor if necessary
     if isinstance(mask, np.ndarray):
@@ -129,6 +125,15 @@ def get_valid_mask(mask: Any, desired_shape: Union[tuple, list] = None, error_st
     # Check for invalid values
     if ((mask != 0) & (mask != 1)).any():
         raise ValueError(error_string + "Values must be 0 or 1")
+
+    # Add dimension if necessary
+    if ndim == 2:
+        mask = mask.unsqueeze(0)
+
+    # Check shape if necessary
+    if desired_shape is not None:
+        if list(mask.shape) != get_valid_shape(desired_shape):
+            raise ValueError(error_string + "Input shape does not match the desired shape")
 
     return mask.to(torch.bool)
 

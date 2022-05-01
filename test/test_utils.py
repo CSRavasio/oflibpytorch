@@ -126,12 +126,34 @@ class TestValidityChecks(unittest.TestCase):
             get_valid_ref('test')
 
     def test_get_valid_mask(self):
+        # Valid 2-dim mask inputs
+        np_1hw = np.zeros((1, 100, 200))
+        np_hw = np.zeros((100, 200))
+        pt_hw = torch.zeros((100, 200))
+        for mask in [np_hw, pt_hw]:
+            for desired_shape in [[100, 200], [1, 100, 200]]:
+                self.assertIsInstance(get_valid_mask(mask, desired_shape), torch.Tensor)
+                self.assertIsNone(np.testing.assert_equal(to_numpy(get_valid_mask(mask, desired_shape)), np_1hw))
+            for desired_shape in [[110, 200], [5, 100, 200]]:
+                with self.assertRaises(ValueError):
+                    get_valid_mask(mask, desired_shape)
+
+        # Valid 3-dim mask inputs
+        np_nhw = np.zeros((5, 100, 200))
+        pt_nhw = torch.zeros((5, 100, 200))
+        for vecs in [np_nhw, pt_nhw]:
+            self.assertIsInstance(get_valid_mask(vecs, [5, 100, 200]), torch.Tensor)
+            self.assertIsNone(np.testing.assert_equal(to_numpy(get_valid_mask(vecs, [5, 100, 200])), np_nhw))
+            for desired_shape in [[110, 200], [100, 200], [1, 100, 200]]:
+                with self.assertRaises(ValueError):
+                    get_valid_mask(vecs, desired_shape)
+
         with self.assertRaises(TypeError):  # mask input not numpy array or torch tensor
             get_valid_mask('test')
         with self.assertRaises(ValueError):  # mask numpy array input wrong number of dimensions
-            get_valid_mask(np.zeros((2, 100, 200)))
+            get_valid_mask(np.zeros((1, 2, 100, 200)))
         with self.assertRaises(ValueError):  # mask torch tensor input wrong number of dimensions
-            get_valid_mask(torch.zeros((2, 100, 200)))
+            get_valid_mask(torch.zeros((2, 100, 200, 1)))
         with self.assertRaises(ValueError):  # mask numpy array height H does not match desired shape
             get_valid_mask(np.zeros((101, 200)), desired_shape=(100, 200))
         with self.assertRaises(ValueError):  # mask torch tensor width W does not match desired shape
