@@ -197,10 +197,10 @@ class FlowTest(unittest.TestCase):
         path = 'kitti.png'
         f = Flow.from_kitti(path, load_valid=True)
         desired_flow = np.arange(0, 10)[:, np.newaxis] * np.arange(0, 20)[np.newaxis, :]
-        self.assertIsNone(np.testing.assert_equal(f.vecs_numpy[..., 0], desired_flow))
-        self.assertIsNone(np.testing.assert_equal(f.vecs_numpy[..., 1], 0))
-        self.assertIsNone(np.testing.assert_equal(f.mask_numpy[:, 0], True))
-        self.assertIsNone(np.testing.assert_equal(f.mask_numpy[:, 10], False))
+        self.assertIsNone(np.testing.assert_equal(f.vecs_numpy[0, ..., 0], desired_flow))
+        self.assertIsNone(np.testing.assert_equal(f.vecs_numpy[0, ..., 1], 0))
+        self.assertIsNone(np.testing.assert_equal(f.mask_numpy[0, :, 0], True))
+        self.assertIsNone(np.testing.assert_equal(f.mask_numpy[0, :, 10], False))
         f = Flow.from_kitti(path, load_valid=False)
         self.assertIsNone(np.testing.assert_equal(f.mask_numpy, True))
 
