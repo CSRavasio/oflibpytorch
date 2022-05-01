@@ -44,10 +44,10 @@ class Flow(object):
         """Flow object constructor. For a more detailed explanation of the arguments, see the class attributes
         :attr:`vecs`, :attr:`ref`, :attr:`mask`, and :attr:`device`.
 
-        :param flow_vectors: Numpy array or pytorch tensor with 3 dimensions. The shape is interpreted as
-            :math:`(2, H, W)` if the first dimension is 2, otherwise as :math:`(H, W, 2)` if the last dimension is 2.
-            Throws a ``ValueError`` if neither the first nor the last dimensions is 2. The dimension that is 2 (the
-            channel dimension) contains the flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the
+        :param flow_vectors: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as
+            :math:`(2, H, W)` or :math:`(N, 2, H, W)` if possible, otherwise as :math:`(H, W, 2)` or
+            :math:`(N, H, W, 2)`, throwing a ``ValueError`` if this isn't possible either. The dimension that is 2
+            (the channel dimension) contains the flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the
             horizontal, ``flow_vectors[..., 1]`` are the vertical vector components, defined as positive when pointing
             to the right / down.
         :param ref: Flow reference, either ``t`` for "target", or ``s`` for "source". Defaults to ``t``
@@ -67,12 +67,12 @@ class Flow(object):
 
     @property
     def vecs(self) -> torch.Tensor:
-        """Flow vectors, a torch tensor of shape :math:`(2, H, W)`. The first dimension contains the flow vectors.
-        These are in the order horizontal component first, vertical component second (OpenCV convention). They
-        are defined as positive towards the right and the bottom, meaning the origin is located in the left upper
-        corner of the :math:`H \\times W` flow field area.
+        """Flow vectors, a torch tensor of shape :math:`(N, 2, H, W)`. The first dimension contains the batch size,
+        the second the flow vectors. These are in the order horizontal component first, vertical component second
+        (OpenCV convention). They are defined as positive towards the right and the bottom, meaning the origin is
+        located in the left upper corner of the :math:`H \\times W` flow field area.
 
-        :return: Flow vectors as torch tensor of shape :math:`(2, H, W)`, dtype ``float``, device ``self.device``
+        :return: Flow vectors as torch tensor of shape :math:`(N, 2, H, W)`, dtype ``float``, device ``self.device``
         """
 
         return self._vecs
@@ -81,10 +81,10 @@ class Flow(object):
     def vecs(self, input_vecs: Union[np.ndarray, torch.Tensor]):
         """Sets flow vectors, after checking validity
 
-        :param input_vecs: Numpy array or pytorch tensor with 3 dimensions. The shape is interpreted as
-            :math:`(2, H, W)` if the first dimension is 2, otherwise as :math:`(H, W, 2)` if the last dimension is 2.
-            Throws a ``ValueError`` if neither the first nor the last dimensions is 2. The dimension that is 2 (the
-            channel dimension) contains the flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the
+        :param input_vecs: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as
+            :math:`(2, H, W)` or :math:`(N, 2, H, W)` if possible, otherwise as :math:`(H, W, 2)` or
+            :math:`(N, H, W, 2)`, throwing a ``ValueError`` if this isn't possible either. The dimension that is 2
+            (the channel dimension) contains the flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the
             horizontal, ``flow_vectors[..., 1]`` are the vertical vector components, defined as positive when pointing
             to the right / down.
         """
@@ -93,12 +93,12 @@ class Flow(object):
 
     @property
     def vecs_numpy(self) -> np.ndarray:
-        """Convenience function to get the flow vectors as a numpy array of shape :math:`(H, W, 2)`. Otherwise same
+        """Convenience function to get the flow vectors as a numpy array of shape :math:`(N, H, W, 2)`. Otherwise same
         as :attr:`vecs`: The last dimension contains the flow vectors, in the order of horizontal component first,
         vertical component second (OpenCV convention). They are defined as positive towards the right and the bottom,
         meaning the origin is located in the left upper corner of the :math:`H \\times W` flow field area.
 
-        :return: Flow vectors as a numpy array of shape :math:`(H, W, 2)`, dtype ``float32``
+        :return: Flow vectors as a numpy array of shape :math:`(N, H, W, 2)`, dtype ``float32``
         """
 
         with torch.no_grad():
@@ -106,7 +106,7 @@ class Flow(object):
                 vecs = self._vecs.cpu().numpy()
             else:  # self._device.type == 'cpu'
                 vecs = self._vecs.detach().numpy()
-        return np.moveaxis(vecs, 0, -1)
+        return np.moveaxis(vecs, 1, -1)
 
     @property
     def ref(self) -> str:
@@ -155,14 +155,14 @@ class Flow(object):
 
     @property
     def mask(self) -> torch.Tensor:
-        """Flow mask as a torch tensor of shape :math:`(H, W)` and type ``bool``. This array indicates, for each
+        """Flow mask as a torch tensor of shape :math:`(N, H, W)` and type ``bool``. This array indicates, for each
         flow vector, whether it is considered "valid". As an example, this allows for masking of the flow based on
         object segmentations. It is also necessary to keep track of which flow vectors are valid when different flow
         fields are combined, as those operations often lead to undefined (partially or fully unknown) points in the
         given :math:`H \\times W` area where the flow vectors are either completely unknown, or will not have valid
         values.
 
-        :return: Flow mask as a torch tensor of shape :math:`(H, W)` and type ``bool``
+        :return: Flow mask as a torch tensor of shape :math:`(N, H, W)` and type ``bool``
         """
 
         return self._mask
@@ -171,8 +171,8 @@ class Flow(object):
     def mask(self, input_mask: Union[np.ndarray, torch.Tensor] = None):
         """Sets flow mask, after checking validity
 
-        :param input_mask: numpy array or torch tensor of shape :math:`(H, W)` and type ``bool``, matching flow vectors
-            of shape :math:`(H, W, 2)`
+        :param input_mask: numpy array or torch tensor of shape :math:`(H, W)` or :math:`(N, H, W)` and type ``bool``,
+            corresponding to the batch size (can be 1) and the flow field shape :math:`(H, W)`
         """
 
         if input_mask is None:
@@ -183,14 +183,14 @@ class Flow(object):
 
     @property
     def mask_numpy(self) -> np.ndarray:
-        """Convenience function to get the mask as a numpy array of shape :math:`(H, W)`. Otherwise same as
+        """Convenience function to get the mask as a numpy array of shape :math:`(N, H, W)`. Otherwise same as
         :attr:`mask`: this array indicates, for each flow vector, whether it is considered "valid". As an example,
         this allows for masking of the flow based on object segmentations. It is also necessary to keep track of
         which flow vectors are valid when different flow fields are combined, as those operations often lead to
         undefined (partially or fully unknown) points in the given :math:`H \\times W` area where the flow vectors
         are either completely unknown, or will not have valid values.
 
-        :return: mask as a numpy array of shape H-W, dtype 'bool'
+        :return: mask as a numpy array of shape :math:`(N, H, W)` and type ``bool``
         """
 
         with torch.no_grad():
@@ -227,14 +227,14 @@ class Flow(object):
         self._mask = self._mask.to(device)
 
     @property
-    def shape(self) -> tuple:
-        """Shape (resolution) :math:`(H, W)` of the flow, corresponding to the last two dimensions of the flow
-        vector tensor of shape :math:`(2, H, W)`
+    def shape(self) -> list:
+        """Shape (resolution) :math:`(N, H, W)` of the flow, corresponding to the batch size (can be 1) and the
+        flow field shape :math:`(H, W)`
 
-        :return: Tuple of the shape (resolution) :math:`(H, W)` of the flow object
+        :return: Tuple of the shape (resolution) :math:`(N, H, W)` of the flow object
         """
 
-        return tuple(self._vecs.shape[1:])
+        return [self._vecs.shape[0]] + list(self._vecs.shape[2:])
 
     @classmethod
     def zero(

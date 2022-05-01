@@ -28,22 +28,50 @@ class FlowTest(unittest.TestCase):
             expected_device_list = ['cpu', 'cuda', 'cpu']
         else:
             expected_device_list = ['cpu', 'cpu', 'cpu']
-        vecs_np_2hw = np.zeros((2, 100, 200))
-        vecs_np_hw2 = np.zeros((100, 200, 2))
-        vecs_pt_2hw = torch.zeros((2, 100, 200))
-        vecs_pt_hw2 = torch.zeros((100, 200, 2))
+
+        # 3-dim vec inputs
+        np_12hw = np.zeros((1, 2, 100, 200))
+        np_1hw2 = np.zeros((1, 100, 200, 2))
+        np_2hw = np.zeros((2, 100, 200))
+        np_hw2 = np.zeros((100, 200, 2))
+        pt_2hw = torch.zeros((2, 100, 200))
+        pt_hw2 = torch.zeros((100, 200, 2))
         mask_empty = None
+        mask_1np = np.ones((1, 100, 200), 'bool')
         mask_np = np.ones((100, 200), 'bool')
         mask_pt = torch.ones(100, 200).to(torch.bool)
-        for vecs in [vecs_np_2hw, vecs_np_hw2, vecs_pt_2hw, vecs_pt_hw2]:
+        for vecs in [np_2hw, np_hw2, pt_2hw, pt_hw2]:
             for ref, ref_expected in zip(['t', 's', None], ['t', 's', 't']):
                 for mask in [mask_empty, mask_np, mask_pt]:
                     for device, device_expected in zip(['cpu', 'cuda', None], expected_device_list):
                         flow = Flow(vecs, ref=ref, mask=mask, device=device)
-                        self.assertIsNone(np.testing.assert_equal(to_numpy(flow.vecs), vecs_np_2hw))
-                        self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, vecs_np_hw2))
+                        self.assertIsNone(np.testing.assert_equal(to_numpy(flow.vecs), np_12hw))
+                        self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, np_1hw2))
+                        self.assertEqual(flow.shape, [1, 100, 200])
                         self.assertEqual(flow.ref, ref_expected)
-                        self.assertIsNone(np.testing.assert_equal(to_numpy(flow.mask), mask_np))
+                        self.assertIsNone(np.testing.assert_equal(to_numpy(flow.mask), mask_1np))
+                        self.assertEqual(flow.device.type, device_expected)
+                        self.assertEqual(flow.vecs.device.type, device_expected)
+                        self.assertEqual(flow.mask.device.type, device_expected)
+
+        # 4-dim vec inputs
+        np_n2hw = np.zeros((5, 2, 100, 200))
+        np_nhw2 = np.zeros((5, 100, 200, 2))
+        pt_n2hw = torch.zeros((5, 2, 100, 200))
+        pt_nhw2 = torch.zeros((5, 100, 200, 2))
+        mask_empty = None
+        mask_np_nhw = np.ones((5, 100, 200), 'bool')
+        mask_pt_nhw = torch.ones(5, 100, 200).to(torch.bool)
+        for vecs in [np_n2hw, np_nhw2, pt_n2hw, pt_nhw2]:
+            for ref, ref_expected in zip(['t', 's', None], ['t', 's', 't']):
+                for mask in [mask_empty, mask_np_nhw, mask_pt_nhw]:
+                    for device, device_expected in zip(['cpu', 'cuda', None], expected_device_list):
+                        flow = Flow(vecs, ref=ref, mask=mask, device=device)
+                        self.assertIsNone(np.testing.assert_equal(to_numpy(flow.vecs), np_n2hw))
+                        self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, np_nhw2))
+                        self.assertEqual(flow.shape, [5, 100, 200])
+                        self.assertEqual(flow.ref, ref_expected)
+                        self.assertIsNone(np.testing.assert_equal(to_numpy(flow.mask), mask_np_nhw))
                         self.assertEqual(flow.device.type, device_expected)
                         self.assertEqual(flow.vecs.device.type, device_expected)
                         self.assertEqual(flow.mask.device.type, device_expected)
@@ -58,10 +86,10 @@ class FlowTest(unittest.TestCase):
             for mask in [mask_empty, mask_np, mask_pt]:
                 for device, device_expected in zip(['cpu', 'cuda', None], expected_device_list):
                     flow = Flow(vecs_pt_cuda, ref=ref, mask=mask, device=device)
-                    self.assertIsNone(np.testing.assert_equal(to_numpy(flow.vecs), vecs_np_2hw))
-                    self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, vecs_np_hw2))
+                    self.assertIsNone(np.testing.assert_equal(to_numpy(flow.vecs), np_12hw))
+                    self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, np_1hw2))
                     self.assertEqual(flow.ref, ref_expected)
-                    self.assertIsNone(np.testing.assert_equal(to_numpy(flow.mask), mask_np))
+                    self.assertIsNone(np.testing.assert_equal(to_numpy(flow.mask), mask_1np))
                     self.assertEqual(flow.device.type, device_expected)
                     self.assertEqual(flow.vecs.device.type, device_expected)
                     self.assertEqual(flow.mask.device.type, device_expected)
