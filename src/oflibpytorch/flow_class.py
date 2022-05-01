@@ -445,23 +445,31 @@ class Flow(object):
             :attr:`ref`.
 
         :param other: Flow object, numpy array, or torch tensor corresponding to the addend. Adding a flow object will
-            adjust the mask of the resulting flow object to correspond to the logical union of the augend / addend masks
+            adjust the mask of the resulting flow object to correspond to the logical union of the augend / addend
+            masks. If a batch dimension is given, it has to match the batch dimension of the flow object, or one of
+            them needs to be 1 in order to be broadcast correctly
         :return: New flow object corresponding to the sum
         """
 
-        if isinstance(other, Flow):
-            if self.shape != other.shape:
-                raise ValueError("Error adding to flow: Augend and addend flow objects are not the same shape")
-            else:
-                vecs = self._vecs + other._vecs.to(self._device)
-                mask = self._mask & other._mask.to(self._device)
-                return Flow(vecs, self._ref, mask)
         if isinstance(other, (np.ndarray, torch.Tensor)):
-            other = get_valid_vecs(other, desired_shape=self.shape, error_string="Error adding to flow: ")
-            vecs = self._vecs + other.to(self._device)
-            return Flow(vecs, self._ref, self._mask, self._device)
+            other_vecs = get_valid_vecs(other, desired_shape=self.shape, error_string="Error adding to flow: ")
+            other_mask = torch.tensor(True, dtype=torch.bool, device=self._device)
+        elif isinstance(other, Flow):
+            other_vecs = other._vecs
+            other_mask = other._mask
         else:
             raise TypeError("Error adding to flow: Addend is not a flow object, numpy array, or torch tensor")
+        if self.shape[0] != other_vecs.shape[0] and self.shape[0] != 1 and other_vecs.shape[0] != 1:
+            # batch dimensions don't match, and neither of them is 1
+            raise ValueError("Error adding to flow: Augend and addend batch dimensions don't match, and neither is 1")
+        if self.shape[1:] != list(other_vecs.shape[2:]):
+            raise ValueError("Error adding to flow: Augend and addend flow objects are not the same shape")
+        return Flow(
+            self._vecs + other_vecs.to(self._device),
+            self._ref,
+            self._mask & other_mask.to(self._device),
+            self._device
+        )
 
     def __sub__(self, other: Union[np.ndarray, torch.Tensor, FlowAlias]) -> FlowAlias:
         """Subtracts a flow object, a numpy array, or a torch tensor from a flow object
