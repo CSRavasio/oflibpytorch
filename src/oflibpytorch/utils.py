@@ -615,11 +615,9 @@ def from_transforms(
           ``scaling fraction``
     :param shape: List or tuple of the shape :math:`(H, W)` of the flow field
     :param ref: Flow reference, string of value ``t`` ("target") or ``s`` ("source"). Defaults to ``t``
-    :return: Flow vectors of shape :math:`(2, H, W)`
+    :return: Flow vectors of shape :math:`(N, 2, H, W)`
     """
 
-    # Check shape validity
-    validate_shape(shape)
     # Get valid reference
     ref = get_valid_ref(ref)
     # Check transform_list validity

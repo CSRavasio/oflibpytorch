@@ -542,19 +542,21 @@ class TestFromTransforms(unittest.TestCase):
         shape = [200, 300]
         transforms = [['rotation', 10, 50, -30]]
         flow = from_transforms(transforms, shape, 't')
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 50, 10]), [0, 0]))
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 50, 299]), [38.7186583063, 144.5]))
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 199, 10]), [-74.5, 19.9622148361], rtol=1e-6))
-        self.assertIsNone(np.testing.assert_equal(flow.shape[1:], shape))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 10]), [0, 0]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 299]), [38.7186583063, 144.5]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 199, 10]), [-74.5, 19.9622148361], rtol=1e-6))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[0], 1))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape))
 
     def test_from_transforms_scaling(self):
         shape = [200, 300]
         transforms = [['scaling', 20, 30, 2]]
         flow = from_transforms(transforms, shape, 's')
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 30, 20]), [0, 0]))
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 30, 70]), [50, 0]))
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 80, 20]), [0, 50]))
-        self.assertIsNone(np.testing.assert_equal(flow.shape[1:], shape))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 30, 20]), [0, 0]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 30, 70]), [50, 0]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 80, 20]), [0, 50]))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[0], 1))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape))
 
     def test_from_transforms_multiple_s(self):
         shape = [200, 300]
@@ -564,10 +566,11 @@ class TestFromTransforms(unittest.TestCase):
             ['translation', 20, 30]
         ]
         flow = from_transforms(transforms, shape, 's')
-        self.assertIsNone(np.testing.assert_equal(to_numpy(flow[:, 30, 20]), [0, 0]))
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 30, 70]), [50, 0]))
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 80, 20]), [0, 50]))
-        self.assertIsNone(np.testing.assert_equal(flow.shape[1:], shape))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(flow[0, :, 30, 20]), [0, 0]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 30, 70]), [50, 0]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 80, 20]), [0, 50]))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[0], 1))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape))
 
     def test_from_transforms_multiple_t(self):
         shape = [200, 300]
@@ -577,10 +580,11 @@ class TestFromTransforms(unittest.TestCase):
             ['translation', 10, 50]
         ]
         flow = from_transforms(transforms, shape, 't')
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 50, 10]), [0, 0]))
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 50, 299]), [38.7186583063, 144.5]))
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 199, 10]), [-74.5, 19.9622148361], rtol=1e-6))
-        self.assertIsNone(np.testing.assert_equal(flow.shape[1:], shape))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 10]), [0, 0]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 299]), [38.7186583063, 144.5]))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 199, 10]), [-74.5, 19.9622148361], rtol=1e-6))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[0], 1))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape))
 
     def test_failed_from_transforms(self):
         shape = [200, 300]
