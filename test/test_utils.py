@@ -111,10 +111,10 @@ class TestValidityChecks(unittest.TestCase):
             get_valid_shape([5, 0])
         with self.assertRaises(ValueError):
             get_valid_shape([10., 10])
-        self.assertEqual(get_valid_shape([2, 3]), [1, 2, 3])
-        self.assertEqual(get_valid_shape([4, 2, 3]), [4, 2, 3])
-        self.assertEqual(get_valid_shape((2, 3)), [1, 2, 3])
-        self.assertEqual(get_valid_shape((4, 2, 3)), [4, 2, 3])
+        self.assertEqual(get_valid_shape([2, 3]), (1, 2, 3))
+        self.assertEqual(get_valid_shape([4, 2, 3]), (4, 2, 3))
+        self.assertEqual(get_valid_shape((2, 3)), (1, 2, 3))
+        self.assertEqual(get_valid_shape((4, 2, 3)), (4, 2, 3))
 
     def test_get_valid_ref(self):
         self.assertEqual(get_valid_ref(None), 't')

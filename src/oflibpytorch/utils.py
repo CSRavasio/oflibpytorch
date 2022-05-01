@@ -70,7 +70,7 @@ def get_valid_vecs(vecs: Any, desired_shape: Union[tuple, list] = None, error_st
     return vecs.float()
 
 
-def get_valid_shape(shape: Any) -> list:
+def get_valid_shape(shape: Any) -> tuple:
     if not isinstance(shape, (list, tuple)):
         raise TypeError("Error creating flow from matrix: Dims need to be a list or a tuple")
     if len(shape) != 2 and len(shape) != 3:
@@ -78,9 +78,9 @@ def get_valid_shape(shape: Any) -> list:
     if any((item <= 0 or not isinstance(item, int)) for item in shape):
         raise ValueError("Error creating flow from matrix: Dims need to be a list or a tuple of integers above zero")
     if len(shape) == 2:
-        return [1] + list(shape)
+        return (1,) + tuple(shape)
     else:
-        return list(shape)
+        return tuple(shape)
 
 
 def get_valid_ref(ref: Any) -> str:
@@ -132,7 +132,7 @@ def get_valid_mask(mask: Any, desired_shape: Union[tuple, list] = None, error_st
 
     # Check shape if necessary
     if desired_shape is not None:
-        if list(mask.shape) != get_valid_shape(desired_shape):
+        if mask.shape != get_valid_shape(desired_shape):
             raise ValueError(error_string + "Input shape does not match the desired shape")
 
     return mask.to(torch.bool)

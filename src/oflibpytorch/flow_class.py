@@ -227,14 +227,14 @@ class Flow(object):
         self._mask = self._mask.to(device)
 
     @property
-    def shape(self) -> list:
+    def shape(self) -> tuple:
         """Shape (resolution) :math:`(N, H, W)` of the flow, corresponding to the batch size (can be 1) and the
         flow field shape :math:`(H, W)`
 
         :return: Tuple of the shape (resolution) :math:`(N, H, W)` of the flow object
         """
 
-        return [self._vecs.shape[0]] + list(self._vecs.shape[2:])
+        return (self._vecs.shape[0],) + self._vecs.shape[2:]
 
     @classmethod
     def zero(
@@ -462,7 +462,7 @@ class Flow(object):
         if self.shape[0] != other_vecs.shape[0] and self.shape[0] != 1 and other_vecs.shape[0] != 1:
             # batch dimensions don't match, and neither of them is 1
             raise ValueError("Error adding to flow: Augend and addend batch dimensions don't match, and neither is 1")
-        if self.shape[1:] != list(other_vecs.shape[2:]):
+        if self.shape[1:] != other_vecs.shape[2:]:
             raise ValueError("Error adding to flow: Augend and addend flow objects are not the same shape")
         return Flow(
             self._vecs + other_vecs.to(self._device),
@@ -502,7 +502,7 @@ class Flow(object):
             # batch dimensions don't match, and neither of them is 1
             raise ValueError("Error subtracting from flow: "
                              "Minuend and subtrahend batch dimensions don't match, and neither is 1")
-        if self.shape[1:] != list(other_vecs.shape[2:]):
+        if self.shape[1:] != other_vecs.shape[2:]:
             raise ValueError("Error subtracting from flow: "
                              "Minuend and subtrahend flow objects are not the same shape")
         return Flow(
