@@ -644,7 +644,7 @@ class FlowTest(unittest.TestCase):
     def test_neg(self):
         vecs1 = np.random.rand(100, 200, 2)
         flow1 = Flow(vecs1)
-        self.assertIsNone(np.testing.assert_allclose((-flow1).vecs_numpy, -vecs1))
+        self.assertIsNone(np.testing.assert_allclose((-flow1).vecs_numpy[0], -vecs1))
 
     def test_resize(self):
         shape = [20, 10]
