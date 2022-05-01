@@ -548,25 +548,32 @@ def from_matrix(
     """Flow vectors calculated from a transformation matrix input
 
     :param matrix: Transformation matrix to be turned into a flow field, as numpy array or torch tensor of
-        shape :math:`(3, 3)`
+        shape :math:`(3, 3)` or :math:`(N, 3, 3)`
     :param shape: List or tuple of the shape :math:`(H, W)` of the flow field
     :param ref: Flow reference, string of value ``t`` ("target") or ``s`` ("source"). Defaults to ``t``
     :param matrix_is_inverse: Boolean determining whether the given matrix is already the inverse of the desired
         transformation. Is useful for flow with reference ``t`` to avoid calculation of the pseudo-inverse, but
         will throw a ``ValueError`` if used for flow with reference ``s`` to avoid accidental usage.
         Defaults to ``False``
-    :return: Flow vectors of shape :math:`(2, H, W)`
+    :return: Flow vectors of shape :math:`(N, 2, H, W)`
     """
 
     # Check shape validity
-    validate_shape(shape)
+    shape = get_valid_shape(shape)
+    if shape[0] != 1:
+        raise ValueError("Error creating flow from matrix: Given shape has batch dimension larger than 1")
     # Check matrix validity
     if not isinstance(matrix, (np.ndarray, torch.Tensor)):
         raise TypeError("Error creating flow from matrix: Matrix needs to be a numpy array or a torch tensor")
-    if matrix.shape != (3, 3):
-        raise ValueError("Error creating flow from matrix: Matrix needs to be of shape (3, 3)")
     if isinstance(matrix, np.ndarray):
         matrix = torch.tensor(matrix)
+    ndim = len(matrix.shape)
+    if ndim != 2 and ndim != 3:
+        raise ValueError("Error creating flow from matrix: Matrix has {} dimensions, should be 2 or 3".format(ndim))
+    if matrix.shape[-2:] != (3, 3):
+        raise ValueError("Error creating flow from matrix: Matrix needs to be of shape (3, 3)")
+    if len(matrix.shape) == 2:
+        matrix = matrix.unsqueeze(0)
     matrix = matrix.to(torch.float)
     # Get valid ref
     ref = get_valid_ref(ref)

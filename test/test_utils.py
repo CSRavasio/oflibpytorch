@@ -511,10 +511,11 @@ class TestFromMatrix(unittest.TestCase):
                            [0, 0, 1]])
         shape = [200, 300]
         flow = from_matrix(matrix, shape, 't')
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 50, 10]), [0, 0], atol=1e-4))
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 50, 299]), [38.7186583063, 144.5], rtol=1e-4))
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[:, 199, 10]), [-74.5, 19.9622148361], rtol=1e-4))
-        self.assertIsNone(np.testing.assert_equal(flow.shape[1:], shape))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 10]), [0, 0], atol=1e-4))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 299]), [38.7186583063, 144.5], rtol=1e-4))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 199, 10]), [-74.5, 19.9622148361], rtol=1e-4))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[0], 1))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape))
 
         # With and without inverse matrix for ref 't'
         matrix = np.array([[1, 0, 10], [0, 1, 20], [0, 0, 1]])
@@ -524,6 +525,8 @@ class TestFromMatrix(unittest.TestCase):
         self.assertIsNone(np.testing.assert_allclose(vecs, inv_vecs, rtol=1e-3))
 
     def test_failed_from_matrix(self):
+        with self.assertRaises(ValueError):  # Invalid shape size
+            from_matrix(torch.eye(3), [2, 10, 10], 't')
         with self.assertRaises(TypeError):  # Invalid matrix type
             from_matrix('test', [10, 10], 't')
         with self.assertRaises(ValueError):  # Invalid matrix shape
