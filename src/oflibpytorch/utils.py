@@ -366,6 +366,7 @@ def reverse_transform_values(transform_list: list) -> list:
             ['scaling', horizontal centre in px, vertical centre in px, scaling fraction]
     :return: List of reversed transforms
     """
+
     reversed_transform_list = []
     for value_list in transform_list:
         transform, values = value_list[0], value_list[1:]
@@ -390,6 +391,7 @@ def normalise_coords(coords: torch.Tensor, shape: Union[tuple, list]) -> torch.T
     :param shape: list of flow (or image) size [ver, hor]
     :return: Normalised coordinates
     """
+
     normalised_coords = coords.float() * 2
     normalised_coords[..., 0] /= (shape[1] - 1)  # points[..., 0] is x, which is horizontal, so shape[1]
     normalised_coords[..., 1] /= (shape[0] - 1)  # points[..., 1] is y, which is vertical, so shape[0]
