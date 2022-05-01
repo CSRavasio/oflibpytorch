@@ -281,30 +281,33 @@ def show_masked_image(img: Union[torch.Tensor, np.ndarray], mask: Union[torch.Te
     return bgr
 
 
-def flow_from_matrix(matrix: torch.Tensor, shape: Union[list, tuple]) -> torch.Tensor:
+def flow_from_matrix(matrix: torch.Tensor, shape: list) -> torch.Tensor:
     """Flow calculated from a transformation matrix
 
     NOTE: This corresponds to a flow with reference 's': based on meshgrid in image 1, warped to image 2, flow vectors
       at each meshgrid point in image 1 corresponding to (warped end points in image 2 - start points in image 1)
 
-    :param matrix: Transformation matrix, torch tensor of shape 3-3
-    :param shape: List or tuple [H, W] containing required size of the flow field
-    :return: Flow field according to cv2 standards, torch tensor 2-H-W
+    :param matrix: Transformation matrix, torch tensor of shape N-3-3
+    :param shape: List [N, H, W] containing required size of the flow field
+    :return: Flow field according to cv2 standards, torch tensor N-2-H-W
     """
 
     # Make default vector field and populate it with homogeneous coordinates
-    h, w = shape
+    n, h, w = shape
     device = matrix.device
-    ones = torch.ones(shape).to(device)
-    grid_x, grid_y = torch.meshgrid(torch.arange(0, h), torch.arange(0, w))
+    ones = torch.ones((h, w)).to(device)
+    grid_x, grid_y = torch.meshgrid(torch.arange(0, h), torch.arange(0, w), indexing='ij')
     default_vec_hom = torch.stack((grid_y.to(torch.float).to(device),
                                    grid_x.to(torch.float).to(device),
                                    ones), dim=-1)
+    # default_vec_hom = default_vec_hom.unsqueeze(0).repeat(n, 1, 1, 1)
 
     # Calculate the flow from the difference of the transformed default vectors, and the original default vector field
-    transformed_vec_hom = torch.matmul(matrix.to(torch.float), default_vec_hom.unsqueeze(-1)).squeeze(-1)
-    transformed_vec = transformed_vec_hom[..., 0:2] / transformed_vec_hom[..., 2:3]
-    transformed_vec = move_axis(transformed_vec - default_vec_hom[..., 0:2], -1, 0)
+    transformed_vec_hom = torch.matmul(matrix.to(torch.float).unsqueeze(1).unsqueeze(1),    # [N, 1, 1, 3, 3]
+                                       default_vec_hom.unsqueeze(-1))                       # [   H, W, 3, 1]
+    transformed_vec_hom = transformed_vec_hom.squeeze(-1)                                   # [N, H, W, 3]
+    transformed_vec = transformed_vec_hom[..., 0:2] / transformed_vec_hom[..., 2:3]         # [N, H, W, 2]
+    transformed_vec = move_axis(transformed_vec - default_vec_hom[..., 0:2], -1, 1)         # [N, 2, H, W]
     return transformed_vec
 
 
