@@ -273,7 +273,7 @@ class Flow(object):
         """Flow object constructor, based on transformation matrix input
 
         :param matrix: Transformation matrix to be turned into a flow field, as numpy array or torch tensor of
-            shape :math:`(3, 3)`
+            shape :math:`(3, 3)` or  :math:`(N, 3, 3)`
         :param shape: List or tuple of the shape :math:`(H, W)` of the flow field
         :param ref: Flow reference, string of value ``t`` ("target") or ``s`` ("source"). Defaults to ``t``
         :param mask: Numpy array or torch tensor of shape :math:`(H, W)` and type ``bool`` indicating where the flow
