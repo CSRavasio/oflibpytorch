@@ -24,12 +24,13 @@ DEFAULT_THRESHOLD = 1e-3
 
 
 def get_valid_vecs(vecs: Any, desired_shape: Union[tuple, list] = None, error_string: str = None) -> torch.Tensor:
-    """Checks array or tensor input for validity and returns 2-H-W tensor of dtype float for use as flow vectors
+    """Checks array or tensor input for validity and returns N-2-H-W tensor of dtype float for use as flow vectors
 
-    :param vecs: Valid if numpy array or torch tensor, either shape 2-H-W (assumed first) or H-W-2
-    :param desired_shape: List or tuple of (H, W) the input vecs should be compared about. Optional
+    :param vecs: Valid if numpy array or torch tensor, either shape (N-)2-H-W (assumed first) or (N-)H-W-2
+    :param desired_shape: List or tuple of ((N, )H, W) the input vecs should be compared about. If no batch dimension
+        is given, N is assumed to be 1. Optional
     :param error_string: Optional string to be added before the error message if input is invalid. Optional
-    :return: Tensor valid for flow vectors, shape 2-H-W, dtype float
+    :return: Tensor valid for flow vectors, shape N-2-H-W, dtype float
     """
 
     error_string = '' if error_string is None else error_string
@@ -37,28 +38,34 @@ def get_valid_vecs(vecs: Any, desired_shape: Union[tuple, list] = None, error_st
     # Check type and dimensions
     if not isinstance(vecs, (np.ndarray, torch.Tensor)):
         raise TypeError(error_string + "Input is not a numpy array or a torch tensor")
-    if len(vecs.shape) != 3:
-        raise ValueError(error_string + "Input is not 3-dimensional")
+    ndim = len(vecs.shape)
+    if ndim != 3 and ndim != 4:
+        raise ValueError(error_string + "Input has {} dimensions, should be 3 or 4".format(ndim))
 
     # Transform to tensor if necessary
     if isinstance(vecs, np.ndarray):
         vecs = torch.tensor(vecs, dtype=torch.float, device='cpu')
 
-    # Check channels, transpose if necessary
-    if vecs.shape[0] != 2:  # Check if input shape can be interpreted as 2-H-W
-        if vecs.shape[2] == 2:  # Input shape is H-W-2
-            vecs = move_axis(vecs, -1, 0)
-        else:  # Input shape is neither H-W-2 nor 2-H-W
-            raise ValueError(error_string + "Input needs to be shape H-W-2 or 2-H-W")
-
-    # Check shape if necessary
-    if desired_shape is not None:
-        if vecs.shape[1] != desired_shape[0] or vecs.shape[2] != desired_shape[1]:
-            raise ValueError(error_string + "Input shape H or W does not match the desired shape")
-
     # Check for invalid values
     if not torch.isfinite(vecs).all():
         raise ValueError(error_string + "Input contains NaN, Inf or -Inf values")
+
+    # Add dimension if necessary
+    if ndim == 3:
+        vecs = vecs.unsqueeze(0)
+
+    # Check channels, transpose if necessary
+    if vecs.shape[1] != 2:  # Check if input shape can be interpreted as N-2-H-W
+        if vecs.shape[3] == 2:  # Input shape is N-H-W-2
+            vecs = move_axis(vecs, -1, 1)
+        else:  # Input shape is neither N-H-W-2 nor N-2-H-W
+            raise ValueError(error_string + "Input needs to be shape (N-)H-W-2 or (N-)2-H-W")
+
+    # Check shape if necessary
+    if desired_shape is not None:
+        d = get_valid_shape(desired_shape)
+        if vecs.shape[0] != d[0] or vecs.shape[2] != d[1] or vecs.shape[3] != d[2]:
+            raise ValueError(error_string + "Input shape does not match the desired shape")
 
     return vecs.float()
 

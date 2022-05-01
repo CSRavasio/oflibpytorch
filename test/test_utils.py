@@ -51,26 +51,39 @@ class TestMoveAxis(unittest.TestCase):
 
 class TestValidityChecks(unittest.TestCase):
     def test_get_valid_vecs(self):
-        # Different valid vector inputs
-        vecs_np_2hw = np.zeros((2, 100, 200))
-        vecs_np_hw2 = np.zeros((100, 200, 2))
-        vecs_pt_2hw = torch.zeros((2, 100, 200))
-        vecs_pt_hw2 = torch.zeros((100, 200, 2))
-        for vecs in [vecs_np_2hw, vecs_np_hw2, vecs_pt_2hw, vecs_pt_hw2]:
-            self.assertIsInstance(get_valid_vecs(vecs), torch.Tensor)
-            self.assertIsNone(np.testing.assert_equal(to_numpy(get_valid_vecs(vecs)), vecs_np_2hw))
+        # Valid 3-dim vector inputs
+        np_12hw = np.zeros((1, 2, 100, 200))
+        np_2hw = np.zeros((2, 100, 200))
+        np_hw2 = np.zeros((100, 200, 2))
+        pt_2hw = torch.zeros((2, 100, 200))
+        pt_hw2 = torch.zeros((100, 200, 2))
+        for vecs in [np_2hw, np_hw2, pt_2hw, pt_hw2]:
+            for desired_shape in [[100, 200], [1, 100, 200]]:
+                self.assertIsInstance(get_valid_vecs(vecs, desired_shape), torch.Tensor)
+                self.assertIsNone(np.testing.assert_equal(to_numpy(get_valid_vecs(vecs, desired_shape)), np_12hw))
+            for desired_shape in [[110, 200], [5, 100, 200]]:
+                with self.assertRaises(ValueError):
+                    get_valid_vecs(vecs, desired_shape)
+
+        # Valid 4-dim vector inputs
+        np_n2hw = np.zeros((5, 2, 100, 200))
+        np_nhw2 = np.zeros((5, 100, 200, 2))
+        pt_n2hw = torch.zeros((5, 2, 100, 200))
+        pt_nhw2 = torch.zeros((5, 100, 200, 2))
+        for vecs in [np_n2hw, np_nhw2, pt_n2hw, pt_nhw2]:
+            self.assertIsInstance(get_valid_vecs(vecs, [5, 100, 200]), torch.Tensor)
+            self.assertIsNone(np.testing.assert_equal(to_numpy(get_valid_vecs(vecs, [5, 100, 200])), np_n2hw))
+            for desired_shape in [[110, 200], [100, 200], [1, 100, 200]]:
+                with self.assertRaises(ValueError):
+                    get_valid_vecs(vecs, desired_shape)
 
         # Wrong vector type or shape
         with self.assertRaises(TypeError):
             get_valid_vecs('test')
         with self.assertRaises(ValueError):
-            get_valid_vecs(np.zeros((2, 100, 200, 1)))
-        with self.assertRaises(ValueError):
             get_valid_vecs(torch.ones(2, 100, 200, 1))
         with self.assertRaises(ValueError):
             get_valid_vecs(np.zeros((3, 100, 200)))
-        with self.assertRaises(ValueError):
-            get_valid_vecs(torch.ones(3, 100, 200))
         with self.assertRaises(ValueError):
             get_valid_vecs(torch.ones(2, 100, 200), desired_shape=(110, 200))
 
