@@ -428,9 +428,10 @@ class Flow(object):
         :return: New flow object cut as a corresponding torch tensor would be cut
         """
 
-        vecs = move_axis(move_axis(self._vecs, 0, -1).__getitem__(item), -1, 0)
-        # Above line is to avoid having to parse item properly to deal with first dim of 2: move this dim to the back
-        return Flow(vecs, self._ref, self._mask.__getitem__(item), self._device)
+        vecs = self._vecs.permute(2, 3, 0, 1).__getitem__(item).permute(2, 3, 0, 1)
+        mask = self._mask.permute(1, 2, 0).__getitem__(item).permute(2, 0, 1)
+        # Above line is to avoid having to parse item properly to deal with the first two dims by moving them to back
+        return Flow(vecs, self._ref, mask, self._device)
 
     def __add__(self, other: Union[np.ndarray, torch.Tensor, FlowAlias]) -> FlowAlias:
         """Adds a flow object, a numpy array, or a torch tensor to a flow object

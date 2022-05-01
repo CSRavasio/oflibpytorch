@@ -281,12 +281,12 @@ class FlowTest(unittest.TestCase):
         indices = np.random.randint(0, 150, size=(20, 2))
         for i in indices:
             # Cutting a number of elements
-            self.assertIsNone(np.testing.assert_allclose(flow[i].vecs_numpy, vectors[i]))
+            self.assertIsNone(np.testing.assert_allclose(flow[i].vecs_numpy[0], vectors[i]))
             # Cutting a specific item
-            self.assertIsNone(np.testing.assert_allclose(flow[i[0]:i[0] + 1, i[1]:i[1] + 1].vecs_numpy,
+            self.assertIsNone(np.testing.assert_allclose(flow[i[0]:i[0] + 1, i[1]:i[1] + 1].vecs_numpy[0],
                                                          vectors[i[0]:i[0] + 1, i[1]:i[1] + 1]))
             # Cutting an area
-            self.assertIsNone(np.testing.assert_allclose(flow[i[0]:i[0] + 40, i[1]:i[1] + 40].vecs_numpy,
+            self.assertIsNone(np.testing.assert_allclose(flow[i[0]:i[0] + 40, i[1]:i[1] + 40].vecs_numpy[0],
                                                          vectors[i[0]:i[0] + 40, i[1]:i[1] + 40]))
         # Make sure the device hasn't changed
         for device in ['cpu', 'cuda']:
