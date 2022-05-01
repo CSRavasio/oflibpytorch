@@ -567,7 +567,8 @@ class Flow(object):
             - can be converted to a float
             - a list of shape :math:`(2)`
             - a numpy array or torch tensor of the same shape :math:`(H, W)` as the flow object
-            - a numpy array or torch tensor of the same shape :math:`(H, W, 2)` as the flow vectors
+            - a numpy array or torch tensor of the same shape :math:`(H, W, 2)` or :math:`(2, H, W)` as the flow object
+            - a numpy array or torch tensor of the same shape :math:`(N, 2, H, W)` as the flow object
         :return: New flow object corresponding to the quotient
         """
 
@@ -581,19 +582,26 @@ class Flow(object):
             elif isinstance(other, np.ndarray):
                 other = torch.tensor(other)
             if isinstance(other, torch.Tensor):
-                if other.dim() == 1 and other.shape[0] == 2:  # shape 2 to 2-1-1
-                    other = other.unsqueeze(-1).unsqueeze(-1)
-                elif other.dim() == 2 and other.shape == self.shape:  # shape H-W to 2-H-W
+                if other.dim() == 1 and other.shape[0] == 2:  # shape 2 to 1-2-1-1
+                    other = other.unsqueeze(-1).unsqueeze(-1).unsqueeze(0)
+                elif other.dim() == 2 and other.shape == self.shape[1:]:  # shape H-W to 1-2-H-W
+                    other = other.unsqueeze(0).unsqueeze(0)
+                elif other.dim() == 3 and other.shape == (2,) + self.shape[1:]:  # shape 2-H-W to 1-2-H-W
                     other = other.unsqueeze(0)
-                elif other.dim() == 3 and other.shape == (2,) + self.shape:  # shape 2-H-W: all OK
-                    pass
-                elif other.dim() == 3 and other.shape == self.shape + (2,):  # shape H-W-2 to 2-H-W
-                    other = move_axis(other, -1, 0)
+                elif other.dim() == 3 and other.shape == self.shape[1:] + (2,):  # shape H-W-2 to 1-2-H-W
+                    other = move_axis(other, -1, 0).unsqueeze(0)
+                elif other.dim() == 4 and other.shape[2:] == self.shape[1:] and other.shape[1] == 2 and \
+                        (self.shape[0] == 1 or other.shape[0] == 1 or self.shape[0] == other.shape[0]):
+                    pass  # shape N-2-H-W or 1-2-H-W or M-2-H-W (but self is 1-2-H-W)
                 else:
-                    raise ValueError("Error dividing flow: Divisor array or tensor needs to be of size 2, of the "
-                                     "shape of the flow object (H-W), or either 2-H-W or H-W-2")
+                    raise ValueError("Error dividing flow: Divisor array or tensor needs to be of size 2, of "
+                                     "the shape of the flow object (H-W), or 2-H-W or H-W-2, or N-2-H-W")
                 other = other.to(self._device)
-                return Flow(self._vecs / other, self._ref, self._mask, self._device)
+                v = self._vecs / other
+                if v.shape[0] != self.shape[0]:  # batch dim is being changed by other
+                    return Flow(v, self._ref, self._mask.repeat(v.shape[0], 1, 1), self._device)
+                else:
+                    return Flow(v, self._ref, self._mask, self._device)
             else:
                 raise TypeError("Error dividing flow: Divisor cannot be converted to float, "
                                 "or isn't a list, numpy array, or torch tensor")

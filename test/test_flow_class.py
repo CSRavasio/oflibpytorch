@@ -492,9 +492,11 @@ class FlowTest(unittest.TestCase):
         # ... using ints and floats
         for i, f in zip(ints, floats):
             if i < -1e-5 or i > 1e-5:
-                self.assertIsNone(np.testing.assert_allclose((flow1 / i).vecs_numpy, vecs1 / i, rtol=1e-6, atol=1e-6))
+                self.assertIsNone(np.testing.assert_allclose((flow1 / i).vecs_numpy[0],
+                                                             vecs1 / i, rtol=1e-6, atol=1e-6))
             if f < -1e-5 or f > 1e-5:
-                self.assertIsNone(np.testing.assert_allclose((flow1 / f).vecs_numpy, vecs1 / f, rtol=1e-6, atol=1e-6))
+                self.assertIsNone(np.testing.assert_allclose((flow1 / f).vecs_numpy[0],
+                                                             vecs1 / f, rtol=1e-6, atol=1e-6))
         # ... using a list of length 2
         int_list = np.random.randint(-10, 10, (100, 2))
         for li in int_list:
@@ -502,7 +504,7 @@ class FlowTest(unittest.TestCase):
                 v = vecs1.astype('f')
                 v[..., 0] /= li[0]
                 v[..., 1] /= li[1]
-                self.assertIsNone(np.testing.assert_allclose((flow1 / list(li)).vecs_numpy, v, rtol=1e-6, atol=1e-6))
+                self.assertIsNone(np.testing.assert_allclose((flow1 / list(li)).vecs_numpy[0], v, rtol=1e-6, atol=1e-6))
         # ... using a numpy array of size 2
         int_list = np.random.randint(-10, 10, (100, 2))
         for li in int_list:
@@ -510,7 +512,7 @@ class FlowTest(unittest.TestCase):
                 v = vecs1.astype('f')
                 v[..., 0] /= li[0]
                 v[..., 1] /= li[1]
-                self.assertIsNone(np.testing.assert_allclose((flow1 / li).vecs_numpy, v, rtol=1e-6, atol=1e-6))
+                self.assertIsNone(np.testing.assert_allclose((flow1 / li).vecs_numpy[0], v, rtol=1e-6, atol=1e-6))
         # ... using a numpy array and torch tensor of the same shape as the flow
         vecs2_pt_hw2 = torch.rand(100, 200, 2) + .5
         vecs_list = [vecs2, vecs2_pt_hw2]
@@ -521,7 +523,7 @@ class FlowTest(unittest.TestCase):
                 v = to_numpy(vecs)
             else:
                 v = vecs
-            self.assertIsNone(np.testing.assert_allclose((flow1 / vecs[..., 0]).vecs_numpy, vecs1 / v[..., :1],
+            self.assertIsNone(np.testing.assert_allclose((flow1 / vecs[..., 0]).vecs_numpy[0], vecs1 / v[..., :1],
                                                          rtol=1e-6, atol=1e-6))
             self.assertEqual((flow1 / vecs[..., 0]).device, flow1.vecs.device)
             self.assertEqual((flow1 / vecs[..., 0]).device, flow1.mask.device)
@@ -540,10 +542,19 @@ class FlowTest(unittest.TestCase):
                 v = vecs
             if v.shape[0] == 2:
                 v = np.moveaxis(v, 0, -1)
-            self.assertIsNone(np.testing.assert_allclose((flow1 / vecs).vecs_numpy, vecs1 / v,
+            self.assertIsNone(np.testing.assert_allclose((flow1 / vecs).vecs_numpy[0], vecs1 / v,
                                                          rtol=1e-6, atol=1e-6))
             self.assertEqual((flow1 / vecs).device, flow1.vecs.device)
             self.assertEqual((flow1 / vecs).device, flow1.mask.device)
+        # ... using torch tensors of the same, and different, batch dimension
+        v1 = np.random.rand(1, 100, 200, 2)
+        v2 = np.random.rand(3, 100, 200, 2)
+        v3 = np.random.rand(5, 100, 200, 2)
+        f2 = Flow(v2)
+        self.assertIsNone(np.testing.assert_allclose((f2 / np.moveaxis(v1, -1, 1)).vecs_numpy, v2 / v1,
+                                                     rtol=1e-6, atol=1e-6))
+        self.assertIsNone(np.testing.assert_allclose((flow1 / np.moveaxis(v3, -1, 1)).vecs_numpy, vecs1 / v3,
+                                                     rtol=1e-6, atol=1e-6))
         # ... using a list of the wrong length
         with self.assertRaises(ValueError):
             flow1 / [1, 2, 3]
@@ -562,6 +573,8 @@ class FlowTest(unittest.TestCase):
         # ... using a numpy array of the wrong shape
         with self.assertRaises(ValueError):
             flow1 / np.ones((200, 200, 2, 1))
+        with self.assertRaises(ValueError):
+            f2 * np.random.rand(6, 2, 100, 200)
 
     def test_pow(self):
         vecs1 = np.random.rand(100, 200, 2)
