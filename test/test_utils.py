@@ -657,30 +657,34 @@ class TestResizeFlow(unittest.TestCase):
         shape = [20, 10]
         ref = 's'
         flow = Flow.from_transforms([['rotation', 30, 50, 30]], shape, ref).vecs
-        # Different scales
-        scales = [.2, .5, 1, 1.5, 2, 10]
-        for scale in scales:
-            resized_flow = resize_flow(flow, scale)
-            resized_shape = scale * np.array(shape)
-            self.assertIsNone(np.testing.assert_equal(resized_flow.shape[1:], resized_shape))
-            self.assertIsNone(np.testing.assert_allclose(to_numpy(resized_flow[:, 0, 0]),
-                                                         to_numpy(flow[:, 0, 0]) * scale, rtol=.1))
+        for f in [flow, flow.squeeze(0)]:
+            # Different scales
+            scales = [.2, .5, 1, 1.5, 2, 10]
+            for scale in scales:
+                resized_flow = resize_flow(f, scale)
+                resized_shape = scale * np.array(f.shape[-2:])
+                self.assertIsNone(np.testing.assert_equal(resized_flow.shape[-2:], resized_shape))
+                self.assertIsNone(np.testing.assert_allclose(to_numpy(resized_flow[..., 0, 0]),
+                                                             to_numpy(f[..., 0, 0]) * scale, rtol=.1))
+                self.assertEqual(len(f.shape), len(resized_flow.shape))
 
-        # Scale list
-        scale = [.5, 2]
-        resized_flow = resize_flow(flow, scale)
-        resized_shape = np.array(scale) * np.array(shape)
-        self.assertIsNone(np.testing.assert_equal(resized_flow.shape[1:], resized_shape))
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(resized_flow[:, 0, 0]),
-                                                     to_numpy(flow[:, 0, 0]) * np.array(scale)[::-1], rtol=.1))
+            # Scale list
+            scale = [.5, 2]
+            resized_flow = resize_flow(f, scale)
+            resized_shape = np.array(scale) * np.array(f.shape[-2:])
+            self.assertIsNone(np.testing.assert_equal(resized_flow.shape[-2:], resized_shape))
+            self.assertIsNone(np.testing.assert_allclose(to_numpy(resized_flow[..., 0, 0]),
+                                                         to_numpy(f[..., 0, 0]) * np.array(scale)[::-1], rtol=.1))
+            self.assertEqual(len(f.shape), len(resized_flow.shape))
 
-        # Scale tuple
-        scale = (2, .5)
-        resized_flow = resize_flow(flow, scale)
-        resized_shape = np.array(scale) * np.array(shape)
-        self.assertIsNone(np.testing.assert_equal(resized_flow.shape[1:], resized_shape))
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(resized_flow[:, 0, 0]),
-                                                     to_numpy(flow[:, 0, 0]) * np.array(scale)[::-1], rtol=.1))
+            # Scale tuple
+            scale = (2, .5)
+            resized_flow = resize_flow(f, scale)
+            resized_shape = np.array(scale) * np.array(f.shape[-2:])
+            self.assertIsNone(np.testing.assert_equal(resized_flow.shape[-2:], resized_shape))
+            self.assertIsNone(np.testing.assert_allclose(to_numpy(resized_flow[..., 0, 0]),
+                                                         to_numpy(f[..., 0, 0]) * np.array(scale)[::-1], rtol=.1))
+            self.assertEqual(len(f.shape), len(resized_flow.shape))
 
     def test_resize_on_fields(self):
         # Check scaling is performed correctly based on the actual flow field

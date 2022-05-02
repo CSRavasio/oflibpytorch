@@ -761,16 +761,17 @@ def load_sintel_mask(path: str) -> torch.Tensor:
 def resize_flow(flow: Union[np.ndarray, torch.Tensor], scale: Union[float, int, list, tuple]) -> torch.Tensor:
     """Resize a flow field numpy array or torch tensor, scaling the flow vectors values accordingly
 
-    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)`, :math:`(H, W, 2)`,
+        :math:`(N, 2, H, W)`, or :math:`(N, H, W, 2)`
     :param scale: Scale used for resizing, options:
 
         - Integer or float of value ``scaling`` applied both vertically and horizontally
         - List or tuple of shape :math:`(2)` with values ``[vertical scaling, horizontal scaling]``
-    :return: Scaled flow field as a torch tensor, shape :math:`(2, H, W)`
+    :return: Scaled flow field as a torch tensor, shape :math:`(2, H, W)` or :math:`(N, 2, H, W)`, depending on input
     """
 
     # Check validity
-    flow = get_valid_vecs(flow, error_string="Error resizing flow: ")
+    valid_flow = get_valid_vecs(flow, error_string="Error resizing flow: ")
     if isinstance(scale, (float, int)):
         scale = [scale, scale]
     elif isinstance(scale, (tuple, list)):
@@ -785,9 +786,13 @@ def resize_flow(flow: Union[np.ndarray, torch.Tensor], scale: Union[float, int, 
         raise ValueError("Error resizing flow: Scale values must be larger than 0")
 
     # Resize and adjust values
-    resized = f.interpolate(flow.unsqueeze(0), scale_factor=scale, mode='bilinear').squeeze(0)
-    resized[0] *= scale[1]
-    resized[1] *= scale[0]
+    resized = f.interpolate(valid_flow, scale_factor=scale, mode='bilinear')
+    resized[:, 0] *= scale[1]
+    resized[:, 1] *= scale[0]
+
+    # Get rid of first dim if input was only 3-dimensional
+    if len(flow.shape) == 3:
+        resized = resized.squeeze(0)
 
     return resized
 
