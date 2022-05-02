@@ -411,12 +411,13 @@ def apply_flow(
     """Uses a given flow to warp a target. The flow reference, if not given, is assumed to be ``t``. Optionally, a mask
     can be passed which (only for flows in ``s`` reference) masks undesired (e.g. undefined or invalid) flow vectors.
 
-    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
-    :param target: Torch tensor containing the content to be warped, with shape :math:`(H, W)`, :math:`(H, W, C)`, or
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)`, :math:`(H, W, 2)`,
+        :math:`(N, 2, H, W)`, or :math:`(N, H, W, 2)`
+    :param target: Torch tensor containing the content to be warped, with shape :math:`(H, W)`, :math:`(C, H, W)`, or
         :math:`(N, C, H, W)`
     :param ref: Reference of the flow, ``t`` or ``s``
-    :param mask: Flow mask as numpy array or torch tensor, with shape :math:`(H, W)`. Only relevant for ``s``
-        flows. Defaults to ``True`` everywhere
+    :param mask: Flow mask as numpy array or torch tensor, with shape :math:`(H, W)` or :math:`(N, H, W)`, matching
+        the flow field. Only relevant for ``s`` flows. Defaults to ``True`` everywhere
     :return: Torch tensor of the same shape as the target, with the content warped by the flow
     """
 
@@ -429,14 +430,14 @@ def apply_flow(
         raise TypeError("Error applying flow to a target: Target needs to be a torch tensor")
     if len(target.shape) not in [2, 3, 4]:
         raise ValueError("Error applying flow to a target: Target tensor needs to have shape H-W, C-H-W, or N-C-H-W")
-    if target.shape[-2:] != flow.shape[1:]:
+    if target.shape[-2:] != flow.shape[-2:]:
         raise ValueError("Error applying flow to a target: Target height and width needs to match flow field array")
     if mask is not None:
         mask = get_valid_mask(mask, desired_shape=flow.shape[1:])
 
     # Set up
     device = flow.device
-    h, w = flow.shape[1:]
+    h, w = flow.shape[-2:]
 
     # Prepare target dtype, device, and shape
     target_dtype = target.dtype
@@ -449,14 +450,27 @@ def apply_flow(
     elif target_dims == 3:  # shape C-H-W to 1-C-H-W
         target = target.unsqueeze(0)
 
+    # Determine and check batch dimensions
+    if target.shape[0] != flow.shape[0] and target.shape[0] != 1 and flow.shape[0] != 1:
+        # batch sizes don't match and are not broadcastable
+        raise ValueError("Error applying flow to target: Batch dimensions for flow ({}) and target ({}) don't match"
+                         .format(flow.shape[0], target.shape[0]))
+    else:
+        if target.shape[0] < flow.shape[0]:  # target batch dim smaller than flow, means it is 1, needs to be repeated
+            target = target.repeat(flow.shape[0], 1, 1, 1)
+        elif flow.shape[0] < target.shape[0]:  # flow batch dim smaller than target, means it is 1, needs to be repeated
+            flow = flow.repeat(target.shape[0], 1, 1, 1)
+        # Now batch dims either N and 1->N, 1->N and N, 1 and 1, or N and N
+
+    # Get flow in shape needed
+    flow = flow.permute(0, 2, 3, 1)  # N-2-H-W to N-H-W-2
+
     # Warp target
     if ref == 't':
         # Prepare grid
-        grid_x, grid_y = torch.meshgrid(torch.arange(0, h), torch.arange(0, w))
+        grid_x, grid_y = torch.meshgrid(torch.arange(0, h), torch.arange(0, w), indexing='ij')
         grid = torch.stack((grid_y, grid_x), dim=-1).to(torch.float).to(device)
-        field = normalise_coords(grid.unsqueeze(0) - flow.unsqueeze(-1).transpose(-1, 0), (h, w))
-        if target.shape[0] > 1:  # target wasn't just unsqueezed, but has a true N dimension
-            field = field.repeat(target.shape[0], 1, 1, 1)
+        field = normalise_coords(grid.unsqueeze(0) - flow, (h, w))
         torch_version = globals()['torch'].__version__
         if int(torch_version[0]) == 1 and float(torch_version[2:4]) <= 3:
             result = f.grid_sample(target, field)
@@ -483,11 +497,11 @@ def apply_flow(
         #        y
     else:  # ref == 's'
         # Get the positions of the unstructured points with known values
-        field = to_numpy(flow, True).astype('float32')
-        x, y = np.mgrid[:field.shape[0], :field.shape[1]]
+        field = to_numpy(flow).astype('float32')
+        flow_flat = np.reshape(field[..., ::-1], (field.shape[0], -1, 2))  # Shape N-H*W-2
+        x, y = np.mgrid[:h, :w]
         positions = np.swapaxes(np.vstack([x.ravel(), y.ravel()]), 0, 1)
-        flow_flat = np.reshape(field[..., ::-1], (-1, 2))  # Shape H*W-2
-        pos = positions + flow_flat
+        pos = positions + flow_flat  # N-H*W-2
         # Get the known values themselves
         target_np = np.moveaxis(to_numpy(target), 1, -1)                                # from N-C-H-W to N-H-W-C
         target_flat = np.reshape(target_np, (target.shape[0], -1, target.shape[1]))     # from N-H-W-C to N-H*W-C
@@ -497,17 +511,21 @@ def apply_flow(
             target_flat = target_flat[:, to_numpy(mask.flatten())]
         # Perform interpolation of regular grid from unstructured data
         results = np.copy(target_np)
-        for i in range(target_flat.shape[0]):  # Perform griddata for each "batch" member
-            result = griddata(pos, target_flat[i], (x, y), method='linear')
+        for i in range(target_flat.shape[0]):  # Perform griddata for each batch member
+            result = griddata(pos[i], target_flat[i], (x, y), method='linear')
             results[i] = np.nan_to_num(result)
         # Make sure the output is returned with the same dtype as the input, if necessary rounded
         result = torch.tensor(np.moveaxis(results, -1, 1)).to(flow.device)
 
-    # Reduce target to original shape
-    if target_dims == 2:  # shape 1-1-H-W to H-W
-        result = result.squeeze(0).squeeze(0)
-    elif target_dims == 3:  # shape 1-C-H-W to C-H-W
-        result = result.squeeze(0)
+    # Reduce target to original shape, as far as possible
+    if result.shape[0] == 1:
+        if target_dims == 2:  # shape 1-1-H-W to H-W
+            result = result.squeeze(0).squeeze(0)
+        elif target_dims == 3:  # shape 1-C-H-W to C-H-W
+            result = result.squeeze(0)
+    else:
+        if target_dims == 2:  # shape N-1-H-W to N-H-W
+            result = result.squeeze(1)
 
     # Return target with original dtype, rounding if necessary
     # noinspection PyUnresolvedReferences

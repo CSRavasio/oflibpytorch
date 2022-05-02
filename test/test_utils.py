@@ -453,18 +453,31 @@ class TestApplyFlow(unittest.TestCase):
                 self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img[:-20, 10:]),
                                                           to_numpy(img[20:, :-10])))
 
-    def test_4d_target(self):
+    def test_batch_sizes(self):
         img = cv2.imread('smudge.png')
         img = cv2.resize(img, None, fx=1, fy=.5)
-        img = np.moveaxis(img, -1, 0)
-        imgs = torch.tensor(np.repeat(img, 4, axis=0))
-        for dev in ['cpu', 'cuda']:
-            for ref in ['s', 't']:
-                flow = Flow.from_transforms([['translation', 10, -20]], imgs.shape[-2:], ref).vecs
-                warped_imgs = apply_flow(flow.to(dev), imgs, ref)
-                for warped_img, img in zip(warped_imgs, imgs):
-                    self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img[:-20, 10:]),
-                                                              to_numpy(img[20:, :-10])))
+        i_chw = torch.tensor(np.moveaxis(img, -1, 0))
+        i_hw = torch.tensor(np.moveaxis(img, -1, 0))[0]
+        i_1chw = i_chw.unsqueeze(0)
+        i_11hw = i_1chw[:, 0:1]
+        i_nchw = i_1chw.repeat(4, 1, 1, 1)
+        i_n1hw = i_11hw.repeat(4, 1, 1, 1)
+        for ref in ['s', 't']:
+            for f in [
+                Flow.from_transforms([['translation', 10, -20]], img.shape[:2], ref).vecs,
+                Flow.from_transforms([['translation', 10, -20]], img.shape[:2], ref).vecs.repeat(4, 1, 1, 1),
+            ]:
+                for i in [i_1chw, i_11hw, i_nchw, i_n1hw]:
+                    warped_i = apply_flow(f, i, ref)
+                    self.assertEqual(warped_i.shape[0], max(f.shape[0], i.shape[0]))
+                    for w_ind, i_ind in zip(warped_i, i):
+                        self.assertIsNone(np.testing.assert_equal(to_numpy(w_ind[:-20, 10:]),
+                                                                  to_numpy(i_ind[20:, :-10])))
+        f = Flow.from_transforms([['translation', 10, -20]], img.shape[:2], 't').vecs.repeat(4, 1, 1, 1)
+        warped_i = apply_flow(f, i_hw, 't')
+        self.assertEqual(warped_i.shape, (4, i_hw.shape[0], i_hw.shape[1]))
+        warped_i = apply_flow(f, i_chw, 't')
+        self.assertEqual(warped_i.shape, (4, 3, i_hw.shape[0], i_hw.shape[1]))
 
     def test_apply_flow_failed(self):
         flow = Flow.from_transforms([['translation', 2, 0]], (10, 10)).vecs
@@ -480,6 +493,8 @@ class TestApplyFlow(unittest.TestCase):
             apply_flow(flow, target=torch.zeros((1, 11, 10)), ref='t')
         with self.assertRaises(ValueError):  # target torch tensor shape does not match flow shape
             apply_flow(flow, target=torch.zeros((1, 1, 11, 10)), ref='t')
+        with self.assertRaises(ValueError):  # target torch tensor batch size does not match flow batch size
+            apply_flow(flow=torch.zeros((3, 1, 11, 10)), target=torch.zeros((2, 1, 11, 10)), ref='t')
 
 
 class TestThresholdVectors(unittest.TestCase):
