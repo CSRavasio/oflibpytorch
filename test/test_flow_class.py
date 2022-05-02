@@ -19,6 +19,7 @@ import math
 import sys
 sys.path.append('..')
 from src.oflibpytorch.flow_class import Flow
+from src.oflibpytorch.flow_operations import batch_flows
 from src.oflibpytorch.utils import to_numpy, apply_flow, matrix_from_transforms, resize_flow
 
 
@@ -726,7 +727,7 @@ class FlowTest(unittest.TestCase):
             flow.pad([10, 10, 20, 20], mode='test')
 
     def test_apply(self):
-        img_np = np.moveaxis(cv2.imread('smudge.png'), -1, 0)
+        img_np = np.moveaxis(cv2.resize(cv2.imread('smudge.png'), None, fx=.25, fy=.25), -1, 0)
         img_pt = torch.tensor(img_np)
         # Check flow.apply results in the same as using apply_flow directly
         for ref in ['t', 's']:
@@ -763,41 +764,76 @@ class FlowTest(unittest.TestCase):
                         self.assertIsNone(np.testing.assert_equal(to_numpy(warped_flow_actual.vecs),
                                                                   to_numpy(warped_flow_desired)))
         # Check using a smaller flow field on a larger target works the same as a full flow field on the same target
-        img = img_pt
+        img = img_pt.to(torch.float)
         ref = 't'
         flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref)
         warped_img_desired = apply_flow(flow.vecs, img, ref)
         shape = [img.shape[1] - 90, img.shape[2] - 110]
         padding = [50, 40, 30, 80]
         cut_flow = Flow.from_transforms([['rotation', 0, 0, 30]], shape, ref)
-        # # ... not cutting (target torch tensor)
-        # warped_img_actual = cut_flow.apply(img, padding=padding, cut=False)
-        # self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual[padding[0]:-padding[1],
-        #                                                    padding[2]:-padding[3]]),
-        #                                           to_numpy(warped_img_desired[padding[0]:-padding[1],
-        #                                                    padding[2]:-padding[3]])))
+        # ... not cutting (target torch tensor)
+        warped_img_actual = cut_flow.apply(img, padding=padding, cut=False)
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img_actual[:, padding[0]:-padding[1],
+                                                              padding[2]:-padding[3]]),
+                                                     to_numpy(warped_img_desired[:, padding[0]:-padding[1],
+                                                              padding[2]:-padding[3]]),
+                                                     atol=1e-3))
         # ... cutting (target torch tensor)
         warped_img_actual = cut_flow.apply(img, padding=padding, cut=True)
         self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img_actual).astype('f'),
                                                      to_numpy(warped_img_desired[:, padding[0]:-padding[1],
                                                               padding[2]:-padding[3]]).astype('f'),
-                                                     atol=1))  # result rounded (uint8), so errors can be 1
+                                                     atol=1e-3))
         # ... not cutting (target flow object)
         target_flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref)
         warped_flow_desired = apply_flow(flow.vecs, target_flow.vecs, ref)
         warped_flow_actual = cut_flow.apply(target_flow, padding=padding, cut=False)
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_flow_actual.vecs[:, padding[0]:-padding[1],
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_flow_actual.vecs[:, :, padding[0]:-padding[1],
                                                               padding[2]:-padding[3]]),
-                                                     to_numpy(warped_flow_desired[:, padding[0]:-padding[1],
+                                                     to_numpy(warped_flow_desired[:, :, padding[0]:-padding[1],
                                                               padding[2]:-padding[3]]),
                                                      atol=1e-1))
         # ... cutting (target flow object)
         warped_flow_actual = cut_flow.apply(target_flow, padding=padding, cut=True)
         self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_flow_actual.vecs),
-                                                     to_numpy(warped_flow_desired[:, padding[0]:-padding[1],
+                                                     to_numpy(warped_flow_desired[:, :, padding[0]:-padding[1],
                                                               padding[2]:-padding[3]]),
                                                      atol=1e-1))
+        # All combinations of differing batch sizes
+        i_shape = img_pt.shape[-2:]
+        i_chw = img_pt
+        i_hw = img_pt[0]
+        i_1chw = i_chw.unsqueeze(0)
+        i_11hw = i_1chw[:, 0:1]
+        i_nchw = i_1chw.repeat(4, 1, 1, 1)
+        i_n1hw = i_11hw.repeat(4, 1, 1, 1)
+        for ref in ['s', 't']:
+            flows = [
+                Flow.from_transforms([['translation', 10, -20]], i_shape, ref),
+                batch_flows(tuple(Flow.from_transforms([['translation', 10, -20]], i_shape, ref) for _ in range(4))),
+            ]
+            for f in flows:
+                for i in [i_1chw, i_11hw, i_nchw, i_n1hw]:
+                    for consider_mask in [True, False]:
+                        warped_i = f.apply(i, consider_mask=consider_mask)
+                        self.assertEqual(warped_i.shape[0], max(f.shape[0], i.shape[0]))
+                        for w_ind, i_ind in zip(warped_i, i):
+                            self.assertIsNone(np.testing.assert_equal(to_numpy(w_ind[:-20, 10:]),
+                                                                      to_numpy(i_ind[20:, :-10])))
+                for f2 in flows:
+                    for consider_mask in [True, False]:
+                        warped_f2 = f.apply(f2, consider_mask=consider_mask)
+                        self.assertEqual(warped_f2.shape[0], max(f.shape[0], f2.shape[0]))
+                        v = warped_f2.vecs_numpy
+                        for v_ind in v:
+                            self.assertIsNone(np.testing.assert_equal(v_ind[:, :-20, 10:],
+                                                                      f2.vecs_numpy[0, :, 20:, :-10]))
 
+        f = Flow.from_transforms([['translation', 10, -20]], i_shape, 't').vecs.repeat(4, 1, 1, 1)
+        warped_i = apply_flow(f, i_hw, 't')
+        self.assertEqual(warped_i.shape, (4, i_hw.shape[0], i_hw.shape[1]))
+        warped_i = apply_flow(f, i_chw, 't')
+        self.assertEqual(warped_i.shape, (4, 3, i_hw.shape[0], i_hw.shape[1]))
         # Non-valid padding values
         for ref in ['t', 's']:
             flow = Flow.from_transforms([['rotation', 0, 0, 30]], shape, ref)

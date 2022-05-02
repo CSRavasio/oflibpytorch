@@ -735,11 +735,11 @@ class Flow(object):
             :meth:`~oflibpytorch.Flow.valid_target` is not a convex hull. For a more detailed explanation with an
             illustrative example, see the section ":ref:`Applying a Flow`" in the usage documentation.
 
-        :param target: Torch tensor of shape :math:`(H, W)` or :math:`(H, W, C)`, or a flow object of shape
-            :math:`(H, W)` to which the flow should be applied, where :math:`H` and :math:`W` are equal or larger
-            than the corresponding dimensions of the flow itself
+        :param target: Torch tensor of shape :math:`(H, W)`, :math:`(C, H, W)`, or :math:`(N, C, H, W)`, or a flow
+            object of shape :math:`(H, W)` to which the flow should be applied, where :math:`H` and :math:`W` are
+            equal or larger than the corresponding dimensions of the flow itself
         :param target_mask: Optional torch tensor of shape :math:`(H, W)` and type ``bool`` that indicates which part
-            of the target is valid (only relevant if `target` is a numpy array). Defaults to ``True`` everywhere
+            of the target is valid (only relevant if `target` is not a flow object). Defaults to ``True`` everywhere
         :param return_valid_area: Boolean determining whether the valid image area is returned (only if the target is a
             numpy array), defaults to ``False``. The valid image area is returned as a boolean torch tensor of shape
             :math:`(H, W)`.
@@ -765,40 +765,47 @@ class Flow(object):
             raise TypeError("Error applying flow: Cut needs to be a boolean")
         if padding is not None:
             padding = get_valid_padding(padding, "Error applying flow: ")
-            if self.shape[0] + padding[0] + padding[1] != target.shape[-2] or \
-                    self.shape[1] + padding[2] + padding[3] != target.shape[-1]:
+            if self.shape[1] + padding[0] + padding[1] != target.shape[-2] or \
+                    self.shape[2] + padding[2] + padding[3] != target.shape[-1]:
                 raise ValueError("Error applying flow: Padding values do not match flow and target shape difference")
 
         # Type check, prepare arrays
         return_dtype = torch.float
-        return_2d = False
+        return_2d, return_3d = False, False
         if isinstance(target, Flow):
             return_flow = True
             t = target._vecs.to(self._device)
-            mask = target._mask.unsqueeze(0).to(self._device)
+            mask = target._mask.to(self._device)
         elif isinstance(target, torch.Tensor):
             return_flow = False
-            if target.dim() == 3:
-                t = target.to(self._device)
+            if target.dim() == 4:
+                t = target  # already NCHW
+            elif target.dim() == 3:
+                t = target.unsqueeze(0)  # CHW to 1CHW
+                return_3d = True
             elif target.dim() == 2:
                 return_2d = True
-                t = target.unsqueeze(0).to(self._device)
+                t = target.unsqueeze(0).unsqueeze(0)  # HW to 11HW
             else:
-                raise ValueError("Error applying flow: Target needs to have the shape H-W (2 dimensions) "
-                                 "or H-W-C (3 dimensions)")
+                raise ValueError("Error applying flow: Target needs to have the shape H-W (2 dimensions)"
+                                 ", C-H-W (3 dimensions), or N-C-H-W (4 dimensions)")
+            t = t.to(torch.float).to(self._device)
+            t_shape = (t.shape[0], *t.shape[2:])
             if target_mask is None:
-                mask = torch.ones(1, *t.shape[1:]).to(torch.bool).to(self._device)
+                mask = torch.ones(t_shape).to(torch.bool).to(self._device)  # NHW
             else:
                 if not isinstance(target_mask, torch.Tensor):
                     raise TypeError("Error applying flow: Target_mask needs to be a torch tensor")
-                if target_mask.shape != t.shape[1:]:
+                if target_mask.dim() == 2:
+                    target_mask = target_mask.unsqueeze(0)  # HW to 1HW
+                if target_mask.shape != t_shape:
                     raise ValueError("Error applying flow: Target_mask needs to match the target shape")
                 if target_mask.dtype != torch.bool:
                     raise TypeError("Error applying flow: Target_mask needs to have dtype 'bool'")
                 if not return_valid_area:
                     warnings.warn("Warning applying flow: a mask is passed, but return_valid_area is False - so the "
                                   "mask passed will not affect the output, but possibly make the function slower.")
-                mask = target_mask.unsqueeze(0).to(self._device)
+                mask = target_mask.to(self._device)  # NHW
             return_dtype = target.dtype
         else:
             raise ValueError("Error applying flow: Target needs to be either a flow object or a torch tensor")
@@ -808,19 +815,27 @@ class Flow(object):
             # if self.ref == 't': Just warp the mask, which self.vecs are valid taken into account after warping
             if self._ref == 's':
                 # Warp the target mask after ANDing with flow mask to take into account which self.vecs are valid
-                if mask.shape[1:] != self.shape:
+                if mask.shape[-2:] != self.shape[-2:]:  # if heights / widths are different
                     # If padding in use, mask can be smaller than self.mask
-                    tmp = mask[0, padding[0]:padding[0] + self.shape[0], padding[2]:padding[2] + self.shape[1]].clone()
-                    mask[...] = False
-                    mask[0, padding[0]:padding[0] + self.shape[0], padding[2]:padding[2] + self.shape[1]] = \
-                        tmp & self._mask
+                    if self.shape[0] >= mask.shape[0]:
+                        tmp_self_mask = self._mask
+                    else:  # i.e. if self has fewer batch dims than target, where 'mask' derives from
+                        tmp_self_mask = self._mask.repeat(mask.shape[0], 1, 1)
+                    for i in range(mask.shape[0]):
+                        m = mask[i, padding[0]:padding[0] + self.shape[1],
+                                 padding[2]:padding[2] + self.shape[2]].clone()
+                        mask[i, ...] = False
+                        mask[i, padding[0]:padding[0] + self.shape[1], padding[2]:padding[2] + self.shape[2]] = \
+                            m & tmp_self_mask[i]
                 else:
-                    mask = (mask & self._mask)
-            t = torch.cat((t.float(), mask.float()), dim=0)
+                    mask = mask & self._mask  # Now broadcast to NHW, where N is the max of batch dim of self and t
+            if mask.shape[0] != t.shape[0]:  # mask has higher batch dim due to combination with self
+                t = t.repeat(mask.shape[0], 1, 1, 1)
+            t = torch.cat((t.float(), mask.unsqueeze(1).float()), dim=1)  # NC+1HW
 
         # Determine flow to use for warping, and warp
         if padding is None:
-            if not target.shape[-2:] == self.shape:
+            if not target.shape[-2:] == self.shape[-2:]:
                 raise ValueError("Error applying flow: Flow and target have to have the same shape")
             warped_t = apply_flow(self._vecs, t, self._ref, self._mask if consider_mask else None)
         else:
@@ -836,38 +851,44 @@ class Flow(object):
 
         # Cut if necessary
         if padding is not None and cut:
-            warped_t = warped_t[..., padding[0]:padding[0] + self.shape[0], padding[2]:padding[2] + self.shape[1]]
+            warped_t = warped_t[..., padding[0]:padding[0] + self.shape[1], padding[2]:padding[2] + self.shape[2]]
 
         # Extract and finalise mask if required
         if return_flow or return_valid_area:
-            mask = warped_t[-1] > 0.99999
+            mask = warped_t[:, -1] > 0.99999  # NHW
             # if self.ref == 's': Valid self.vecs already taken into account by ANDing with self.mask before warping
             if self._ref == 't':
                 # Still need to take into account which self.vecs are actually valid by ANDing with self.mask
-                if mask.shape != self._mask.shape:
+                if mask.shape[1:] != self._mask.shape[1:]:
                     # If padding is in use, but warped_t has not been cut: AND with self.mask inside the flow area, and
                     # set everything else to False as not warped by the flow
-                    t = mask[padding[0]:padding[0] + self.shape[0], padding[2]:padding[2] + self.shape[1]].clone()
+                    tmp = mask[:, padding[0]:padding[0] + self.shape[1], padding[2]:padding[2] + self.shape[2]].clone()
                     mask[...] = False
-                    mask[padding[0]:padding[0] + self.shape[0], padding[2]:padding[2] + self.shape[1]] = t & self._mask
+                    mask[:, padding[0]:padding[0] + self.shape[1], padding[2]:padding[2] + self.shape[2]] = \
+                        tmp & self._mask
                 else:
                     mask = mask & self._mask
 
         # Return as correct type
         if return_flow:
-            return Flow(warped_t[:2, :, :], target._ref, mask)
+            return Flow(warped_t[:, :2, :, :], target._ref, mask)
         else:
             if return_valid_area:
-                warped_t = warped_t[:-1, :, :]
+                warped_t = warped_t[:, :-1, :, :]
             # noinspection PyUnresolvedReferences
             if not return_dtype.is_floating_point:
                 warped_t = torch.round(warped_t.float())
-            if return_2d:
-                warped_t = warped_t[0, :, :]
+                if return_dtype == torch.uint8:
+                    warped_t = torch.clip(warped_t, 0, 255)
+            warped_t = warped_t.to(return_dtype)
+            if return_2d and warped_t.shape[0] == 1:
+                warped_t = warped_t.squeeze(0).squeeze(0)
+            if return_3d and warped_t.shape[0] == 1:
+                warped_t = warped_t.squeeze(0)
             if return_valid_area:
-                return warped_t.to(return_dtype), mask
+                return warped_t, mask
             else:
-                return warped_t.to(return_dtype)
+                return warped_t
 
     def track(
         self,
