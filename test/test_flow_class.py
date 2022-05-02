@@ -703,23 +703,23 @@ class FlowTest(unittest.TestCase):
         for ref in ['t', 's']:
             flow = Flow.zero(shape, ref, np.ones(shape, 'bool'))
             flow = flow.pad([10, 20, 30, 40])
-            self.assertIsNone(np.testing.assert_equal(flow.shape[:2], [shape[0] + 10 + 20, shape[1] + 30 + 40]))
+            self.assertIsNone(np.testing.assert_equal(flow.shape[1:], [shape[0] + 10 + 20, shape[1] + 30 + 40]))
             self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, 0))
             self.assertIsNone(np.testing.assert_equal(to_numpy(flow[10:-20, 30:-40].mask), 1))
-            flow.mask[10:-20, 30:-40] = 0
+            flow.mask[..., 10:-20, 30:-40] = 0
             self.assertIsNone(np.testing.assert_equal(to_numpy(flow.mask), 0))
             self.assertIs(flow.ref, ref)
 
         # 'Replicate' padding
         flow = Flow.from_transforms([['rotation', 30, 50, 30]], shape, ref)
         padded_flow = flow.pad([10, 10, 20, 20], mode='replicate')
-        self.assertIsNone(np.testing.assert_equal(padded_flow.vecs_numpy[0, 20:-20], flow.vecs_numpy[0]))
-        self.assertIsNone(np.testing.assert_equal(padded_flow.vecs_numpy[10:-10, 0], flow.vecs_numpy[:, 0]))
+        self.assertIsNone(np.testing.assert_equal(padded_flow.vecs_numpy[:, 0, 20:-20], flow.vecs_numpy[:, 0]))
+        self.assertIsNone(np.testing.assert_equal(padded_flow.vecs_numpy[:, 10:-10, 0], flow.vecs_numpy[:, :, 0]))
 
         # 'Reflect' padding
         padded_flow = flow.pad([10, 10, 20, 20], mode='reflect')
-        self.assertIsNone(np.testing.assert_equal(padded_flow.vecs_numpy[0, 20:-20], flow.vecs_numpy[10]))
-        self.assertIsNone(np.testing.assert_equal(padded_flow.vecs_numpy[10:-10, 0], flow.vecs_numpy[:, 20]))
+        self.assertIsNone(np.testing.assert_equal(padded_flow.vecs_numpy[:, 0, 20:-20], flow.vecs_numpy[:, 10]))
+        self.assertIsNone(np.testing.assert_equal(padded_flow.vecs_numpy[:, 10:-10, 0], flow.vecs_numpy[:, :, 20]))
 
         # Invalid padding mode
         with self.assertRaises(ValueError):

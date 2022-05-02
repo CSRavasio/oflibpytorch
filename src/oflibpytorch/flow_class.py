@@ -700,8 +700,8 @@ class Flow(object):
             raise ValueError("Error padding flow: Mode should be one of "
                              "'constant', 'reflect', or 'replicate', but instead got '{}'".format(mode))
         padding = get_valid_padding(padding, "Error padding flow: ")
-        padded_vecs = f.pad(self._vecs.unsqueeze(0), (*padding[2:], *padding[:2]), mode=mode).squeeze(0)
-        padded_mask = f.pad(self._mask.unsqueeze(0).unsqueeze(0), (*padding[2:], *padding[:2])).squeeze(0).squeeze(0)
+        padded_vecs = f.pad(self._vecs, (*padding[2:], *padding[:2]), mode=mode)
+        padded_mask = f.pad(self._mask.unsqueeze(1), (*padding[2:], *padding[:2])).squeeze(1)
         return Flow(padded_vecs, self._ref, padded_mask)
 
     def apply(
