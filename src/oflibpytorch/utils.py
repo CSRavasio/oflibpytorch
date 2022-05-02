@@ -216,8 +216,7 @@ def to_numpy(tensor: torch.Tensor, switch_channels: bool = None) -> np.ndarray:
 
     :param tensor: Input tensor
     :param switch_channels: Boolean determining whether the channels are moved from the second to the last dimension,
-        assuming the input is of shape :math:`(N, C, H, W)`
-        defaults to ``False``
+        assuming the input is of shape :math:`(N, C, H, W)`, changing it to :math:`(N, H, W, C)`. defaults to ``False``
     :return: Numpy array, with channels switched if required
     """
 
