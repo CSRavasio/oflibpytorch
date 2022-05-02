@@ -433,7 +433,7 @@ def apply_flow(
     if target.shape[-2:] != flow.shape[-2:]:
         raise ValueError("Error applying flow to a target: Target height and width needs to match flow field array")
     if mask is not None:
-        mask = get_valid_mask(mask, desired_shape=flow.shape[1:])
+        mask = get_valid_mask(mask, desired_shape=(flow.shape[0],) + flow.shape[2:])
 
     # Set up
     device = flow.device
@@ -460,6 +460,8 @@ def apply_flow(
             target = target.repeat(flow.shape[0], 1, 1, 1)
         elif flow.shape[0] < target.shape[0]:  # flow batch dim smaller than target, means it is 1, needs to be repeated
             flow = flow.repeat(target.shape[0], 1, 1, 1)
+            if mask is not None:
+                mask = mask.repeat(target.shape[0], 1, 1)
         # Now batch dims either N and 1->N, 1->N and N, 1 and 1, or N and N
 
     # Get flow in shape needed
@@ -505,15 +507,18 @@ def apply_flow(
         # Get the known values themselves
         target_np = np.moveaxis(to_numpy(target), 1, -1)                                # from N-C-H-W to N-H-W-C
         target_flat = np.reshape(target_np, (target.shape[0], -1, target.shape[1]))     # from N-H-W-C to N-H*W-C
-        # Mask points, if required
-        if mask is not None:
-            pos = pos[to_numpy(mask.flatten())]
-            target_flat = target_flat[:, to_numpy(mask.flatten())]
         # Perform interpolation of regular grid from unstructured data
         results = np.copy(target_np)
+        if mask is not None:
+            mask = to_numpy(mask.view(mask.shape[0], -1))
         for i in range(target_flat.shape[0]):  # Perform griddata for each batch member
-            result = griddata(pos[i], target_flat[i], (x, y), method='linear')
-            results[i] = np.nan_to_num(result)
+            # Mask points, if required
+            if mask is not None:
+                result = griddata(pos[i][mask[i]], target_flat[i][mask[i]], (x, y), method='linear')
+                results[i] = np.nan_to_num(result)
+            else:
+                result = griddata(pos[i], target_flat[i], (x, y), method='linear')
+                results[i] = np.nan_to_num(result)
         # Make sure the output is returned with the same dtype as the input, if necessary rounded
         result = torch.tensor(np.moveaxis(results, -1, 1)).to(flow.device)
 
@@ -531,6 +536,8 @@ def apply_flow(
     # noinspection PyUnresolvedReferences
     if not target_dtype.is_floating_point:
         result = torch.round(result)
+        if target_dtype == torch.uint8:
+            result = torch.clip(result, 0, 255)
     result = result.to(target_dtype)
 
     return result
