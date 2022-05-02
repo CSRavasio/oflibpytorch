@@ -689,7 +689,7 @@ class FlowTest(unittest.TestCase):
         mask_large[:9, :40] = 0
         flow_small = Flow.from_transforms([['rotation', 0, 0, 30]], shape_small, 't', mask_small)
         flow_large = flow_small.resize((1.5, 2))
-        self.assertIsNone(np.testing.assert_equal(to_numpy(flow_large.mask), mask_large))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(flow_large.mask)[0], mask_large))
 
         # Check scaling is performed correctly based on the actual flow field
         ref = 't'
