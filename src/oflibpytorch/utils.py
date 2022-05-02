@@ -215,7 +215,8 @@ def to_numpy(tensor: torch.Tensor, switch_channels: bool = None) -> np.ndarray:
     """Tensor to numpy, calls .cpu() if necessary
 
     :param tensor: Input tensor
-    :param switch_channels: Boolean determining whether the channels are moved from the first to the last dimension,
+    :param switch_channels: Boolean determining whether the channels are moved from the second to the last dimension,
+        assuming the input is of shape :math:`(N, C, H, W)`
         defaults to ``False``
     :return: Numpy array, with channels switched if required
     """
@@ -228,7 +229,7 @@ def to_numpy(tensor: torch.Tensor, switch_channels: bool = None) -> np.ndarray:
             tensor = tensor.detach()
         arr = tensor.numpy()
         if switch_channels:
-            arr = np.moveaxis(arr, 0, -1)
+            arr = np.moveaxis(arr, 1, -1)
         return arr
 
 
