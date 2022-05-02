@@ -380,3 +380,28 @@ def show_flow_arrows(
     """
 
     return Flow(flow, ref).show_arrows(wait=wait, grid_dist=grid_dist, img=img, scaling=scaling, colour=colour)
+
+
+def batch_flows(flows: Union[list, tuple]) -> FlowAlias:
+    """
+
+    :param flows: Tuple or list of flow objects. Flow objects to have the same flow reference
+        :attr:`~oflibnumpy.Flow.ref`, as well as the same flow field heights and widths. They can have any batch size.
+    :return: Single batched flow object, with a batch size equal to the sum of all individual input batch sizes
+    """
+
+    if not isinstance(flows, (list, tuple)):
+        raise TypeError("Error batching flows: Input flow objects need to be passed in a list or tuple")
+    if any(not isinstance(f, Flow) for f in flows):
+        raise TypeError("Error batching flows: All inputs need to be flow objects")
+    if any(f.ref != flows[0].ref for f in flows):
+        raise ValueError("Error batching flows: All input flow objects need to have the same reference")
+    if any(f.device != flows[0].device for f in flows):
+        raise ValueError("Error batching flows: All input flow objects need to have the same device")
+    if any(f.shape[1:] != flows[0].shape[1:] for f in flows):
+        raise ValueError("Error batching flows: All input flow objects need to have the same height and width")
+
+    batched_vecs = torch.cat(tuple(f.vecs for f in flows), dim=0)
+    batched_masks = torch.cat(tuple(f.mask for f in flows), dim=0)
+
+    return Flow(batched_vecs, flows[0].ref, batched_masks, flows[0].device)

@@ -19,7 +19,7 @@ import sys
 sys.path.append('..')
 from src.oflibpytorch.flow_class import Flow
 from src.oflibpytorch.flow_operations import combine_flows, switch_flow_ref, invert_flow, valid_target, valid_source, \
-    get_flow_padding, get_flow_matrix, visualise_flow, visualise_flow_arrows
+    get_flow_padding, get_flow_matrix, visualise_flow, visualise_flow_arrows, batch_flows
 from src.oflibpytorch.utils import to_numpy, matrix_from_transforms
 
 
@@ -163,6 +163,40 @@ class TestFlowOperations(unittest.TestCase):
             flow = Flow.from_transforms([['rotation', 10, 10, 30]], [20, 20], ref)
             self.assertIsNone(np.testing.assert_equal(flow.visualise_arrows(return_tensor=False),
                                                       visualise_flow_arrows(flow.vecs, ref, return_tensor=False)))
+
+    def test_batch_flows(self):
+        shape1 = [10, 50]
+        shape2 = [20, 50]
+        transforms = [
+            ['rotation', 255.5, 255.5, -30],
+            ['scaling', 100, 100, 0.8],
+        ]
+        f1 = Flow.from_transforms(transforms[0:1], shape1, 's')
+        f2 = Flow.from_transforms(transforms[1:2], shape1, 's')
+        f3 = Flow.from_transforms(transforms[1:2], shape1, 's')
+        f_batched1 = batch_flows((f1, f2))
+        f_batched2 = batch_flows((f_batched1, f3))
+        # Check the batched dimensions fit
+        self.assertEqual(f_batched1.shape[0], f1.shape[0] + f2.shape[0])
+        self.assertEqual(f_batched2.shape[0], f_batched1.shape[0] + f3.shape[0])
+        # Check the contents are still the same
+        self.assertIsNone(np.testing.assert_equal(f_batched2.vecs_numpy[0], f1.vecs_numpy[0]))
+        self.assertIsNone(np.testing.assert_equal(f_batched2.vecs_numpy[2], f3.vecs_numpy[0]))
+        self.assertIsNone(np.testing.assert_equal(f_batched2.mask_numpy[1], f2.mask_numpy[0]))
+        # Check the validity checks work
+        f1s2 = Flow.from_transforms(transforms[0:1], shape2, 's')
+        f1t = Flow.from_transforms(transforms[0:1], shape2, 't')
+        with self.assertRaises(TypeError):  # flows arg not a list or tuple
+            batch_flows('test')
+        with self.assertRaises(TypeError):  # flows arg not all flow objects
+            batch_flows((f1, 'test'))
+        with self.assertRaises(ValueError):  # flows not all of the same shape
+            batch_flows((f1, f1s2))
+        with self.assertRaises(ValueError):  # flows not all with same reference
+            batch_flows((f1, f1t))
+        if torch.cuda.is_available():
+            with self.assertRaises(ValueError):  # flows not all of the same device
+                batch_flows((f1.to_device('cpu'), f1.to_device('cuda')))
 
 
 if __name__ == '__main__':
