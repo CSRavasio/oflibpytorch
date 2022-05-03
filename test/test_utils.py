@@ -410,14 +410,17 @@ class TestNormaliseCoords(unittest.TestCase):
                                [21, 11],
                                [20, 10]])
         shape = (11, 21)
-        normalised_coords = normalise_coords(coords, shape)
-        expected_normalised_coords = torch.tensor([[-1, -1],
-                                                   [-1.1, 1.2],
-                                                   [0, 0],
-                                                   [1.1, 1.2],
-                                                   [1, 1]])
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(normalised_coords), to_numpy(expected_normalised_coords),
-                                                     rtol=1e-6))
+        exp_coords = torch.tensor([[-1, -1],
+                                   [-1.1, 1.2],
+                                   [0, 0],
+                                   [1.1, 1.2],
+                                   [1, 1]])
+        coord_list = [coords, coords.unsqueeze(0), coords.unsqueeze(0).unsqueeze(0).repeat(4, 3, 1, 1)]
+        exp_coord_list = [exp_coords, exp_coords.unsqueeze(0), exp_coords.unsqueeze(0).unsqueeze(0).repeat(4, 3, 1, 1)]
+        for c, e_c in zip(coord_list, exp_coord_list):
+            self.assertIsNone(np.testing.assert_allclose(to_numpy(normalise_coords(c, shape)),
+                                                         to_numpy(e_c),
+                                                         rtol=1e-6))
 
 
 class TestApplyFlow(unittest.TestCase):
