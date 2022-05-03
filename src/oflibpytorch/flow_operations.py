@@ -16,7 +16,7 @@ import numpy as np
 from typing import Union
 import torch
 from .flow_class import Flow
-from .utils import validate_shape
+from .utils import get_valid_shape
 
 
 FlowAlias = 'Flow'
@@ -44,7 +44,7 @@ def visualise_definition(
 
     # Default arguments and input validation
     shape = [601, 601] if shape is None else shape
-    validate_shape(shape)
+    shape = get_valid_shape(shape)[1:]
     insert_text = True if insert_text is None else insert_text
     if not isinstance(insert_text, bool):
         raise TypeError("Error visualising the flow definition: Insert_text needs to be a boolean")
@@ -57,7 +57,7 @@ def visualise_definition(
     flow = Flow.from_transforms([['scaling', w//2, h//2, 1.1]], shape)
 
     flow.vecs = (torch.abs(flow.vecs) ** 1.2) * torch.sign(flow.vecs)
-    img = flow.visualise(mode, return_tensor=False).astype('f')  # dtype 'f' necessary for cv2.arrowedLine
+    img = flow.visualise(mode, return_tensor=False).astype('f')[0]  # dtype 'f' necessary for cv2.arrowedLine
 
     # Draw on the flow image
     line_colour = (0, 0, 0)

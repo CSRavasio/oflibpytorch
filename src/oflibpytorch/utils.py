@@ -184,15 +184,6 @@ def get_valid_padding(padding: Any, error_string: str = None) -> list:
     return padding
 
 
-def validate_shape(shape: Any):
-    if not isinstance(shape, (list, tuple)):
-        raise TypeError("Error creating flow from matrix: Dims need to be a list or a tuple")
-    if len(shape) != 2:
-        raise ValueError("Error creating flow from matrix: Dims need to be a list or a tuple of length 2")
-    if any((item <= 0 or not isinstance(item, int)) for item in shape):
-        raise ValueError("Error creating flow from matrix: Dims need to be a list or a tuple of integers above zero")
-
-
 def move_axis(input_tensor: torch.Tensor, source: int, destination: int) -> torch.Tensor:
     """Helper function to imitate np.moveaxis
 
