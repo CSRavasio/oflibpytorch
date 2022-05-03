@@ -1306,11 +1306,17 @@ class FlowTest(unittest.TestCase):
             flow.show(elem=1)
 
     def test_show_arrows(self):
-        flow = Flow.zero([200, 300])
+        flow = Flow.from_transforms([['translation', 10, -8]], (100, 150))
+        # Uncomment the following line to see the flow in an OpenCV window
+        # flow.show_arrows()
         with self.assertRaises(TypeError):
-            flow.show_arrows('test')
+            flow.show_arrows(wait='test')
         with self.assertRaises(ValueError):
-            flow.show_arrows(-1)
+            flow.show_arrows(wait=-1)
+        with self.assertRaises(TypeError):
+            flow.show(elem=.3)
+        with self.assertRaises(ValueError):
+            flow.show(elem=1)
 
     def test_matrix(self):
         # Partial affine transform, test reconstruction with all methods
