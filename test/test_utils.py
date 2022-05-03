@@ -24,6 +24,7 @@ from src.oflibpytorch.utils import get_valid_vecs, get_valid_shape, get_valid_re
     reverse_transform_values, normalise_coords, apply_flow, threshold_vectors, from_matrix, from_transforms,  \
     load_kitti, load_sintel, load_sintel_mask, resize_flow, is_zero_flow, track_pts
 from src.oflibpytorch.flow_class import Flow
+from src.oflibpytorch.flow_operations import batch_flows
 
 
 class TestMoveAxis(unittest.TestCase):
@@ -754,9 +755,13 @@ class TestIsZeroFlow(unittest.TestCase):
 
 class TestTrackPts(unittest.TestCase):
     def test_track_pts(self):
-        f_s = Flow.from_transforms([['rotation', 0, 0, 30]], (512, 512), 's').vecs
-        f_t = Flow.from_transforms([['rotation', 0, 0, 30]], (512, 512), 't').vecs
-        pts = torch.tensor([[20.5, 10.5], [8.3, 7.2], [120.4, 160.2]])
+        f_s = Flow.from_transforms([['rotation', 0, 0, 30]], (200, 210), 's').vecs
+        f_t = Flow.from_transforms([['rotation', 0, 0, 30]], (200, 210), 't').vecs
+        pts = torch.tensor([
+            [20.5, 10.5],
+            [8.3, 7.2],
+            [120.4, 160.2]
+        ])
         desired_pts = [
             [12.5035207776, 19.343266740],
             [3.58801085141, 10.385382907],
@@ -779,12 +784,38 @@ class TestTrackPts(unittest.TestCase):
         self.assertIsNone(np.testing.assert_equal(to_numpy(pts_tracked_t), np.round(desired_pts)))
         self.assertEqual(pts_tracked_t.dtype, torch.long)
 
-        # Test tracking for 's' flow and int pts (checked via debugger)
-        f = Flow.from_transforms([['translation', 10, 20]], (512, 512), 's').vecs
-        pts = np.array([[20, 10], [8, 7]])
-        desired_pts = [[40, 20], [28, 17]]
-        pts_tracked_s = track_pts(f, 's', torch.tensor(pts))
-        self.assertIsNone(np.testing.assert_equal(to_numpy(pts_tracked_s), desired_pts))
+        # Test tracking for 's' flow and int pts, also batched points on batched flows
+        f_trans = Flow.from_transforms([['translation', 10, 20]], (200, 210), 's')
+        f_rot = Flow.from_transforms([['rotation', 0, 0, 30]], (200, 210), 's')
+        f_s = batch_flows((f_trans, f_rot, f_rot))
+        pts = np.stack(([[20, 10], [8, 7], [12, 15]],
+                        [[18, 9], [6, 5], [110, 150]],
+                        [[6, 5], [110, 150], [18, 9]]), axis=0)
+        desired_pts = [
+            [[40, 20], [28, 17], [32, 25]],
+            [
+                [11.088456153869629, 16.794227600097656],
+                [2.6961512565612793, 7.330124855041504],
+                [20.262794494628906, 184.90380859375]
+            ],
+            [
+                [2.6961512565612793, 7.330124855041504],
+                [20.262794494628906, 184.90380859375],
+                [11.088456153869629, 16.794227600097656]
+            ]
+        ]
+        pts_tracked_s = track_pts(f_s.vecs, 's', torch.tensor(pts))
+        for i in range(pts_tracked_s.shape[0]):
+            self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s[i]), desired_pts[i], rtol=1e-6))
+        pts_tracked_s = track_pts(f_s.vecs, 's', torch.tensor(pts).to(torch.float))
+        for i in range(pts_tracked_s.shape[0]):
+            self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s[i]), desired_pts[i], rtol=1e-6))
+        f_trans = Flow.from_transforms([['translation', 10, 20]], (200, 210), 't')
+        f_rot = Flow.from_transforms([['rotation', 0, 0, 30]], (200, 210), 't')
+        f_t = batch_flows((f_trans, f_rot, f_rot))
+        pts_tracked_t = track_pts(f_t.vecs, 't', torch.tensor(pts).to(torch.float))
+        for i in range(pts_tracked_t.shape[0]):
+            self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s[i]), desired_pts[i], rtol=1e-6))
 
     def test_device_track_pts(self):
         for d1 in ['cpu', 'cuda']:
@@ -799,8 +830,10 @@ class TestTrackPts(unittest.TestCase):
         flow = torch.zeros((2, 10, 10))
         with self.assertRaises(TypeError):  # Wrong pts type
             track_pts(flow, 's', pts='test')
-        with self.assertRaises(ValueError):  # Wrong pts shape
-            track_pts(flow, 's', pts=torch.zeros((10, 10, 2)))
+        with self.assertRaises(ValueError):  # Wrong pts shape: too many dims
+            track_pts(flow, 's', pts=torch.zeros((1, 2, 10, 2)))
+        with self.assertRaises(ValueError):  # Wrong pts shape: batch size not equal flow
+            track_pts(flow, 's', pts=torch.zeros((5, 2, 10, 2)))
         with self.assertRaises(ValueError):  # Pts channel not of size 2
             track_pts(flow, 's', pts=pts.transpose(0, -1))
         with self.assertRaises(TypeError):  # Wrong int_out type

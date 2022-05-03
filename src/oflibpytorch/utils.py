@@ -855,10 +855,13 @@ def track_pts(
         Calling :meth:`~oflibpytorch.track_pts` on a flow field with reference ``s`` ("source") is
         significantly faster, as this does not require a call to :func:`scipy.interpolate.griddata`.
 
-    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)`, :math:`(H, W, 2)`,
+        :math:`(N, 2, H, W)`, or :math:`(N, H, W, 2)`
     :param ref: Flow field reference, either ``s`` or ``t``
-    :param pts: Torch tensor of shape :math:`(N, 2)` containing the point coordinates. ``pts[:, 0]`` corresponds
-        to the vertical coordinate, ``pts[:, 1]`` to the horizontal coordinate
+    :param pts: Torch tensor of shape :math:`(M, 2)` or :math:`(N, M, 2)` containing the point coordinates. If a
+        batch dimension is given, it must correspond to the flow batch dimension. If the flow is batched but the
+        points are not, the same points are warped by each flow field individually. ``pts[:, 0]`` corresponds to
+        the vertical coordinate, ``pts[:, 1]`` to the horizontal coordinate
     :param int_out: Boolean determining whether output points are returned as rounded integers, defaults to
         ``False``
     :return: Torch tensor of warped ('tracked') points, tensor device same as the input flow field
@@ -869,10 +872,17 @@ def track_pts(
     ref = get_valid_ref(ref)
     if not isinstance(pts, torch.Tensor):
         raise TypeError("Error tracking points: Pts needs to be a numpy array or a torch tensor")
-    if len(pts.shape) != 2:
-        raise ValueError("Error tracking points: Pts needs to have shape N-2")
-    if pts.shape[1] != 2:
-        raise ValueError("Error tracking points: Pts needs to have shape N-2")
+    return_2d = False
+    if pts.dim() == 2:
+        return_2d = True
+        pts = pts.unsqueeze(0).repeat(flow.shape[0], 1, 1)  # N, M, 2
+    elif pts.dim() == 3:
+        if pts.shape[0] != flow.shape[0]:
+            raise ValueError("Error tracking points: If used, pts batch size needs to be equal to the flow batch size")
+    else:
+        raise ValueError("Error tracking points: Pts needs to have shape M-2 or N-M-2")
+    if pts.shape[-1] != 2:
+        raise ValueError("Error tracking points: Pts needs to have shape M-2 or N-M-2")
     int_out = False if int_out is None else int_out
     if not isinstance(int_out, bool):
         raise TypeError("Error tracking points: Int_out needs to be a boolean")
@@ -884,31 +894,41 @@ def track_pts(
     else:
         if ref == 's':
             if not pts.dtype.is_floating_point:
-                flow_vecs = flow[:, pts[:, 0].long(), pts[:, 1].long()]  # flow_vecs shape 2-N
-                flow_vecs = flow_vecs.transpose(0, 1).flip(-1)  # flow_vecs shape N-2 and (y, x) instead of (x, y)
+                flow_vecs = flow.permute(0, 2, 3, 1)                                # from N2HW to NHW2
+
+                pts2 = pts[..., 0] * flow.shape[-1] + pts[..., 1]                   # NM, with coords "unravelled"
+                pts2 = pts2.unsqueeze(-1).expand(-1, -1, 2)
+                flow_vecs = torch.gather(flow_vecs.view(flow_vecs.shape[0], -1, 2), 1, pts2.long())  # NM2
+                flow_vecs = flow_vecs.flip(-1)                                      # NM2, from (x, y) to (y, x)
             else:
-                pts_4d = pts.unsqueeze(0).unsqueeze(0).to(torch.float).flip(-1)  # pts_4d now 1-1-N-2 and (x, y)
-                pts_4d = normalise_coords(pts_4d, flow.shape[1:])
+                pts_4d = pts.unsqueeze(1).to(torch.float).flip(-1)  # from NM2 to N1M2, and from (y, x) to (x, y)
+                pts_4d = normalise_coords(pts_4d, flow.shape[-2:])
                 torch_version = globals()['torch'].__version__
                 if int(torch_version[0]) == 1 and float(torch_version[2:4]) <= 3:
-                    flow_vecs = f.grid_sample(flow.unsqueeze(0), pts_4d).flip(1)
+                    flow_vecs = f.grid_sample(flow, pts_4d).flip(1)  # flow is N2HW, pts_4d N1M2, output N21M
                 else:
-                    flow_vecs = f.grid_sample(flow.unsqueeze(0), pts_4d, align_corners=True).flip(1)
-                #  vecs are 1-2-H-W, pts_4d is 1-1-N-2, output will be 1-2-1-N
-                flow_vecs = flow_vecs.transpose(0, -1).squeeze(-1).squeeze(-1)  # flow_vecs now N-2
+                    flow_vecs = f.grid_sample(flow, pts_4d, align_corners=True).flip(1)
+                # flow is N2HW, pts_4d N1M2, output flow_vecs N21M, after flip (x, y) changed to (y, x)
+                flow_vecs = flow_vecs.squeeze(2).permute(0, 2, 1)  # N21M to N2M to NM2
             warped_pts = pts.float() + flow_vecs
         else:  # self._ref == 't'
-            x, y = np.mgrid[:flow.shape[1], :flow.shape[2]]
-            grid = np.swapaxes(np.vstack([x.ravel(), y.ravel()]), 0, 1)
-            flow_flat = np.reshape(to_numpy(flow, switch_channels=True)[..., ::-1], (-1, 2))
-            origin_points = grid - flow_flat
-            flow_vecs = griddata(origin_points, flow_flat, (pts[:, 0], pts[:, 1]), method='linear')
-            warped_pts = pts + torch.tensor(flow_vecs, device=pts.device)
+            flow = flow.permute(0, 2, 3, 1)                                     # N-2-H-W to N-H-W-2
+            flow = to_numpy(flow).astype('float32')
+            flow_flat = np.reshape(flow[..., ::-1], (flow.shape[0], -1, 2))     # N-H*W-2
+            x, y = np.mgrid[:flow.shape[1], :flow.shape[2]]                     # H-W
+            grid = np.swapaxes(np.vstack([x.ravel(), y.ravel()]), 0, 1)         # 2-H*W to H*W-2
+            origin_points = grid - flow_flat                                    # N-H*W-2
+            warped_pts = pts.clone()                                            # N-M-2
+            for i in range(warped_pts.shape[0]):  # Perform griddata for each batch member
+                flow_vecs = griddata(origin_points[i], flow_flat[i], (pts[i, :, 0], pts[i, :, 1]), method='linear')
+                warped_pts[i] += torch.tensor(flow_vecs, device=pts.device)
         nan_vals = torch.isnan(warped_pts)
-        nan_vals = nan_vals[:, 0] | nan_vals[:, 1]
+        nan_vals = nan_vals[:, :, 0] | nan_vals[:, :, 1]
         warped_pts[nan_vals] = 0
 
     if int_out:
         warped_pts = torch.round(warped_pts).long()
+    if return_2d:
+        warped_pts = warped_pts.squeeze(0)
 
     return warped_pts
