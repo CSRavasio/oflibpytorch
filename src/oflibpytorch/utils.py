@@ -815,7 +815,7 @@ def resize_flow(flow: Union[np.ndarray, torch.Tensor], scale: Union[float, int, 
     return resized
 
 
-def is_zero_flow(flow: Union[np.ndarray, torch.Tensor], thresholded: bool = None) -> bool:
+def is_zero_flow(flow: Union[np.ndarray, torch.Tensor], thresholded: bool = None) -> torch.Tensor:
     """Check whether all flow vectors are zero. Optionally, a threshold flow magnitude value of ``1e-3`` is used.
     This can be useful to filter out motions that are equal to very small fractions of a pixel, which might just be
     a computational artefact to begin with.
@@ -833,7 +833,7 @@ def is_zero_flow(flow: Union[np.ndarray, torch.Tensor], thresholded: bool = None
         raise TypeError("Error checking whether flow is zero: Thresholded needs to be a boolean")
 
     f = threshold_vectors(flow) if thresholded else flow
-    return torch.all(f == 0)
+    return torch.sum(f == 0, (1, 2, 3)) == f[0].numel()
 
 
 def track_pts(

@@ -737,6 +737,11 @@ class TestIsZeroFlow(unittest.TestCase):
         self.assertEqual(is_zero_flow(flow, thresholded=True), False)
         self.assertEqual(is_zero_flow(flow, thresholded=False), False)
 
+        flow = np.zeros((3, 10, 10, 2), 'float32')
+        flow[1:, 3, :, 0] = 1e-4
+        self.assertEqual(is_zero_flow(flow, thresholded=True).tolist(), [True, True, True])
+        self.assertEqual(is_zero_flow(flow, thresholded=False).tolist(), [True, False, False])
+
     def test_failed_is_zero_flow(self):
         with self.assertRaises(TypeError):  # Wrong thresholded type
             is_zero_flow(np.zeros((10, 10, 2)), 'test')
