@@ -420,7 +420,7 @@ def apply_flow(
     # Input validity check
     ref = get_valid_ref(ref)
     flow = get_valid_vecs(flow, error_string="Error applying flow to a target: ")
-    if is_zero_flow(flow, thresholded=True):  # If the flow field is actually 0 or very close
+    if all(is_zero_flow(flow, thresholded=True)):  # If the flow field is actually 0 or very close
         return target
     if not isinstance(target, torch.Tensor):
         raise TypeError("Error applying flow to a target: Target needs to be a torch tensor")
@@ -882,7 +882,7 @@ def track_pts(
 
     pts = pts.to(flow.device)
 
-    if is_zero_flow(flow, thresholded=True):
+    if all(is_zero_flow(flow, thresholded=True)):
         warped_pts = pts
     else:
         if ref == 's':
