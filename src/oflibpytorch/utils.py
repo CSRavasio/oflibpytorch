@@ -225,24 +225,26 @@ def to_numpy(tensor: torch.Tensor, switch_channels: bool = None) -> np.ndarray:
 
 def to_tensor(
     array: np.ndarray,
-    switch_channels: bool = None,
+    switch_channels: str = None,
     device: Union[torch.device, int, str] = None
 ) -> torch.Tensor:
     """Numpy to tensor
 
     :param array: Input array
-    :param switch_channels: Boolean determining whether the channels are moved from the last to the first dimension,
-        defaults to ``False``
+    :param switch_channels: String determining whether the channels are moved from the last to the first dimension
+        (if 'single'), or from last to second dimension (if 'batched'). Defaults to ``None`` (no channels moved)
     :param device: Tensor device, either a :class:`torch.device` or a valid input to ``torch.device()``,
             such as a string (``cpu`` or ``cuda``). For a device of type ``cuda``, the device index defaults to
             ``torch.cuda.current_device()``. If the input is ``None``, it defaults to ``torch.device('cpu')``
     :return: Torch tensor, with channels switched if required
     """
 
-    switch_channels = False if switch_channels is None else switch_channels
     device = get_valid_device(device)
-    if switch_channels:
-        array = np.moveaxis(array, -1, 0)
+    if switch_channels is not None:
+        if switch_channels == 'single':
+            array = np.moveaxis(array, -1, 0)
+        elif switch_channels == 'batched':
+            array = np.moveaxis(array, -1, 1)
     tens = torch.tensor(array).to(device)
     return tens
 
@@ -725,7 +727,7 @@ def load_kitti(path: str) -> Union[List[torch.Tensor], torch.Tensor]:
     inp = inp[..., ::-1].astype('float64')  # Invert channels as cv2 loads as BGR instead of RGB
     inp[..., :2] = (inp[..., :2] - 2 ** 15) / 64
     inp[inp[..., 2] > 0, 2] = 1
-    return to_tensor(inp, switch_channels=True)
+    return to_tensor(inp, switch_channels='single')
 
 
 def load_sintel(path: str) -> torch.Tensor:
@@ -751,7 +753,7 @@ def load_sintel(path: str) -> torch.Tensor:
         dt = np.dtype('float32')
         dt = dt.newbyteorder('<')
         flow = np.fromfile(file, dtype=dt).reshape(h, w, 2)
-    return to_tensor(flow, switch_channels=True)
+    return to_tensor(flow, switch_channels='single')
 
 
 def load_sintel_mask(path: str) -> torch.Tensor:
