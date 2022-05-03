@@ -1347,12 +1347,13 @@ class Flow(object):
             scaling = grid_dist / np.percentile(flow_mags, 99)
         flow_mags *= scaling
         f *= scaling
-        colours = None
         tip_size = math.sqrt(thickness) * 3.5  # Empirical value
         if colour is None:
             hsv = np.full((*ang.shape, 3), 255, 'uint8')                # N-N_pt*N_pt-3
             hsv[..., 0] = np.round(np.mod(ang, 360) / 2)
-            colours = np.squeeze(cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
+            colours = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+        else:
+            colours = np.broadcast_to(colour, (self.shape[0], 3))
         for batch_elem in range(img.shape[0]):
             for i_num, i_pt in enumerate(i_pts_flat):
                 if flow_mags[batch_elem][i_num] > 0.5:  # Only draw if the flow length rounds to at least one pixel

@@ -1235,17 +1235,18 @@ class FlowTest(unittest.TestCase):
         mask = np.zeros(img_np.shape[:2])
         mask[50:-50, 20:-20] = 1
         for ref in ['s', 't']:
-            flow = batch_flows((
+            flow1 = batch_flows((
                 Flow.from_transforms([['translation', 10, -8]], img_np.shape[:2], ref, mask),
                 Flow.from_transforms([['translation', -5, 10]], img_np.shape[:2], ref, mask),
                 Flow.from_transforms([['rotation', 30, 50, 30]], img_np.shape[:2], ref, mask)
             ))
+            flow2 = Flow.from_transforms([['rotation', 10, 30, 20]], img_np.shape[:2], ref, mask)
             for scaling in [0.1, 1, 2]:
                 for show_mask in [True, False]:
                     for show_mask_border in [True, False]:
                         for return_tensor in [True, False]:
                             for img in [None, img_np, img_pt, img_np_1, img_pt_1, img_np_3, img_pt_3]:
-                                arrow_img = flow.visualise_arrows(
+                                arrow_img = flow1.visualise_arrows(
                                     grid_dist=10,
                                     scaling=scaling,
                                     img=img,
@@ -1253,8 +1254,6 @@ class FlowTest(unittest.TestCase):
                                     show_mask_borders=show_mask_border,
                                     return_tensor=return_tensor
                                 )
-                                print("passed ref {}, scaling {}, show_mask {}, show_mask_border {}, return_tensor {}"
-                                      .format(ref, scaling, show_mask, show_mask_border, return_tensor))
                                 if return_tensor:
                                     self.assertIsInstance(arrow_img, torch.Tensor)
                                 else:
@@ -1263,34 +1262,53 @@ class FlowTest(unittest.TestCase):
                                     #     cv2.imshow('test', a)
                                     #     cv2.waitKey(10)
                                     self.assertIsInstance(arrow_img, np.ndarray)
+                            for img in [None, img_np, img_pt, img_np_1, img_pt_1]:
+                                for colour in [None, (100, 100, 100)]:
+                                    arrow_img = flow2.visualise_arrows(
+                                        grid_dist=10,
+                                        scaling=scaling,
+                                        img=img,
+                                        show_mask=show_mask,
+                                        show_mask_borders=show_mask_border,
+                                        return_tensor=return_tensor,
+                                        colour=colour
+                                    )
+                                    if return_tensor:
+                                        self.assertIsInstance(arrow_img, torch.Tensor)
+                                    else:
+                                        # Uncomment the following lines to see test images
+                                        # for a in arrow_img:
+                                        #     cv2.imshow('test', a)
+                                        #     cv2.waitKey(10)
+                                        self.assertIsInstance(arrow_img, np.ndarray)
         with self.assertRaises(TypeError):
-            flow.visualise_arrows(grid_dist='test')
+            flow1.visualise_arrows(grid_dist='test')
         with self.assertRaises(ValueError):
-            flow.visualise_arrows(grid_dist=-1)
+            flow1.visualise_arrows(grid_dist=-1)
         with self.assertRaises(TypeError):
-            flow.visualise_arrows(10, img='test')
+            flow1.visualise_arrows(10, img='test')
         with self.assertRaises(ValueError):
-            flow.visualise_arrows(10, img=mask)
+            flow1.visualise_arrows(10, img=mask)
         with self.assertRaises(ValueError):
-            flow.visualise_arrows(10, img=mask[10:])
+            flow1.visualise_arrows(10, img=mask[10:])
         with self.assertRaises(ValueError):
-            flow.visualise_arrows(10, img=img_np[..., :2])
+            flow1.visualise_arrows(10, img=img_np[..., :2])
         with self.assertRaises(ValueError):
-            flow.visualise_arrows(10, img=img_np_3[:2])
+            flow1.visualise_arrows(10, img=img_np_3[:2])
         with self.assertRaises(TypeError):
-            flow.visualise_arrows(10, img_np, scaling='test')
+            flow1.visualise_arrows(10, img_np, scaling='test')
         with self.assertRaises(ValueError):
-            flow.visualise_arrows(10, img_np, scaling=-1)
+            flow1.visualise_arrows(10, img_np, scaling=-1)
         with self.assertRaises(TypeError):
-            flow.visualise_arrows(10, img_np, None, show_mask='test')
+            flow1.visualise_arrows(10, img_np, None, show_mask='test')
         with self.assertRaises(TypeError):
-            flow.visualise_arrows(10, img_np, None, True, show_mask_borders='test')
+            flow1.visualise_arrows(10, img_np, None, True, show_mask_borders='test')
         with self.assertRaises(TypeError):
-            flow.visualise_arrows(10, img_np, None, True, True, colour='test')
+            flow1.visualise_arrows(10, img_np, None, True, True, colour='test')
         with self.assertRaises(ValueError):
-            flow.visualise_arrows(10, img_np, None, True, True, colour=(0, 0))
+            flow1.visualise_arrows(10, img_np, None, True, True, colour=(0, 0))
         with self.assertRaises(TypeError):
-            flow.visualise_arrows(10, img_np, None, True, True, colour=(0, 0, 0), return_tensor='test')
+            flow1.visualise_arrows(10, img_np, None, True, True, colour=(0, 0, 0), return_tensor='test')
 
     def test_show(self):
         flow = Flow.from_transforms([['translation', 10, -8]], (100, 150))
