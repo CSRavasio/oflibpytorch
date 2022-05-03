@@ -1383,21 +1383,28 @@ class Flow(object):
         else:
             return img
 
-    def show(self, wait: int = None, show_mask: bool = None, show_mask_borders: bool = None):
+    def show(self, elem: int = None, wait: int = None, show_mask: bool = None, show_mask_borders: bool = None):
         """Shows the flow in an OpenCV window using :meth:`~oflibpytorch.Flow.visualise`
 
+        :param elem: Integer determining which batch element is visualised. Defaults to ``0``, so for flows with only
+            one element it automatically selects the one available flow
         :param wait: Integer determining how long to show the flow for, in milliseconds. Defaults to ``0``, which means
             it will be shown until the window is closed, or the process is terminated
         :param show_mask: Boolean determining whether the flow mask is visualised, defaults to ``False``
         :param show_mask_borders: Boolean determining whether flow mask border is visualised, defaults to ``False``
         """
 
+        elem = 0 if elem is None else elem
         wait = 0 if wait is None else wait
         if not isinstance(wait, int):
             raise TypeError("Error showing flow: Wait needs to be an integer")
         if wait < 0:
             raise ValueError("Error showing flow: Wait needs to be an integer larger than zero")
-        img = self.visualise('bgr', show_mask, show_mask_borders, return_tensor=False)
+        if not isinstance(elem, int):
+            raise TypeError("Error showing flow: Elem needs to be an integer")
+        if elem not in range(self.shape[0]):
+            raise ValueError("Error showing flow: Elem needs to be between 0 and the batch size")
+        img = self.select(elem).visualise('bgr', show_mask, show_mask_borders, return_tensor=False)[0]
         cv2.imshow('Visualise and show flow', img)
         cv2.waitKey(wait)
 

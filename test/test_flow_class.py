@@ -1293,11 +1293,17 @@ class FlowTest(unittest.TestCase):
             flow.visualise_arrows(10, img_np, None, True, True, colour=(0, 0, 0), return_tensor='test')
 
     def test_show(self):
-        flow = Flow.zero([200, 300])
+        flow = Flow.from_transforms([['translation', 10, -8]], (100, 150))
+        # Uncomment the following line to see the flow in an OpenCV window
+        # flow.show()
         with self.assertRaises(TypeError):
-            flow.show('test')
+            flow.show(wait='test')
         with self.assertRaises(ValueError):
-            flow.show(-1)
+            flow.show(wait=-1)
+        with self.assertRaises(TypeError):
+            flow.show(elem=.3)
+        with self.assertRaises(ValueError):
+            flow.show(elem=1)
 
     def test_show_arrows(self):
         flow = Flow.zero([200, 300])
