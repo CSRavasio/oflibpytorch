@@ -1144,7 +1144,7 @@ class Flow(object):
         mode: str,
         show_mask: bool = None,
         show_mask_borders: bool = None,
-        range_max: float = None,
+        range_max: Union[float, int, list, tuple] = None,
         return_tensor: bool = None
     ) -> Union[np.ndarray, torch.Tensor]:
         """Visualises the flow as an rgb / bgr / hsv image, optionally showing the outline of the flow mask :attr:`mask`
@@ -1158,11 +1158,12 @@ class Flow(object):
         :param show_mask: Boolean determining whether the flow mask is visualised, defaults to ``False``
         :param show_mask_borders: Boolean determining whether the flow mask border is visualised, defaults to ``False``
         :param range_max: Maximum vector magnitude expected, corresponding to the HSV maximum Value of 255 when scaling
-            the flow magnitudes. Defaults to the 99th percentile of the flow field magnitudes
+            the flow magnitudes. Can be a list or tuple corresponding of the same length as the flow batch size.
+            Defaults to the 99th percentile of the flow field magnitudes, per batch element
         :param return_tensor: Boolean determining whether the result is returned as a tensor. Note that the result is
             originally a numpy array. Defaults to ``True``
-        :return: Numpy array of shape :math:`(H, W, 3)` or torch tensor of shape :math:`(3, H, W)` containing the
-            flow visualisation
+        :return: Numpy array of shape :math:`(N, H, W, 3)` or torch tensor of shape :math:`(N, 3, H, W)` containing the
+            flow visualisation, where N is the batch size
         """
 
         show_mask = False if show_mask is None else show_mask
@@ -1175,11 +1176,11 @@ class Flow(object):
         if not isinstance(return_tensor, bool):
             raise TypeError("Error visualising flow: Return_tensor needs to be boolean")
 
-        f = to_numpy(threshold_vectors(self._vecs), True)
+        f = to_numpy(threshold_vectors(self._vecs), switch_channels=True)
         # Threshold the flow: very small numbers can otherwise lead to issues when calculating mag / angle
 
         # Colourise the flow
-        hsv = np.zeros((f.shape[0], f.shape[1], 3), 'f')
+        hsv = np.zeros((*f.shape[:3], 3), 'f')  # NHW3
         mag, ang = cv2.cartToPolar(f[..., 0], f[..., 1], angleInDegrees=True)
         hsv[..., 0] = np.mod(ang, 360) / 2
         hsv[..., 2] = 255
@@ -1188,25 +1189,36 @@ class Flow(object):
         if show_mask:
             hsv[np.invert(self.mask_numpy), 2] = 180
 
-        # Scale flow
+        # Scale flow TODO: range_max needs to be per batch element, same in the clipping
         if range_max is None:
-            if np.percentile(mag, 99) > 0:  # Use 99th percentile to avoid extreme outliers skewing the scaling
-                range_max = float(np.percentile(mag, 99))
-            elif np.max(mag):  # If the 99th percentile is 0, use the actual maximum instead
-                range_max = float(np.max(mag))
-            else:  # If the maximum is 0 too (i.e. the flow field is entirely 0)
-                range_max = 1
-        if not isinstance(range_max, (float, int)):
-            raise TypeError("Error visualising flow: Range_max needs to be an integer or a float")
-        if range_max <= 0:
+            range_max = []
+            for i in range(self.shape[0]):
+                if np.percentile(mag[i], 99) > 0:  # Use 99th percentile to avoid extreme outliers skewing the scaling
+                    range_max.append(float(np.percentile(mag[i], 99)))
+                elif np.max(mag[i]) > 0:  # If the 99th percentile is 0, use the actual maximum instead
+                    range_max.append(float(np.max(mag)))
+                else:  # If the maximum is 0 too (i.e. the flow field is entirely 0)
+                    range_max.append(1)
+        if isinstance(range_max, (list, tuple)):
+            if len(range_max) != self.shape[0]:
+                raise TypeError("Error visualising flow: Range_max list or tuple length ({}) needs to match the flow "
+                                "batch size ({})".format(len(range_max), self.shape[0]))
+            else:
+                range_max = np.array(range_max)
+        elif isinstance(range_max, (float, int)):
+            range_max = np.array([range_max for _ in range(self.shape[0])])
+        else:
+            raise TypeError("Error visualising flow: Range_max needs to be an integer, a float, a list, or a tuple")
+        if any(range_max <= 0):
             raise ValueError("Error visualising flow: Range_max needs to be larger than zero")
-        hsv[..., 1] = np.clip(mag * 255 / range_max, 0, 255)
+        hsv[..., 1] = np.clip(mag * 255 / range_max[:, np.newaxis, np.newaxis], 0, 255)
 
         # Add mask borders if required
         if show_mask_borders:
-            contours, hierarchy = cv2.findContours((255 * self.mask_numpy).astype('uint8'),
-                                                   cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            cv2.drawContours(hsv, contours, -1, (0, 0, 0), 1)
+            for i in range(hsv.shape[0]):
+                contours, hierarchy = cv2.findContours((255 * self.mask_numpy[i]).astype('uint8'),
+                                                       cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                cv2.drawContours(hsv[i], contours, -1, (0, 0, 0), 1)
 
         # Process and return the flow visualisation
         if mode == 'hsv':
@@ -1230,7 +1242,7 @@ class Flow(object):
             if mode == 'bgr':
                 return_arr = return_arr[..., ::-1]
             if return_tensor:
-                return torch.tensor(np.moveaxis(return_arr, -1, 0).copy(), device=self._device)
+                return torch.tensor(np.moveaxis(return_arr, -1, 1).copy(), device=self._device)
                 # Note: .copy() necessary to avoid negative strides in numpy array
             else:
                 return return_arr
