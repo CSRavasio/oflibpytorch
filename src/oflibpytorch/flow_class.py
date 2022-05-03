@@ -1129,14 +1129,15 @@ class Flow(object):
 
         :param thresholded: Boolean determining whether the flow is thresholded, defaults to ``True``
         :param masked: Boolean determining whether the flow is masked with :attr:`mask`, defaults to ``True``
-        :return: ``True`` if the flow field is zero everywhere, otherwise ``False``
+        :return: Tensor matching the batch dimension, containing ``True`` for each flow field that is zero everywhere,
+            otherwise ``False``
         """
 
         masked = True if masked is None else masked
         if not isinstance(masked, bool):
             raise TypeError("Error checking whether flow is zero: Masked needs to be a boolean")
 
-        f = self._vecs[:, self._mask].unsqueeze(-1) if masked else self._vecs
+        f = self._vecs.permute(1, 0, 2, 3)[:, self._mask].unsqueeze(0).unsqueeze(-1) if masked else self._vecs
         return is_zero_flow(f, thresholded)
 
     def visualise(

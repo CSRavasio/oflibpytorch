@@ -1118,8 +1118,8 @@ class FlowTest(unittest.TestCase):
         flow[0, 0] = 10
         flow = Flow(flow, mask=mask)
         self.assertEqual(flow.is_zero(), True)
-        self.assertEqual(flow.is_zero(masked=True), True)
-        self.assertEqual(flow.is_zero(masked=False), False)
+        self.assertEqual(all(flow.is_zero(masked=True)), True)
+        self.assertEqual(all(flow.is_zero(masked=False)), False)
 
         with self.assertRaises(TypeError):  # Masked wrong type
             flow.is_zero(masked='test')
