@@ -1265,7 +1265,9 @@ class Flow(object):
 
         :param grid_dist: Integer of the distance of the flow points to be used for the visualisation, defaults to
             ``20``
-        :param img: Torch tensor or numpy array with the background image to use (in BGR mode), defaults to white
+        :param img: Torch tensor of shape :math:`(N, 3, H, W)` or :math:`(3, H, W)` or numpy array of shape
+            :math:`(N, H, W, 3)` or :math:`(H, W, 3)` containing the background image to use (in BGR mode),
+            defaults to white
         :param scaling: Float or int of the flow line scaling, defaults to scaling the 99th percentile of arrowed line
             lengths to be equal to twice the grid distance (empirical value)
         :param show_mask: Boolean determining whether the flow mask is visualised, defaults to ``False``
@@ -1283,22 +1285,30 @@ class Flow(object):
         grid_dist = 20 if grid_dist is None else grid_dist
         if not isinstance(grid_dist, int):
             raise TypeError("Error visualising flow arrows: Grid_dist needs to be an integer value")
-        if grid_dist > min(self.shape) // 2:
+        if grid_dist > min(self.shape[1:]) // 2:
             print("Warning: grid_dist in visualise_arrows is '{}', which is too large for a flow field of shape "
                   "({}, {}). grid_dist will be reset to '{}'."
-                  .format(grid_dist, *self.shape, min(self.shape) // 2))
-            grid_dist = min(self.shape) // 2
+                  .format(grid_dist, *self.shape[1:], min(self.shape[1:]) // 2))
+            grid_dist = min(self.shape[1:]) // 2
         if not grid_dist > 0:
             raise ValueError("Error visualising flow arrows: Grid_dist needs to be an integer larger than zero")
         if img is None:
-            img = np.full(self.shape[:2] + (3,), 255, 'uint8')
+            img = np.full(self.shape + (3,), 255, 'uint8')
+        else:
+            if not isinstance(img, (np.ndarray, torch.Tensor)):
+                raise TypeError("Error visualising flow arrows: Img needs to be a numpy array or a torch tensor")
+        if len(img.shape) == 3:
+            if isinstance(img, np.ndarray):
+                img = np.broadcast_to(img, (self.shape[0], *img.shape)).copy()
+            elif isinstance(img, torch.Tensor):
+                img = img.unsqueeze(0).expand(self.shape[0], -1, -1, -1)
         if isinstance(img, torch.Tensor):
-            img = to_numpy(img, True)
-        if not isinstance(img, np.ndarray):
-            raise TypeError("Error visualising flow arrows: Img needs to be a numpy array or a torch tensor")
-        if not len(img.shape) == 3 or img.shape[:2] != self.shape or img.shape[2] != 3:
-            raise ValueError("Error visualising flow arrows: "
-                             "Img needs to have 3 channels and the same shape as the flow")
+            img = np.ascontiguousarray(to_numpy(img, switch_channels=True))
+        if len(img.shape) == 4 and img.shape[0] == 1 and img.shape[0] != self.shape[0]:
+            img = np.broadcast_to(img, (self.shape[0], *img.shape[1:])).copy()
+        if not len(img.shape) == 4 or img.shape[:3] != self.shape or img.shape[-1] != 3:
+            raise ValueError("Error visualising flow arrows: Img needs to have 3 or 4 channels and the same "
+                             "shape as the flow, including the batch size")
         if scaling is not None:
             if not isinstance(scaling, (float, int)):
                 raise TypeError("Error visualising flow arrows: Scaling needs to be a float or an integer")
@@ -1328,11 +1338,11 @@ class Flow(object):
         f = to_numpy(threshold_vectors(self._vecs), True)
 
         # Make points
-        x, y = np.mgrid[grid_dist//2:f.shape[0] - 1:grid_dist, grid_dist//2:f.shape[1] - 1:grid_dist]
-        i_pts = np.dstack((x, y))
-        i_pts_flat = np.reshape(i_pts, (-1, 2)).astype('i')
-        f_at_pts = f[i_pts_flat[..., 0], i_pts_flat[..., 1]]
-        flow_mags, ang = cv2.cartToPolar(f_at_pts[..., 0], f_at_pts[..., 1], angleInDegrees=True)
+        x, y = np.mgrid[grid_dist//2:f.shape[1] - 1:grid_dist, grid_dist//2:f.shape[2] - 1:grid_dist]
+        i_pts = np.dstack((x, y))                                       # N_pt-N_pt-2
+        i_pts_flat = np.reshape(i_pts, (-1, 2)).astype('i')             # N_pt*N_pt-2
+        f_at_pts = f[:, i_pts_flat[..., 0], i_pts_flat[..., 1]]         # N-N_pt*N_pt-2
+        flow_mags, ang = cv2.cartToPolar(f_at_pts[..., 0], f_at_pts[..., 1], angleInDegrees=True)  # N-N_pt*N_pt
         if scaling is None:
             scaling = grid_dist / np.percentile(flow_mags, 99)
         flow_mags *= scaling
@@ -1340,32 +1350,36 @@ class Flow(object):
         colours = None
         tip_size = math.sqrt(thickness) * 3.5  # Empirical value
         if colour is None:
-            hsv = np.full((1, ang.shape[0], 3), 255, 'uint8')
-            hsv[0, :, 0] = np.round(np.mod(ang[:, 0], 360) / 2)
+            hsv = np.full((*ang.shape, 3), 255, 'uint8')                # N-N_pt*N_pt-3
+            hsv[..., 0] = np.round(np.mod(ang, 360) / 2)
             colours = np.squeeze(cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
-        for i_num, i_pt in enumerate(i_pts_flat):
-            if flow_mags[i_num] > 0.5:  # Only draw if the flow length rounds to at least one pixel
-                c = tuple(int(item) for item in colours[i_num]) if colour is None else colour
-                tip_length = float(tip_size / flow_mags[i_num])
-                if self.ref == 's':
-                    e_pt = np.round(i_pt + f[i_pt[0], i_pt[1]][::-1]).astype('i')
-                    cv2.arrowedLine(img, (i_pt[1], i_pt[0]), (e_pt[1], e_pt[0]), c,
-                                    thickness=1, tipLength=tip_length, line_type=cv2.LINE_AA)
-                else:  # self.ref == 't'
-                    e_pt = np.round(i_pt - f[i_pt[0], i_pt[1]][::-1]).astype('i')
-                    cv2.arrowedLine(img, (e_pt[1], e_pt[0]), (i_pt[1], i_pt[0]), c,
-                                    thickness=thickness, tipLength=tip_length, line_type=cv2.LINE_AA)
-            img[i_pt[0], i_pt[1]] = [0, 0, 255]
+        for batch_elem in range(img.shape[0]):
+            for i_num, i_pt in enumerate(i_pts_flat):
+                if flow_mags[batch_elem][i_num] > 0.5:  # Only draw if the flow length rounds to at least one pixel
+                    c = tuple(int(item) for item in colours[batch_elem][i_num]) if colour is None else colour
+                    tip_length = float(tip_size / flow_mags[batch_elem][i_num])
+                    if self.ref == 's':
+                        e_pt = np.round(i_pt + f[batch_elem][i_pt[0], i_pt[1]][::-1]).astype('i')
+                        cv2.arrowedLine(img[batch_elem], (i_pt[1], i_pt[0]), (e_pt[1], e_pt[0]), c,
+                                        thickness=1, tipLength=tip_length, line_type=cv2.LINE_AA)
+                    else:  # self.ref == 't'
+                        e_pt = np.round(i_pt - f[batch_elem][i_pt[0], i_pt[1]][::-1]).astype('i')
+                        cv2.arrowedLine(img[batch_elem], (e_pt[1], e_pt[0]), (i_pt[1], i_pt[0]), c,
+                                        thickness=thickness, tipLength=tip_length, line_type=cv2.LINE_AA)
+                img[batch_elem, i_pt[0], i_pt[1]] = [0, 0, 255]
 
         # Show mask and mask borders if required
         if show_mask:
             img[~self.mask_numpy] = np.round(0.5 * img[~self.mask_numpy]).astype('uint8')
+        if not img.flags.contiguous:
+            img = np.ascontiguousarray(img)
         if show_mask_borders:
-            mask_as_img = np.array(255 * self.mask_numpy, 'uint8')
-            contours, hierarchy = cv2.findContours(mask_as_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            cv2.drawContours(img, contours, -1, (0, 0, 0), 1)
+            for i in range(self.shape[0]):
+                mask_as_img = np.array(255 * self.mask_numpy[i], 'uint8')
+                contours, hierarchy = cv2.findContours(mask_as_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                cv2.drawContours(img[i], contours, -1, (0, 0, 0), 1)
         if return_tensor:
-            return torch.tensor(np.moveaxis(img, -1, 0), device=self._device)
+            return torch.tensor(np.moveaxis(img, -1, 1), device=self._device)
         else:
             return img
 
