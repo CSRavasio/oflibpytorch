@@ -422,6 +422,9 @@ class TestNormaliseCoords(unittest.TestCase):
                                                          to_numpy(e_c),
                                                          rtol=1e-6))
 
+        with self.assertRaises(ValueError):
+            normalise_coords(coord_list[0], [1, 2, 3])
+
 
 class TestApplyFlow(unittest.TestCase):
     def test_rotation(self):
