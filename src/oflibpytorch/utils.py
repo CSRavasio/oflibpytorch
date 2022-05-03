@@ -499,15 +499,15 @@ def apply_flow(
     else:  # ref == 's'
         # Get the positions of the unstructured points with known values
         field = to_numpy(flow).astype('float32')
-        flow_flat = np.reshape(field[..., ::-1], (field.shape[0], -1, 2))  # Shape N-H*W-2
-        x, y = np.mgrid[:h, :w]
-        positions = np.swapaxes(np.vstack([x.ravel(), y.ravel()]), 0, 1)
-        pos = positions + flow_flat  # N-H*W-2
+        flow_flat = np.reshape(field[..., ::-1], (field.shape[0], -1, 2))               # N-H*W-2
+        x, y = np.mgrid[:h, :w]                                                         # H-W
+        positions = np.swapaxes(np.vstack([x.ravel(), y.ravel()]), 0, 1)                # H*W-2
+        pos = positions + flow_flat                                                     # N-H*W-2
         # Get the known values themselves
         target_np = np.moveaxis(to_numpy(target), 1, -1)                                # from N-C-H-W to N-H-W-C
         target_flat = np.reshape(target_np, (target.shape[0], -1, target.shape[1]))     # from N-H-W-C to N-H*W-C
         # Perform interpolation of regular grid from unstructured data
-        results = np.copy(target_np)
+        results = np.copy(target_np)                                                    # N-H-W-C
         if mask is not None:
             mask = to_numpy(mask.view(mask.shape[0], -1))
         for i in range(target_flat.shape[0]):  # Perform griddata for each batch member
@@ -518,8 +518,7 @@ def apply_flow(
             else:
                 result = griddata(pos[i], target_flat[i], (x, y), method='linear')
                 results[i] = np.nan_to_num(result)
-        # Make sure the output is returned with the same dtype as the input, if necessary rounded
-        result = torch.tensor(np.moveaxis(results, -1, 1)).to(flow.device)
+        result = torch.tensor(np.moveaxis(results, -1, 1)).to(flow.device)              # N-H-W-C to N-C-H-W
 
     # Reduce target to original shape, as far as possible
     if result.shape[0] == 1:
