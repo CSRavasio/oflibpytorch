@@ -1130,7 +1130,8 @@ class FlowTest(unittest.TestCase):
         flow = Flow.from_transforms([['translation', 1, 0]], [200, 300])
         desired_img = np.tile(np.array([0, 0, 255]).reshape((1, 1, 3)), (200, 300, 1))
         self.assertIsNone(np.testing.assert_equal(flow.visualise('bgr', return_tensor=False)[0], desired_img))
-        self.assertIsNone(np.testing.assert_equal(flow.visualise('rgb', return_tensor=False)[0], desired_img[..., ::-1]))
+        self.assertIsNone(np.testing.assert_equal(flow.visualise('rgb', return_tensor=False)[0],
+                                                  desired_img[..., ::-1]))
         self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[0, ..., 0], 0))
         self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[0, ..., 1], 255))
         self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False)[0, ..., 2], 255))
