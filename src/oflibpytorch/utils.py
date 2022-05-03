@@ -477,7 +477,6 @@ def apply_flow(
         if int(torch_version[0]) == 1 and float(torch_version[2:4]) <= 3:
             result = f.grid_sample(target, field)
         else:
-            # noinspection PyArgumentList
             result = f.grid_sample(target, field, align_corners=True)
         # Comment on grid_sample: given grid_sample(input, grid), the input is sampled at grid points.
         #   For this to work:
@@ -881,7 +880,6 @@ def track_pts(
         warped_pts = pts
     else:
         if ref == 's':
-            # noinspection PyUnresolvedReferences
             if not pts.dtype.is_floating_point:
                 flow_vecs = flow[:, pts[:, 0].long(), pts[:, 1].long()]  # flow_vecs shape 2-N
                 flow_vecs = flow_vecs.transpose(0, 1).flip(-1)  # flow_vecs shape N-2 and (y, x) instead of (x, y)
@@ -892,7 +890,6 @@ def track_pts(
                 if int(torch_version[0]) == 1 and float(torch_version[2:4]) <= 3:
                     flow_vecs = f.grid_sample(flow.unsqueeze(0), pts_4d).flip(1)
                 else:
-                    # noinspection PyArgumentList
                     flow_vecs = f.grid_sample(flow.unsqueeze(0), pts_4d, align_corners=True).flip(1)
                 #  vecs are 1-2-H-W, pts_4d is 1-1-N-2, output will be 1-2-1-N
                 flow_vecs = flow_vecs.transpose(0, -1).squeeze(-1).squeeze(-1)  # flow_vecs now N-2
