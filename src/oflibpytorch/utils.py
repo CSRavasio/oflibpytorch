@@ -852,8 +852,8 @@ def track_pts(
         :math:`(N, 2, H, W)`, or :math:`(N, H, W, 2)`
     :param ref: Flow field reference, either ``s`` or ``t``
     :param pts: Torch tensor of shape :math:`(M, 2)` or :math:`(N, M, 2)` containing the point coordinates. If a
-        batch dimension is given, it must correspond to the flow batch dimension. If the flow is batched but the
-        points are not, the same points are warped by each flow field individually. ``pts[:, 0]`` corresponds to
+        batch dimension is given, it must be 1 or correspond to the flow batch dimension. If the flow is batched but
+        the points are not, the same points are warped by each flow field individually. ``pts[:, 0]`` corresponds to
         the vertical coordinate, ``pts[:, 1]`` to the horizontal coordinate
     :param int_out: Boolean determining whether output points are returned as rounded integers, defaults to
         ``False``
@@ -871,7 +871,11 @@ def track_pts(
         pts = pts.unsqueeze(0).repeat(flow.shape[0], 1, 1)  # N, M, 2
     elif pts.dim() == 3:
         if pts.shape[0] != flow.shape[0]:
-            raise ValueError("Error tracking points: If used, pts batch size needs to be equal to the flow batch size")
+            if pts.shape[0] == 1:
+                pts = pts.repeat(flow.shape[0], 1, 1)
+            else:
+                raise ValueError("Error tracking points: "
+                                 "If used, pts batch size needs to be equal to the flow batch size")
     else:
         raise ValueError("Error tracking points: Pts needs to have shape M-2 or N-M-2")
     if pts.shape[-1] != 2:

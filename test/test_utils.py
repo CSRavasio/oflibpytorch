@@ -766,6 +766,9 @@ class TestTrackPts(unittest.TestCase):
         pts_tracked_s = track_pts(f_s, 's', pts)
         self.assertIsInstance(pts_tracked_s, torch.Tensor)
         self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s), desired_pts, rtol=1e-6))
+        pts_tracked_s = track_pts(f_s, 's', pts.unsqueeze(0))
+        self.assertIsInstance(pts_tracked_s, torch.Tensor)
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s)[0], desired_pts, rtol=1e-6))
 
         # Reference 't'
         pts_tracked_t = track_pts(f_t, 't', pts)
@@ -801,6 +804,8 @@ class TestTrackPts(unittest.TestCase):
         pts_tracked_s = track_pts(f_s.vecs, 's', torch.tensor(pts))
         for i in range(pts_tracked_s.shape[0]):
             self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s[i]), desired_pts[i], rtol=1e-6))
+        pts_tracked_s = track_pts(f_s.vecs, 's', torch.tensor(pts)[0:1])
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s[0]), desired_pts[0], rtol=1e-6))
         pts_tracked_s = track_pts(f_s.vecs, 's', torch.tensor(pts).to(torch.float))
         for i in range(pts_tracked_s.shape[0]):
             self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s[i]), desired_pts[i], rtol=1e-6))
@@ -827,7 +832,7 @@ class TestTrackPts(unittest.TestCase):
         with self.assertRaises(ValueError):  # Wrong pts shape: too many dims
             track_pts(flow, 's', pts=torch.zeros((1, 2, 10, 2)))
         with self.assertRaises(ValueError):  # Wrong pts shape: batch size not equal flow
-            track_pts(flow, 's', pts=torch.zeros((5, 2, 10, 2)))
+            track_pts(flow, 's', pts=torch.zeros((5, 10, 2)))
         with self.assertRaises(ValueError):  # Pts channel not of size 2
             track_pts(flow, 's', pts=pts.transpose(0, -1))
         with self.assertRaises(TypeError):  # Wrong int_out type
