@@ -1057,11 +1057,18 @@ class FlowTest(unittest.TestCase):
             [0, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0]
         ]).astype('bool')
-        self.assertIsNone(np.testing.assert_equal(to_numpy(f_s.valid_target()), desired_area_s))
-        self.assertIsNone(np.testing.assert_equal(to_numpy(f_t.valid_target()), desired_area_t))
-        self.assertIsNone(np.testing.assert_equal(f_s_masked.valid_target(), desired_area_s_masked_consider_mask))
-        self.assertIsNone(np.testing.assert_equal(to_numpy(f_s_masked.valid_target(False)), desired_area_s_masked))
-        self.assertIsNone(np.testing.assert_equal(to_numpy(f_t_masked.valid_target()), desired_area_t_masked))
+        self.assertIsNone(np.testing.assert_equal(f_s.valid_target()[0], desired_area_s))
+        self.assertIsNone(np.testing.assert_equal(f_t.valid_target()[0], desired_area_t))
+        self.assertIsNone(np.testing.assert_equal(f_s_masked.valid_target()[0], desired_area_s_masked_consider_mask))
+        self.assertIsNone(np.testing.assert_equal(f_s_masked.valid_target(False)[0], desired_area_s_masked))
+        self.assertIsNone(np.testing.assert_equal(f_t_masked.valid_target()[0], desired_area_t_masked))
+        # All of the above batched
+        f_s = batch_flows((f_s, f_s_masked))
+        f_t = batch_flows((f_t, f_t_masked))
+        self.assertIsNone(np.testing.assert_equal(f_s.valid_target()[0], desired_area_s))
+        self.assertIsNone(np.testing.assert_equal(f_s.valid_target()[1], desired_area_s_masked_consider_mask))
+        self.assertIsNone(np.testing.assert_equal(f_t.valid_target()[0], desired_area_t))
+        self.assertIsNone(np.testing.assert_equal(f_t.valid_target()[1], desired_area_t_masked))
 
     def test_valid_source(self):
         transforms = [['rotation', 0, 0, 45]]
@@ -1119,11 +1126,18 @@ class FlowTest(unittest.TestCase):
             [1, 0, 0, 0, 0, 0, 0],
             [1, 1, 0, 0, 0, 0, 0]
         ]).astype('bool')
-        self.assertIsNone(np.testing.assert_equal(to_numpy(f_s.valid_source()), desired_area_s))
-        self.assertIsNone(np.testing.assert_equal(to_numpy(f_t.valid_source()), desired_area_t))
-        self.assertIsNone(np.testing.assert_equal(to_numpy(f_s_masked.valid_source()), desired_area_s_masked))
-        self.assertIsNone(np.testing.assert_equal(f_t_masked.valid_source(), desired_area_t_masked_consider_mask))
-        self.assertIsNone(np.testing.assert_equal(f_t_masked.valid_source(False), desired_area_t_masked))
+        self.assertIsNone(np.testing.assert_equal(f_s.valid_source()[0], desired_area_s))
+        self.assertIsNone(np.testing.assert_equal(f_t.valid_source()[0], desired_area_t))
+        self.assertIsNone(np.testing.assert_equal(f_s_masked.valid_source()[0], desired_area_s_masked))
+        self.assertIsNone(np.testing.assert_equal(f_t_masked.valid_source()[0], desired_area_t_masked_consider_mask))
+        self.assertIsNone(np.testing.assert_equal(f_t_masked.valid_source(False)[0], desired_area_t_masked))
+        # All of the above batched
+        f_s = batch_flows((f_s, f_s_masked))
+        f_t = batch_flows((f_t, f_t_masked))
+        self.assertIsNone(np.testing.assert_equal(f_s.valid_source()[0], desired_area_s))
+        self.assertIsNone(np.testing.assert_equal(f_s.valid_source()[1], desired_area_s_masked))
+        self.assertIsNone(np.testing.assert_equal(f_t.valid_source()[0], desired_area_t))
+        self.assertIsNone(np.testing.assert_equal(f_t.valid_source()[1], desired_area_t_masked_consider_mask))
 
     def test_get_padding(self):
         transforms = [['rotation', 0, 0, 45]]

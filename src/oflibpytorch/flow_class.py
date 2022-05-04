@@ -1004,7 +1004,7 @@ class Flow(object):
         :param consider_mask: Boolean determining whether the flow vectors are masked before application (only relevant
             for flows with reference ``ref = 's'``, analogous to :meth:`~oflibpytorch.Flow.apply`). Results in smoother
             outputs, but more artefacts. Defaults to ``True``
-        :return: Boolean torch tensor of the same shape :math:`(H, W)` as the flow
+        :return: Boolean torch tensor of the same shape :math:`(N, H, W)` as the flow
         """
 
         consider_mask = True if consider_mask is None else consider_mask
@@ -1015,7 +1015,8 @@ class Flow(object):
             # gives a boolean mask of which positions in the target image are valid, i.e. have been filled by values
             # warped there from the source by flow vectors that were themselves valid:
             # area = F{source & mask}, where: source & mask = mask, because: source = True everywhere
-            area = apply_flow(self._vecs, self._mask.to(torch.float), 's', self._mask if consider_mask else None)
+            area = apply_flow(self._vecs, self._mask.unsqueeze(1).to(torch.float), 's',
+                              self._mask if consider_mask else None).squeeze(1)
             area = area == 1
         else:  # ref is 't'
             # Flow mask in 't' flow refers to valid flow vecs in the target image. Therefore, warping a test array that
@@ -1023,7 +1024,7 @@ class Flow(object):
             # image, i.e. positions that have been filled by values warped there from the source by flow vectors that
             # were themselves valid:
             # area = F{source} & mask, where: source = True everywhere
-            area = apply_flow(self._vecs, torch.ones(self.shape), 't')
+            area = apply_flow(self._vecs, torch.ones((self.shape[0], 1, *self.shape[1:])), 't').squeeze(1)
             area = area > 0.9999
             area = area & self._mask
         return area
@@ -1042,7 +1043,7 @@ class Flow(object):
             for flows with reference ``ref = 't'`` as their inverse flow will be applied, using the reference ``s``;
             analogous to :meth:`~oflibpytorch.Flow.apply`). Results in smoother outputs, but more artefacts. Defaults
             to ``True``
-        :return: Boolean torch tensor of the same shape :math:`(H, W)` as the flow
+        :return: Boolean torch tensor of the same shape :math:`(N, H, W)` as the flow
         """
 
         consider_mask = True if consider_mask is None else consider_mask
@@ -1054,7 +1055,7 @@ class Flow(object):
             # warping a test array that is True everywhere from target to source with the inverse of the flow, ANDed
             # with the flow mask, will yield a boolean mask of valid positions in the source image:
             # area = F.inv{target} & mask, where target = True everywhere
-            area = apply_flow(-self._vecs, torch.ones(self.shape), 't')
+            area = apply_flow(-self._vecs, torch.ones((self.shape[0], 1, *self.shape[1:])), 't').squeeze(1)
             # Note: this is equal to: area = self.invert('t').apply(np.ones(self.shape)), but more efficient as there
             # is no unnecessary warping of the mask
             area = area > 0.9999
@@ -1065,7 +1066,8 @@ class Flow(object):
             # warping the flow mask from target to source with the inverse of the flow will yield a boolean mask of
             # valid positions in the source image:
             # area = F.inv{target & mask}, where target & mask = mask, because target = True everywhere
-            area = apply_flow(-self._vecs, self._mask.to(torch.float), 's', self._mask if consider_mask else None)
+            area = apply_flow(-self._vecs, self._mask.unsqueeze(1).to(torch.float), 's',
+                              self._mask if consider_mask else None).squeeze(1)
             # Note: this is equal to: area = self.invert('s').apply(self.mask.astype('f')), but more efficient as there
             # is no unnecessary warping of the mask
             area = area == 1
