@@ -902,30 +902,44 @@ class Flow(object):
             Calling :meth:`~oflibpytorch.Flow.track` on a flow field with reference :attr:`ref` ``s`` ("source") is
             significantly faster, as this does not require a call to :func:`scipy.interpolate.griddata`.
 
-        :param pts: Torch tensor of shape :math:`(N, 2)` containing the point coordinates. ``pts[:, 0]`` corresponds
-            to the vertical coordinate, ``pts[:, 1]`` to the horizontal coordinate
+        :param pts: Torch tensor of shape :math:`(M, 2)` or :math:`(N, M, 2)` containing the point coordinates. If a
+            batch dimension is given, it must correspond to the flow batch dimension. If the flow is batched but the
+            points are not, the same points are warped by each flow field individually. ``pts[:, 0]`` corresponds to
+            the vertical coordinate, ``pts[:, 1]`` to the horizontal coordinate
         :param int_out: Boolean determining whether output points are returned as rounded integers, defaults to
             ``False``
-        :param get_valid_status: Boolean determining whether a tensor of shape :math:`(N, 2)` is returned, which
-            contains the status of each point. This corresponds to applying :meth:`~oflibpytorch.Flow.valid_source` to
-            the point positions, and returns ``True`` for the points that 1) tracked by valid flow vectors, and 2) end
-            up inside the flow area of :math:`H \\times W`. Defaults to ``False``
-        :return: Torch tensor of warped ('tracked') points, and optionally a torch tensor of the point tracking status.
-            The tensor device is the same as the tensor device of the flow field
+        :param get_valid_status: Boolean determining whether a tensor of shape :math:`(M)` or :math:`(N, M)` is
+            returned, which contains the status of each point. This corresponds to applying
+            :meth:`~oflibpytorch.Flow.valid_source` to the point positions, and returns ``True`` for the points
+            that 1) tracked by valid flow vectors, and 2) end up inside the flow area of :math:`H \\times W`.
+            Defaults to ``False``
+        :return: Torch tensor of warped ('tracked') points of the same shape as the input, and optionally a torch
+            tensor of the tracking status per point. The tensor device is the same as the tensor device of the
+            flow field
         """
 
         # Validate inputs
+        input_2d = True if pts.dim() == 2 else False
         get_valid_status = False if get_valid_status is None else get_valid_status
         if not isinstance(get_valid_status, bool):
             raise TypeError("Error tracking points: Get_tracked needs to be a boolean")
 
         warped_pts = track_pts(flow=self._vecs, ref=self._ref, pts=pts, int_out=int_out)
+        if input_2d and self.shape[0] == 1:  # Input points are M-2, flow is single-element
+            warped_pts = warped_pts.squeeze(0)
 
         if get_valid_status:
             # noinspection PyUnresolvedReferences
             if pts.dtype.is_floating_point:
                 pts = torch.round(pts)
-            status_array = self.valid_source()[pts[..., 0].long(), pts[..., 1].long()]
+            pts2 = pts.unsqueeze(0) if input_2d else pts
+            if pts2.shape[0] != self.shape[0]:
+                pts2 = pts2.repeat(self.shape[0], 1, 1)  # Ensure N-M-2
+            valid_source = self.valid_source().view(self.shape[0], -1)  # N-H-W to N-H*W
+            pts2 = pts2[..., 0] * self.shape[-1] + pts2[..., 1]           # N-M, with coords "unravelled"
+            status_array = torch.gather(valid_source, 1, pts2.long())   # N-M
+            if warped_pts.dim() == 2:  # Input was M-2, flow is single-element
+                status_array = status_array.squeeze(0)
             return warped_pts, status_array
         else:
             return warped_pts

@@ -969,10 +969,11 @@ class FlowTest(unittest.TestCase):
 
     def test_track(self):
         f_s = Flow.from_transforms([['rotation', 0, 0, 30]], (512, 512), 's')
+        f_s.mask[:, :, 200:] = False
         f_t = Flow.from_transforms([['rotation', 0, 0, 30]], (512, 512), 't')
+        f_t.mask[:, :, 200:] = False
 
         # Test valid status for 't' flow
-        f_t.mask[:, 200:] = False
         pts = torch.tensor([
             [0, 50],            # Moved out of bounds by a valid flow vector
             [0, 500],           # Moved out of bounds by an invalid flow vector
@@ -984,8 +985,20 @@ class FlowTest(unittest.TestCase):
         _, tracked = f_t.track(pts, get_valid_status=True)
         self.assertIsNone(np.testing.assert_equal(to_numpy(tracked), desired_valid_status))
 
+        # Batched
+        f3 = batch_flows([f_s, f_s, f_s])
+        d1 = [desired_valid_status]
+        d3 = [desired_valid_status, desired_valid_status, desired_valid_status]
+        pts1 = pts.unsqueeze(0)
+        pts3 = pts1.repeat(3, 1, 1)
+        _, t_1_1 = f_s.track(pts1, get_valid_status=True)
+        _, t_3_1 = f3.track(pts1, get_valid_status=True)
+        _, t_3_3 = f3.track(pts3, get_valid_status=True)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(t_1_1), d1))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(t_3_1), d3))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(t_3_3), d3))
+
         # Test valid status for 's' flow
-        f_s.mask[:, 200:] = False
         pts = torch.tensor([
             [0, 50],            # Moved out of bounds by a valid flow vector
             [0, 500],           # Moved out of bounds by an invalid flow vector
