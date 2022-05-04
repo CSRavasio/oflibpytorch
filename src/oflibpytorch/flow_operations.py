@@ -147,8 +147,12 @@ def combine_flows(
        by a rotation is not the same as a rotation followed by a translation: adding up vectors at each pixel cannot be
        the correct solution as there wouldn't be a difference based on the order of vector addition.
 
-    :param input_1: First input flow as a numpy array or torch tensor, shape :math:`(2, H, W)`, :math:`(H, W, 2)`,
-        :math:`(N, H, W, 2)` or :math:`(N, H, W, 2)`. Can also be a flow object, but this will be deprecated soon
+    :param input_1: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as
+        :math:`(2, H, W)` or :math:`(N, 2, H, W)` if possible, otherwise as :math:`(H, W, 2)` or
+        :math:`(N, H, W, 2)`, throwing a ``ValueError`` if this isn't possible either. The dimension that is 2
+        (the channel dimension) contains the flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the
+        horizontal, ``flow_vectors[..., 1]`` are the vertical vector components, defined as positive when pointing
+        to the right / down. Can also be a flow object, but this will be deprecated soon
     :param input_2: Second input flow, same type as ``input_1``
     :param mode: Integer determining how the input flows are combined, where the number corresponds to the position in
         the formula :math:`flow_1 ⊕ flow_2 = flow_3`:
@@ -162,7 +166,8 @@ def combine_flows(
     :param ref: The reference of the input flow fields, either ``s`` or ``t``
     :param thresholded: Boolean determining whether flows are thresholded during an internal call to
         :meth:`~oflibnumpy.Flow.is_zero`, defaults to ``False``
-    :return: Flow object if inputs are flow objects (deprecated in future, avoid), Torch tensor as standard
+    :return: Flow object if inputs are flow objects (deprecated in future, avoid), Torch tensor of shape
+        :math:`(N, 2, H, W)` as standard
     """
 
     if isinstance(input_1, Flow) and isinstance(input_2, Flow):
