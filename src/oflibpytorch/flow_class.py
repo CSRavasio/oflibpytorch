@@ -1606,7 +1606,7 @@ class Flow(object):
            vectors at each pixel cannot be the correct solution as there wouldn't be a difference based on the
            order of vector addition.
 
-        :param flow: Flow object to combine with
+        :param flow: Flow object to combine with, shape (including batch size) needs to match
         :param mode: Integer determining how the input flows are combined, where the number corresponds to the
             position in the formula :math:`flow_1 ⊕ flow_2 = flow_3`:
 
@@ -1625,7 +1625,7 @@ class Flow(object):
         if not isinstance(flow, Flow):
             raise TypeError("Error combining flows: Flow need to be of type 'Flow'")
         if self.shape != flow.shape:
-            raise ValueError("Error combining flows: Flow fields need to have the same shape")
+            raise ValueError("Error combining flows: Flow fields need to have the same shape, including batch size")
         if self.ref != flow.ref:
             raise ValueError("Error combining flows: Flow fields need to have the same reference")
         if self._device != flow._device:
@@ -1637,7 +1637,7 @@ class Flow(object):
             raise TypeError("Error combining flows: Thresholded needs to be a boolean")
 
         # Check if one input is zero, return early if so
-        if self.is_zero(thresholded=thresholded):
+        if all(self.is_zero(thresholded=thresholded)):
             # if mode == 1:  # Flows are in order (desired_result, self=0, flow)
             #     return flow
             # elif mode == 2:  # Flows are in order (self=0, desired_result, flow)
@@ -1646,7 +1646,7 @@ class Flow(object):
             #     return flow
             # Above code simplifies to:
             return flow
-        elif flow.is_zero(thresholded=thresholded):
+        elif all(flow.is_zero(thresholded=thresholded)):
             if mode == 1:  # Flows are in order (desired_result, self, flow=0)
                 return self.invert()
             elif mode == 2:  # Flows are in order (self, desired_result, flow=0)
@@ -1696,18 +1696,20 @@ class Flow(object):
                 #
                 # Improved version cutting down on operational complexity
                 # F3 - F1, where F1 has been resampled to the source positions of F3.
-                coord_1 = -self.vecs_numpy
-                coord_1[:, :, 0] += np.arange(coord_1.shape[1])
-                coord_1[:, :, 1] += np.arange(coord_1.shape[0])[:, np.newaxis]
-                coord_1_flat = np.reshape(coord_1, (-1, 2))
-                vecs_with_mask = np.concatenate((self.vecs_numpy, self.mask_numpy[..., np.newaxis]), axis=-1)
-                vals_flat = np.reshape(vecs_with_mask, (-1, 3))
-                coord_3 = -flow.vecs_numpy
-                coord_3[:, :, 0] += np.arange(coord_3.shape[1])
-                coord_3[:, :, 1] += np.arange(coord_3.shape[0])[:, np.newaxis]
-                vals_resampled = griddata(coord_1_flat, vals_flat,
-                                          (coord_3[..., 0], coord_3[..., 1]),
-                                          method='linear', fill_value=0)
+                coord_1 = -self.vecs_numpy                                              # N-H-W-2
+                coord_1[:, :, :, 0] += np.arange(coord_1.shape[2])                      # N-H-W-2
+                coord_1[:, :, :, 1] += np.arange(coord_1.shape[1])[:, np.newaxis]       # N-H-W-2
+                coord_1_flat = np.reshape(coord_1, (self.shape[0], -1, 2))              # N-H*W-2
+                vecs_with_mask = np.concatenate((self.vecs_numpy, self.mask_numpy[..., np.newaxis]), axis=-1)  # N-H-W-3
+                vals_flat = np.reshape(vecs_with_mask, (self.shape[0], -1, 3))          # N-H*W-2
+                coord_3 = -flow.vecs_numpy                                              # N-H-W-2
+                coord_3[:, :, :, 0] += np.arange(coord_3.shape[2])                      # N-H-W-2
+                coord_3[:, :, :, 1] += np.arange(coord_3.shape[1])[:, np.newaxis]       # N-H-W-2
+                vals_resampled = np.zeros_like(vecs_with_mask)
+                for i in range(self.shape[0]):
+                    vals_resampled[i] = griddata(coord_1_flat[i], vals_flat[i],
+                                                 (coord_3[i, ..., 0], coord_3[i, ..., 1]),
+                                                 method='linear', fill_value=0)
                 result = flow - Flow(vals_resampled[..., :-1], 't', vals_resampled[..., -1] > .99)
         elif mode == 3:  # Flows are in order (self, flow, desired_result)
             if self._ref == flow._ref == 's':

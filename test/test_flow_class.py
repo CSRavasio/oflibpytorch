@@ -1520,39 +1520,76 @@ class FlowTest(unittest.TestCase):
             ['rotation', 255.5, 255.5, -30],
             ['scaling', 100, 100, 0.8],
         ]
+        transforms2 = [
+            ['rotation', 255.5, 255.5, -20],
+            ['scaling', 80, 110, 0.9],
+        ]
         for ref in ['s', 't']:
             f1 = Flow.from_transforms(transforms[0:1], shape, ref)
             f2 = Flow.from_transforms(transforms[1:2], shape, ref)
             f3 = Flow.from_transforms(transforms, shape, ref)
+            bf1 = batch_flows((f1, Flow.from_transforms(transforms2[0:1], shape, ref)))
+            bf2 = batch_flows((f2, Flow.from_transforms(transforms2[1:2], shape, ref)))
+            bf3 = batch_flows((f3, Flow.from_transforms(transforms2, shape, ref)))
 
             # Mode 1
             f1_actual = f2.combine_with(f3, 1)
-            # f1.show(500, show_mask=True, show_mask_borders=True)
+            # Uncomment the following two lines to see / check the flow fields
+            # f1.show(wait=500, show_mask=True, show_mask_borders=True)
             # f1_actual.show(show_mask=True, show_mask_borders=True)
             self.assertIsInstance(f1_actual, Flow)
             self.assertEqual(f1_actual.ref, ref)
             comb_mask = f1_actual.mask_numpy & f1.mask_numpy
             self.assertIsNone(np.testing.assert_allclose(f1_actual.vecs_numpy[comb_mask], f1.vecs_numpy[comb_mask],
                                                          atol=5e-2))
+            bf1_actual = bf2.combine_with(bf3, 1)
+            # Uncomment the following two lines to see / check the flow fields
+            # bf1.show(1, wait=500, show_mask=True, show_mask_borders=True)
+            # bf1_actual.show(1, show_mask=True, show_mask_borders=True)
+            self.assertIsInstance(bf1_actual, Flow)
+            self.assertEqual(bf1_actual.ref, ref)
+            comb_mask = bf1_actual.mask_numpy & bf1.mask_numpy
+            self.assertIsNone(np.testing.assert_allclose(bf1_actual.vecs_numpy[comb_mask], bf1.vecs_numpy[comb_mask],
+                                                         atol=5e-2))
 
             # Mode 2
             f2_actual = f1.combine_with(f3, 2)
-            # f2.show(500, show_mask=True, show_mask_borders=True)
+            # Uncomment the following two lines to see / check the flow fields
+            # f2.show(wait=500, show_mask=True, show_mask_borders=True)
             # f2_actual.show(show_mask=True, show_mask_borders=True)
             self.assertIsInstance(f2_actual, Flow)
             self.assertEqual(f2_actual.ref, ref)
             comb_mask = f2_actual.mask_numpy & f2.mask_numpy
             self.assertIsNone(np.testing.assert_allclose(f2_actual.vecs_numpy[comb_mask], f2.vecs_numpy[comb_mask],
                                                          atol=5e-2))
+            bf2_actual = bf1.combine_with(bf3, 2)
+            # Uncomment the following two lines to see / check the flow fields
+            # bf2.show(1, wait=500, show_mask=True, show_mask_borders=True)
+            # bf2_actual.show(1, show_mask=True, show_mask_borders=True)
+            self.assertIsInstance(bf2_actual, Flow)
+            self.assertEqual(bf2_actual.ref, ref)
+            comb_mask = bf2_actual.mask_numpy & bf2.mask_numpy
+            self.assertIsNone(np.testing.assert_allclose(bf2_actual.vecs_numpy[comb_mask], bf2.vecs_numpy[comb_mask],
+                                                         atol=5e-2))
 
             # Mode 3
             f3_actual = f1.combine_with(f2, 3)
-            # f3.show(500, show_mask=True, show_mask_borders=True)
+            # Uncomment the following two lines to see / check the flow fields
+            # f3.show(wait=500, show_mask=True, show_mask_borders=True)
             # f3_actual.show(show_mask=True, show_mask_borders=True)
             self.assertIsInstance(f3_actual, Flow)
             self.assertEqual(f3_actual.ref, ref)
             comb_mask = f3_actual.mask_numpy & f3.mask_numpy
             self.assertIsNone(np.testing.assert_allclose(f3_actual.vecs_numpy[comb_mask], f3.vecs_numpy[comb_mask],
+                                                         atol=5e-2))
+            bf3_actual = bf1.combine_with(bf2, 3)
+            # Uncomment the following two lines to see / check the flow fields
+            # bf3.show(1, wait=500, show_mask=True, show_mask_borders=True)
+            # bf3_actual.show(1, show_mask=True, show_mask_borders=True)
+            self.assertIsInstance(bf3_actual, Flow)
+            self.assertEqual(bf3_actual.ref, ref)
+            comb_mask = bf3_actual.mask_numpy & bf3.mask_numpy
+            self.assertIsNone(np.testing.assert_allclose(bf3_actual.vecs_numpy[comb_mask], bf3.vecs_numpy[comb_mask],
                                                          atol=5e-2))
 
         # Invalid inputs
