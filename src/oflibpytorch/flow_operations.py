@@ -178,7 +178,7 @@ def combine_flows(
         return result
 
     result = Flow(input_1, ref).combine_with(Flow(input_2, ref), mode=mode, thresholded=thresholded)
-    return result.vecs
+    return result.vecs if len(input_1.shape) > 3 else result.vecs.squeeze(0)
 
 
 def switch_flow_ref(flow: Union[np.ndarray, torch.Tensor], input_ref: str) -> torch.Tensor:

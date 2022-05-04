@@ -80,6 +80,8 @@ class TestFlowOperations(unittest.TestCase):
             self.assertIsInstance(f3_actual, torch.Tensor)
             self.assertIsNone(np.testing.assert_equal(f3_actual_f.vecs_numpy,
                                                       to_numpy(f3_actual, switch_channels=True)))
+        f_3dim = combine_flows(f2.vecs[0], f3.vecs[0], 1, ref)
+        self.assertEqual(len(f_3dim.shape), 3)
 
     def test_switch_flow_ref(self):
         shape = [10, 20]
