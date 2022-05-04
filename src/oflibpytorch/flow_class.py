@@ -1110,33 +1110,23 @@ class Flow(object):
             v *= -1
 
         # Prepare grid
-        grid_x, grid_y = torch.meshgrid(torch.arange(0, self.shape[0]), torch.arange(0, self.shape[1]))
-        v[0] -= grid_y.to(self._device)
-        v[1] -= grid_x.to(self._device)
+        grid_x, grid_y = torch.meshgrid(torch.arange(0, self.shape[1]), torch.arange(0, self.shape[2]), indexing='ij')
+        v[:, 0] -= grid_y.to(self._device)
+        v[:, 1] -= grid_x.to(self._device)
         v *= -1
 
         # Calculate padding
-        padding = [
-            max(-torch.min(v[1, self._mask]), 0),
-            max(torch.max(v[1, self._mask]) - (self.shape[0] - 1), 0),
-            max(-torch.min(v[0, self._mask]), 0),
-            max(torch.max(v[0, self._mask]) - (self.shape[1] - 1), 0)
-        ]
-        padding = [int(np.ceil(p)) for p in padding]
+        padding = []
+        for i in range(self.shape[0]):
+            pad = [
+                max(-torch.min(v[i, 1, self._mask[i]]), 0),
+                max(torch.max(v[i, 1, self._mask[i]]) - (self.shape[1] - 1), 0),
+                max(-torch.min(v[i, 0, self._mask[i]]), 0),
+                max(torch.max(v[i, 0, self._mask[i]]) - (self.shape[2] - 1), 0)
+            ]
+            pad = [int(np.ceil(p)) for p in pad]
+            padding.append(pad)
         return padding
-
-        # x, y = np.mgrid[:self.shape[0], :self.shape[1]]
-        # v[..., 0] -= y
-        # v[..., 1] -= x
-        # v *= -1
-        # padding = [
-        #     np.maximum(-np.min(v[self._mask, 1]), 0),
-        #     np.maximum(np.max(v[self._mask, 1]) - (self.shape[0] - 1), 0),
-        #     np.maximum(-np.min(v[self._mask, 0]), 0),
-        #     np.maximum(np.max(v[self._mask, 0]) - (self.shape[1] - 1), 0)
-        # ]
-        # padding = [int(np.ceil(p)) for p in padding]
-        # return padding
 
     def is_zero(self, thresholded: bool = None, masked: bool = None) -> bool:
         """Check whether all flow vectors (where :attr:`mask` is ``True``) are zero. Optionally, a threshold flow

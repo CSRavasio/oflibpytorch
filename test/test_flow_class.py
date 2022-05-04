@@ -1167,14 +1167,17 @@ class FlowTest(unittest.TestCase):
         f_t_desired = [0, 3, 5, 0]
         f_s_masked_desired = [3, 0, 0, 1]
         f_t_masked_desired = [0, 1, 3, 0]
-        self.assertIsNone(np.testing.assert_equal(f_s.get_padding(), f_s_desired))
-        self.assertIsNone(np.testing.assert_equal(f_t.get_padding(), f_t_desired))
-        self.assertIsNone(np.testing.assert_equal(f_s_masked.get_padding(), f_s_masked_desired))
-        self.assertIsNone(np.testing.assert_equal(f_t_masked.get_padding(), f_t_masked_desired))
+        self.assertIsNone(np.testing.assert_equal(f_s.get_padding()[0], f_s_desired))
+        self.assertIsNone(np.testing.assert_equal(f_t.get_padding()[0], f_t_desired))
+        self.assertIsNone(np.testing.assert_equal(f_s_masked.get_padding()[0], f_s_masked_desired))
+        self.assertIsNone(np.testing.assert_equal(f_t_masked.get_padding()[0], f_t_masked_desired))
+        # batched
+        f = batch_flows((f_s, f_s))
+        self.assertIsNone(np.testing.assert_equal(f.get_padding(), [f_s_desired, f_s_desired]))
 
         f = Flow.zero(shape)
         f._vecs[0] = torch.rand(*shape) * 1e-4
-        self.assertIsNone(np.testing.assert_equal(f.get_padding(), [0, 0, 0, 0]))
+        self.assertIsNone(np.testing.assert_equal(f.get_padding(), [[0, 0, 0, 0]]))
 
     def test_is_zero(self):
         shape = (10, 10)
