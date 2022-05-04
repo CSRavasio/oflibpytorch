@@ -1478,7 +1478,7 @@ class Flow(object):
             - ``lmeds``: Least-Median robust method
         :param masked: Boolean determining whether the flow mask is used to ignore flow locations where the mask
             :attr:`mask` is ``False``. Defaults to ``True``
-        :return: Torch tensor of shape :math:`(3, 3)` and the same device as the flow object, containing the
+        :return: Torch tensor of shape :math:`(N, 3, 3)` and the same device as the flow object, containing the
             transformation matrix
         """
 
@@ -1497,19 +1497,15 @@ class Flow(object):
         # Get the two point arrays
         vecs = to_numpy(self._vecs, True)
         if self._ref == 't':
-            dst_pts = np.stack(np.mgrid[:self.shape[0], :self.shape[1]], axis=-1)[..., ::-1]
+            dst_pts = np.tile(np.stack(np.mgrid[:self.shape[1], :self.shape[2]], axis=-1)[..., ::-1],
+                              (self.shape[0], 1, 1, 1))
             src_pts = dst_pts - vecs
         else:  # ref is 's'
-            src_pts = np.stack(np.mgrid[:self.shape[0], :self.shape[1]], axis=-1)[..., ::-1]
+            src_pts = np.tile(np.stack(np.mgrid[:self.shape[1], :self.shape[2]], axis=-1)[..., ::-1],
+                              (self.shape[0], 1, 1, 1))
             dst_pts = src_pts + vecs
-        src_pts = src_pts.reshape(-1, 2)
-        dst_pts = dst_pts.reshape(-1, 2)
-
-        # Mask if required
-        if masked:
-            mask = to_numpy(self._mask)
-            src_pts = src_pts[mask.ravel()]
-            dst_pts = dst_pts[mask.ravel()]
+        src_pts = src_pts.reshape((self.shape[0], -1, 2))
+        dst_pts = dst_pts.reshape((self.shape[0], -1, 2))
 
         if dof in [4, 6] and method == 'lms':
             method = 'ransac'
@@ -1528,13 +1524,24 @@ class Flow(object):
             'lmeds': cv2.LMEDS
         }
 
-        # Fit matrix
-        if dof in [4, 6]:
-            matrix = np.eye(3)
-            matrix[:2] = dof_lookup[dof](src_pts, dst_pts, method=method_lookup[method])[0]
-        else:
-            matrix = dof_lookup[dof](src_pts, dst_pts, method=method_lookup[method])[0]
-        return torch.tensor(matrix).to(self._device)
+        matrix_list = []
+        for i in range(self.shape[0]):
+            # Mask if required
+            s = src_pts[i]
+            d = dst_pts[i]
+            if masked:
+                mask = to_numpy(self._mask)
+                s = s[mask[i].ravel()]
+                d = d[mask[i].ravel()]
+
+            # Fit matrix
+            if dof in [4, 6]:
+                m = np.eye(3)
+                m[:2] = dof_lookup[dof](s, d, method=method_lookup[method])[0]
+            else:
+                m = dof_lookup[dof](s, d, method=method_lookup[method])[0]
+            matrix_list.append(torch.tensor(m, device=self.device))
+        return torch.stack(matrix_list, dim=0)
 
     def combine_with(self, flow: FlowAlias, mode: int, thresholded: bool = None) -> FlowAlias:
         """Function that returns the result of the combination of two flow objects of the same shape :attr:`shape` and
