@@ -185,13 +185,17 @@ def switch_flow_ref(flow: Union[np.ndarray, torch.Tensor], input_ref: str) -> to
     """Recalculate flow vectors to correspond to a switched flow reference (see Flow reference
     :attr:`~oflibnumpy.Flow.ref`)
 
-    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param flow: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as :math:`(2, H, W)`
+        or :math:`(N, 2, H, W)` if possible, otherwise as :math:`(H, W, 2)` or :math:`(N, H, W, 2)`, throwing a
+        ``ValueError`` if this isn't possible either. The dimension that is 2 (the channel dimension) contains the
+        flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the horizontal, ``flow_vectors[..., 1]`` are
+        the vertical vector components, defined as positive when pointing to the right / down.
     :param input_ref: The reference of the input flow field, either ``s`` or ``t``
-    :return: Flow field as a torch tensor of shape :math:`(2, H, W)`
+    :return: Flow field as a torch tensor of shape :math:`(N, 2, H, W)`
     """
 
     f = Flow(flow, input_ref).switch_ref()
-    return f.vecs
+    return f.vecs if len(flow.shape) > 3 else f.vecs.squeeze(0)
 
 
 def invert_flow(flow: Union[np.ndarray, torch.Tensor], input_ref: str, output_ref: str = None) -> torch.Tensor:

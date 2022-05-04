@@ -90,6 +90,8 @@ class TestFlowOperations(unittest.TestCase):
         fl_op_switched_t = to_numpy(switch_flow_ref(flow_t.vecs_numpy, 't'), switch_channels=True)
         self.assertIsNone(np.testing.assert_equal(flow_s.switch_ref().vecs_numpy, fl_op_switched_s))
         self.assertIsNone(np.testing.assert_equal(flow_t.switch_ref().vecs_numpy, fl_op_switched_t))
+        fl_op_switched_s_3dim = to_numpy(switch_flow_ref(flow_s.vecs.squeeze(0), 's'), switch_channels=True)
+        self.assertEqual(len(fl_op_switched_s_3dim.shape), 3)
 
     def test_invert_flow(self):
         shape = [10, 20]
