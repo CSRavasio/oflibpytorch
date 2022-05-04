@@ -1118,6 +1118,10 @@ class FlowTest(unittest.TestCase):
         flow[0, 0] = 10
         flow = Flow(flow, mask=mask)
         self.assertEqual(flow.is_zero(), True)
+        self.assertEqual(flow.is_zero(masked=True), True)
+        self.assertEqual(flow.is_zero(masked=False), False)
+        flow = batch_flows([flow, flow, flow])
+        self.assertEqual(all(flow.is_zero()), True)
         self.assertEqual(all(flow.is_zero(masked=True)), True)
         self.assertEqual(all(flow.is_zero(masked=False)), False)
 

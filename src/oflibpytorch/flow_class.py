@@ -1137,7 +1137,9 @@ class Flow(object):
         if not isinstance(masked, bool):
             raise TypeError("Error checking whether flow is zero: Masked needs to be a boolean")
 
-        f = self._vecs.permute(1, 0, 2, 3)[:, self._mask].unsqueeze(0).unsqueeze(-1) if masked else self._vecs
+        f = self._vecs.clone()
+        if masked:
+            f[~self._mask.unsqueeze(1).repeat(1, 2, 1, 1)] = 0
         return is_zero_flow(f, thresholded)
 
     def visualise(
