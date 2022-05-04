@@ -39,6 +39,7 @@ class TestFlowOperations(unittest.TestCase):
             # Mode 1
             f1_actual_f = combine_flows(f2, f3, 1)
             f1_actual = combine_flows(f2.vecs_numpy, f3.vecs, 1, ref)
+            # Uncomment the following two lines to see / check the flow fields
             # f1.show(500, show_mask=True, show_mask_borders=True)
             # f1_actual_f.show(show_mask=True, show_mask_borders=True)
             self.assertIsInstance(f1_actual_f, Flow)
@@ -53,6 +54,7 @@ class TestFlowOperations(unittest.TestCase):
             # Mode 2
             f2_actual_f = combine_flows(f1, f3, 2)
             f2_actual = combine_flows(f1.vecs, f3.vecs_numpy, 2, ref)
+            # Uncomment the following two lines to see / check the flow fields
             # f2.show(500, show_mask=True, show_mask_borders=True)
             # f2_actual_f.show(show_mask=True, show_mask_borders=True)
             self.assertIsInstance(f2_actual_f, Flow)
@@ -67,6 +69,7 @@ class TestFlowOperations(unittest.TestCase):
             # Mode 3
             f3_actual_f = combine_flows(f1, f2, 3)
             f3_actual = combine_flows(torch.tensor(f1.vecs_numpy), to_numpy(f2.vecs), 3, ref)
+            # Uncomment the following two lines to see / check the flow fields
             # f3.show(500, show_mask=True, show_mask_borders=True)
             # f3_actual_f.show(show_mask=True, show_mask_borders=True)
             self.assertIsInstance(f3_actual_f, Flow)

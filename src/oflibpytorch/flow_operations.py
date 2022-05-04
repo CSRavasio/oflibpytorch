@@ -147,8 +147,8 @@ def combine_flows(
        by a rotation is not the same as a rotation followed by a translation: adding up vectors at each pixel cannot be
        the correct solution as there wouldn't be a difference based on the order of vector addition.
 
-    :param input_1: First input flow as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`.
-        Can also be a flow object, but this will be deprecated soon
+    :param input_1: First input flow as a numpy array or torch tensor, shape :math:`(2, H, W)`, :math:`(H, W, 2)`,
+        :math:`(N, H, W, 2)` or :math:`(N, H, W, 2)`. Can also be a flow object, but this will be deprecated soon
     :param input_2: Second input flow, same type as ``input_1``
     :param mode: Integer determining how the input flows are combined, where the number corresponds to the position in
         the formula :math:`flow_1 ⊕ flow_2 = flow_3`:
