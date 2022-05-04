@@ -108,6 +108,8 @@ class TestFlowOperations(unittest.TestCase):
         self.assertIsNone(np.testing.assert_equal(flow_s.invert('t').vecs_numpy, s_invert_t))
         self.assertIsNone(np.testing.assert_equal(flow_t.invert().vecs_numpy, t_invert))
         self.assertIsNone(np.testing.assert_equal(flow_t.invert('s').vecs_numpy, t_invert_s))
+        s_invert_3dim = to_numpy(invert_flow(flow_s.vecs[0], 's'), switch_channels=True)
+        self.assertEqual(len(s_invert_3dim.shape), 3)
 
     def test_valid_target(self):
         transforms = [['rotation', 0, 0, 45]]

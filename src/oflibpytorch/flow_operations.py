@@ -202,16 +202,20 @@ def invert_flow(flow: Union[np.ndarray, torch.Tensor], input_ref: str, output_re
     """Inverting a flow: `img`\\ :sub:`1` -- `f` --> `img`\\ :sub:`2` becomes `img`\\ :sub:`1` <-- `f` --
     `img`\\ :sub:`2`. The smaller the input flow, the closer the inverse is to simply multiplying the flow by -1.
 
-    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param flow: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as :math:`(2, H, W)`
+        or :math:`(N, 2, H, W)` if possible, otherwise as :math:`(H, W, 2)` or :math:`(N, H, W, 2)`, throwing a
+        ``ValueError`` if this isn't possible either. The dimension that is 2 (the channel dimension) contains the
+        flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the horizontal, ``flow_vectors[..., 1]`` are
+        the vertical vector components, defined as positive when pointing to the right / down.
     :param input_ref: Reference of the input flow field,  either ``s`` or ``t``
     :param output_ref: Desired reference of the output field, either ``s`` or ``t``. Defaults to ``input_ref``
-    :return: Flow field as a torch tensor of shape :math:`(2, H, W)`
+    :return: Flow field as a torch tensor of shape :math:`(N, 2, H, W)`
     """
 
     output_ref = input_ref if output_ref is None else output_ref
     f = Flow(flow, input_ref).invert(output_ref)
-    return f.vecs
 
+    return f.vecs if len(flow.shape) > 3 else f.vecs.squeeze(0)
 
 def valid_target(flow: Union[np.ndarray, torch.Tensor], ref: str) -> torch.Tensor:
     """Find the valid area in the target domain
