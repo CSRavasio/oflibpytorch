@@ -896,10 +896,10 @@ class FlowTest(unittest.TestCase):
             flow.switch_ref(1)
 
     def test_invert(self):
-        f_s = Flow.from_transforms([['rotation', 256, 256, 30]], (512, 512), 's')   # Forwards
-        f_t = Flow.from_transforms([['rotation', 256, 256, 30]], (512, 512), 't')   # Forwards
-        b_s = Flow.from_transforms([['rotation', 256, 256, -30]], (512, 512), 's')  # Backwards
-        b_t = Flow.from_transforms([['rotation', 256, 256, -30]], (512, 512), 't')  # Backwards
+        f_s = Flow.from_transforms([['rotation', 50, 40, 30]], (80, 100), 's')   # Forwards
+        f_t = Flow.from_transforms([['rotation', 50, 40, 30]], (80, 100), 't')   # Forwards
+        b_s = Flow.from_transforms([['rotation', 50, 40, -30]], (80, 100), 's')  # Backwards
+        b_t = Flow.from_transforms([['rotation', 50, 40, -30]], (80, 100), 't')  # Backwards
 
         # Inverting s to s
         b_s_inv = f_s.invert()
@@ -939,6 +939,32 @@ class FlowTest(unittest.TestCase):
         f_s_inv = b_t.invert('s')
         self.assertIsNone(np.testing.assert_allclose(f_s_inv.vecs_numpy[f_s_inv.mask_numpy],
                                                      f_s.vecs_numpy[f_s_inv.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+
+        # All of the above batched
+        bf_s = batch_flows((f_s, b_s))
+        bf_t = batch_flows((f_t, b_t))
+        bb_s = batch_flows((b_s, f_s))
+        bb_t = batch_flows((b_t, f_t))
+        f_s_inv = bf_s.invert()
+        f_s_inv_t = bf_s.invert('t')
+        f_t_inv = bf_t.invert()
+        f_t_inv_s = bf_t.invert('s')
+        # Inverting s to s
+        self.assertIsNone(np.testing.assert_allclose(f_s_inv.vecs_numpy[f_s_inv.mask_numpy],
+                                                     bb_s.vecs_numpy[f_s_inv.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+        # Inverting s to t
+        self.assertIsNone(np.testing.assert_allclose(f_s_inv_t.vecs_numpy[f_s_inv_t.mask_numpy],
+                                                     bb_t.vecs_numpy[f_s_inv_t.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+        # Inverting t to t
+        self.assertIsNone(np.testing.assert_allclose(f_t_inv.vecs_numpy[f_t_inv.mask_numpy],
+                                                     bb_t.vecs_numpy[f_t_inv.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+        # Inverting t to s
+        self.assertIsNone(np.testing.assert_allclose(f_t_inv_s.vecs_numpy[f_t_inv_s.mask_numpy],
+                                                     bb_s.vecs_numpy[f_t_inv_s.mask_numpy],
                                                      rtol=1e-3, atol=1e-3))
 
     def test_track(self):
