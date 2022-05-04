@@ -1198,7 +1198,7 @@ class Flow(object):
         if show_mask:
             hsv[np.invert(self.mask_numpy), 2] = 180
 
-        # Scale flow TODO: range_max needs to be per batch element, same in the clipping
+        # Scale flow
         if range_max is None:
             range_max = []
             for i in range(self.shape[0]):
