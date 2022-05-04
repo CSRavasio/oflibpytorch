@@ -888,7 +888,6 @@ def track_pts(
         if ref == 's':
             if not pts.dtype.is_floating_point:
                 flow_vecs = flow.permute(0, 2, 3, 1)                                # from N2HW to NHW2
-
                 pts2 = pts[..., 0] * flow.shape[-1] + pts[..., 1]                   # NM, with coords "unravelled"
                 pts2 = pts2.unsqueeze(-1).expand(-1, -1, 2)
                 flow_vecs = torch.gather(flow_vecs.view(flow_vecs.shape[0], -1, 2), 1, pts2.long())  # NM2
