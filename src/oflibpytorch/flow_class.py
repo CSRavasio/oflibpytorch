@@ -950,7 +950,7 @@ class Flow(object):
 
         mode = 'valid' if mode is None else mode
         if mode == 'valid':
-            if self.is_zero(thresholded=False):  # In case the flow is 0, no further calculations are necessary
+            if all(self.is_zero(thresholded=False)):  # In case the flow is 0, no further calculations are necessary
                 return self.switch_ref(mode='invalid')
             else:
                 if self._ref == 's':

@@ -875,6 +875,19 @@ class FlowTest(unittest.TestCase):
                                                      flow_t.vecs_numpy[switched_t.mask_numpy],
                                                      rtol=1e-3, atol=1e-3))
 
+        # Mode 'valid', batched flow
+        transforms = [[['rotation', 256, 256, 30]], [['translation', 10, -20]]]
+        flow_s = batch_flows([Flow.from_transforms(t, shape, 's') for t in transforms])
+        flow_t = batch_flows([Flow.from_transforms(t, shape, 't') for t in transforms])
+        switched_s = flow_t.switch_ref()
+        self.assertIsNone(np.testing.assert_allclose(switched_s.vecs_numpy[switched_s.mask_numpy],
+                                                     flow_s.vecs_numpy[switched_s.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+        switched_t = flow_s.switch_ref()
+        self.assertIsNone(np.testing.assert_allclose(switched_t.vecs_numpy[switched_t.mask_numpy],
+                                                     flow_t.vecs_numpy[switched_t.mask_numpy],
+                                                     rtol=1e-3, atol=1e-3))
+
         # Invalid mode passed
         flow = Flow.from_transforms([['rotation', 30, 50, 30]], shape, 't')
         with self.assertRaises(ValueError):
