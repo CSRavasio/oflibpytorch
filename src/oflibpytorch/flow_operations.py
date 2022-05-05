@@ -333,17 +333,22 @@ def visualise_flow(
 ) -> Union[np.ndarray, torch.Tensor]:
     """Visualises the flow as an rgb / bgr / hsv image
 
-    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param flow: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as :math:`(2, H, W)`
+        or :math:`(N, 2, H, W)` if possible, otherwise as :math:`(H, W, 2)` or :math:`(N, H, W, 2)`, throwing a
+        ``ValueError`` if this isn't possible either. The dimension that is 2 (the channel dimension) contains the
+        flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the horizontal, ``flow_vectors[..., 1]`` are
+        the vertical vector components, defined as positive when pointing to the right / down.
     :param mode: Output mode, options: ``rgb``, ``bgr``, ``hsv``
     :param range_max: Maximum vector magnitude expected, corresponding to the HSV maximum Value of 255 when scaling
         the flow magnitudes. Defaults to the 99th percentile of the flow field magnitudes
     :param return_tensor: Boolean determining whether the result is returned as a tensor. Note that the result is
         originally a numpy array. Defaults to ``True``
-    :return: Numpy array of shape :math:`(H, W, 3)` or torch tensor of shape :math:`(3, H, W)` containing the
-        flow visualisation
+    :return: Numpy array of shape :math:`(H, W, 3)` or :math:`(N, H, W, 3)` or torch tensor of shape :math:`(3, H, W)`
+        or :math:`(N, 3, H, W)` containing the flow visualisation
     """
 
-    return Flow(flow).visualise(mode=mode, range_max=range_max, return_tensor=return_tensor)
+    v = Flow(flow).visualise(mode=mode, range_max=range_max, return_tensor=return_tensor)
+    return v if len(flow.shape) > 3 else v.squeeze(0)
 
 
 def visualise_flow_arrows(
@@ -358,7 +363,11 @@ def visualise_flow_arrows(
 ) -> Union[np.ndarray, torch.Tensor]:
     """Visualises the flow as arrowed lines
 
-    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param flow: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as :math:`(2, H, W)`
+        or :math:`(N, 2, H, W)` if possible, otherwise as :math:`(H, W, 2)` or :math:`(N, H, W, 2)`, throwing a
+        ``ValueError`` if this isn't possible either. The dimension that is 2 (the channel dimension) contains the
+        flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the horizontal, ``flow_vectors[..., 1]`` are
+        the vertical vector components, defined as positive when pointing to the right / down.
     :param ref: Reference of the flow field, ``s`` or ``t``
     :param grid_dist: Integer of the distance of the flow points to be used for the visualisation, defaults to
         ``20``
@@ -370,12 +379,13 @@ def visualise_flow_arrows(
     :param thickness: Integer of the flow arrow thickness, larger than zero. Defaults to ``1``
     :param return_tensor: Boolean determining whether the result is returned as a tensor. Note that the result is
         originally a numpy array. Defaults to ``True``
-    :return: Numpy array of shape :math:`(H, W, 3)` or torch tensor of shape :math:`(3, H, W)` containing the
-        flow visualisation
+    :return: Numpy array of shape :math:`(H, W, 3)` or :math:`(N, H, W, 3)` or torch tensor of shape :math:`(3, H, W)`
+        or :math:`(N, 3, H, W)` containing the flow visualisation
     """
 
-    return Flow(flow, ref).visualise_arrows(grid_dist=grid_dist, img=img, scaling=scaling,
-                                            colour=colour, thickness=thickness, return_tensor=return_tensor)
+    a = Flow(flow, ref).visualise_arrows(grid_dist=grid_dist, img=img, scaling=scaling,
+                                         colour=colour, thickness=thickness, return_tensor=return_tensor)
+    return a if len(flow.shape) > 3 else a.squeeze(0)
 
 
 def show_flow(flow: Union[np.ndarray, torch.Tensor], wait: int = None):

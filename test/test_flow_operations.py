@@ -174,12 +174,16 @@ class TestFlowOperations(unittest.TestCase):
                                                   visualise_flow(flow.vecs_numpy, 'rgb', return_tensor=False)))
         self.assertIsNone(np.testing.assert_equal(flow.visualise('hsv', return_tensor=False),
                                                   visualise_flow(to_numpy(flow.vecs), 'hsv', return_tensor=False)))
+        v = visualise_flow(to_numpy(flow.vecs[0]), 'hsv', return_tensor=False)
+        self.assertEqual(len(v.shape), 3)
 
     def test_visualise_flow_arrows(self):
         for ref in ['s', 't']:
             flow = Flow.from_transforms([['rotation', 10, 10, 30]], [20, 20], ref)
             self.assertIsNone(np.testing.assert_equal(flow.visualise_arrows(return_tensor=False),
                                                       visualise_flow_arrows(flow.vecs, ref, return_tensor=False)))
+        a = visualise_flow_arrows(flow.vecs[0], ref, return_tensor=False)
+        self.assertEqual(len(a.shape), 3)
 
     def test_batch_flows(self):
         shape1 = [10, 50]
