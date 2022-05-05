@@ -418,11 +418,11 @@ class TestNormaliseCoords(unittest.TestCase):
 
 class TestApplyFlow(unittest.TestCase):
     def test_rotation(self):
-        img = cv2.imread('smudge.png')
+        img = cv2.imread('smudge.png')[:, :480]
         img = torch.tensor(np.moveaxis(img, -1, 0))
         for dev in ['cpu', 'cuda']:
             for ref in ['t', 's']:
-                flow = Flow.from_transforms([['rotation', 255.5, 255.5, 90]], img.shape[1:], ref).vecs
+                flow = Flow.from_transforms([['rotation', 239.5, 239.5, 90]], img.shape[1:], ref).vecs
                 warped_img = apply_flow(flow.to(dev), img, ref)
                 desired_img = img.transpose(1, 2).flip(1)
                 self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img), to_numpy(desired_img)))
