@@ -278,12 +278,18 @@ def get_flow_padding(flow: Union[np.ndarray, torch.Tensor], ref: str) -> list:
       the flow itself, so that applying it to a source image will result in no input image information being lost in
       the warped output, i.e each input image pixel will come to lie inside the padded area.
 
-    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param flow: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as :math:`(2, H, W)`
+        or :math:`(N, 2, H, W)` if possible, otherwise as :math:`(H, W, 2)` or :math:`(N, H, W, 2)`, throwing a
+        ``ValueError`` if this isn't possible either. The dimension that is 2 (the channel dimension) contains the
+        flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the horizontal, ``flow_vectors[..., 1]`` are
+        the vertical vector components, defined as positive when pointing to the right / down.
     :param ref: Reference of the flow field, ``s`` or ``t``
-    :return: A list of shape :math:`(4)` with the values ``[top, bottom, left, right]``
+    :return: A list of shape :math:`(4)` or :math:`(N, 4)` with the values ``[top, bottom, left, right]`` for each
+        batch member, if applicable
     """
 
-    return Flow(flow, ref).get_padding()
+    p = Flow(flow, ref).get_padding()
+    return p if len(flow.shape) > 3 else p[0]
 
 
 def get_flow_matrix(

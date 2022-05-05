@@ -144,6 +144,8 @@ class TestFlowOperations(unittest.TestCase):
         padding_t = get_flow_padding(torch.tensor(f_t.vecs_numpy), 't')
         self.assertIsNone(np.testing.assert_equal(f_s.get_padding(), padding_s))
         self.assertIsNone(np.testing.assert_equal(f_t.get_padding(), padding_t))
+        padding_s_list = get_flow_padding(to_numpy(f_s.vecs[0]), 's')
+        self.assertEqual(len(padding_s_list), 4)
 
     def test_get_flow_matrix(self):
         # Partial affine transform, test reconstruction with all methods
