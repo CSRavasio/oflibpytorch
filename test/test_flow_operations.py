@@ -120,6 +120,8 @@ class TestFlowOperations(unittest.TestCase):
         target_t = to_numpy(valid_target(f_t.vecs, 't'))
         self.assertIsNone(np.testing.assert_equal(to_numpy(f_s.valid_target()), target_s))
         self.assertIsNone(np.testing.assert_equal(to_numpy(f_t.valid_target()), target_t))
+        target_t_2dim = to_numpy(valid_target(f_t.vecs[0], 't'))
+        self.assertEqual(len(target_t_2dim.shape), 2)
 
     def test_valid_source(self):
         transforms = [['rotation', 0, 0, 45]]
@@ -130,6 +132,8 @@ class TestFlowOperations(unittest.TestCase):
         source_t = to_numpy(valid_source(f_t.vecs_numpy, 't'))
         self.assertIsNone(np.testing.assert_equal(to_numpy(f_s.valid_source()), source_s))
         self.assertIsNone(np.testing.assert_equal(to_numpy(f_t.valid_source()), source_t))
+        source_s_2dim = to_numpy(valid_source(f_s.vecs[0], 's'))
+        self.assertEqual(len(source_s_2dim.shape), 2)
 
     def test_get_flow_padding(self):
         transforms = [['rotation', 0, 0, 45]]

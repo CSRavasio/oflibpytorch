@@ -230,12 +230,17 @@ def valid_target(flow: Union[np.ndarray, torch.Tensor], ref: str) -> torch.Tenso
     actual information being available at this position (validity ``False``), and pixels that are black due to black
     pixel values having been warped to that (valid) location by the flow.
 
-    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param flow: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as :math:`(2, H, W)`
+        or :math:`(N, 2, H, W)` if possible, otherwise as :math:`(H, W, 2)` or :math:`(N, H, W, 2)`, throwing a
+        ``ValueError`` if this isn't possible either. The dimension that is 2 (the channel dimension) contains the
+        flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the horizontal, ``flow_vectors[..., 1]`` are
+        the vertical vector components, defined as positive when pointing to the right / down.
     :param ref: Reference of the flow field, ``s`` or ``t``
-    :return: Boolean torch tensor of the same shape :math:`(H, W)` as the flow
+    :return: Boolean torch tensor of the same shape :math:`(H, W)` or :math:`(N, H, W)` as the flow
     """
 
-    return Flow(flow, ref).valid_target()
+    t = Flow(flow, ref).valid_target()
+    return t if len(flow.shape) > 3 else t.squeeze(0)
 
 
 def valid_source(flow: Union[np.ndarray, torch.Tensor], ref: str) -> torch.Tensor:
@@ -248,12 +253,17 @@ def valid_source(flow: Union[np.ndarray, torch.Tensor], ref: str) -> torch.Tenso
     source will either be warped outside of the target image, or not be warped at all due to a lack of valid flow
     vectors connecting to this position.
 
-    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param flow: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as :math:`(2, H, W)`
+        or :math:`(N, 2, H, W)` if possible, otherwise as :math:`(H, W, 2)` or :math:`(N, H, W, 2)`, throwing a
+        ``ValueError`` if this isn't possible either. The dimension that is 2 (the channel dimension) contains the
+        flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the horizontal, ``flow_vectors[..., 1]`` are
+        the vertical vector components, defined as positive when pointing to the right / down.
     :param ref: Reference of the flow field, ``s`` or ``t``
-    :return: Boolean torch tensor of the same shape :math:`(H, W)` as the flow
+    :return: Boolean torch tensor of the same shape :math:`(H, W)` or :math:`(N, H, W)` as the flow
     """
 
-    return Flow(flow, ref).valid_source()
+    s = Flow(flow, ref).valid_source()
+    return s if len(flow.shape) > 3 else s.squeeze(0)
 
 
 def get_flow_padding(flow: Union[np.ndarray, torch.Tensor], ref: str) -> list:
