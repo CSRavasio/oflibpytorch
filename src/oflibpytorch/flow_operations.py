@@ -167,7 +167,7 @@ def combine_flows(
     :param thresholded: Boolean determining whether flows are thresholded during an internal call to
         :meth:`~oflibnumpy.Flow.is_zero`, defaults to ``False``
     :return: Flow object if inputs are flow objects (deprecated in future, avoid), Torch tensor of shape
-        :math:`(N, 2, H, W)` as standard
+        :math:`(2, H, W)` or :math:`(N, 2, H, W)` as standard
     """
 
     if isinstance(input_1, Flow) and isinstance(input_2, Flow):
@@ -191,7 +191,7 @@ def switch_flow_ref(flow: Union[np.ndarray, torch.Tensor], input_ref: str) -> to
         flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the horizontal, ``flow_vectors[..., 1]`` are
         the vertical vector components, defined as positive when pointing to the right / down.
     :param input_ref: The reference of the input flow field, either ``s`` or ``t``
-    :return: Flow field as a torch tensor of shape :math:`(N, 2, H, W)`
+    :return: Flow field as a torch tensor of shape :math:`(2, H, W)` or :math:`(N, 2, H, W)`
     """
 
     f = Flow(flow, input_ref).switch_ref()
@@ -209,13 +209,13 @@ def invert_flow(flow: Union[np.ndarray, torch.Tensor], input_ref: str, output_re
         the vertical vector components, defined as positive when pointing to the right / down.
     :param input_ref: Reference of the input flow field,  either ``s`` or ``t``
     :param output_ref: Desired reference of the output field, either ``s`` or ``t``. Defaults to ``input_ref``
-    :return: Flow field as a torch tensor of shape :math:`(N, 2, H, W)`
+    :return: Flow field as a torch tensor of shape :math:`(2, H, W)` or :math:`(N, 2, H, W)`
     """
 
     output_ref = input_ref if output_ref is None else output_ref
     f = Flow(flow, input_ref).invert(output_ref)
-
     return f.vecs if len(flow.shape) > 3 else f.vecs.squeeze(0)
+
 
 def valid_target(flow: Union[np.ndarray, torch.Tensor], ref: str) -> torch.Tensor:
     """Find the valid area in the target domain
