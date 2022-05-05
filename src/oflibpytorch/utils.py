@@ -928,3 +928,19 @@ def track_pts(
         warped_pts = warped_pts.squeeze(0)
 
     return warped_pts
+
+
+def get_flow_endpoints(flow: torch.Tensor, ref: str) -> tuple[torch.Tensor, torch.Tensor]:
+    """Calculates the endpoint (or strictly speaking start points if ref 't') coordinate grids x, y for a given
+    flow field
+
+    :param flow: Flow field of shape N2HW
+    :param ref: Flow reference, 's' or 't'
+    :return: Tuple of end point (ref 's') or start point (ref 't') coordinate grids x (hor) and y (ver) of shape NHW
+    """
+
+    n, _, h, w = flow.shape
+    s = +1 if ref == 's' else -1  # if ref == 't'
+    x = s * flow[:, 0] + torch.arange(w, device=flow.device)[None, None, None, :]  # hor
+    y = s * flow[:, 1] + torch.arange(h, device=flow.device)[None, None, :, None]  # ver
+    return x, y

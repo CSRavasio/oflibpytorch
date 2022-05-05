@@ -21,7 +21,7 @@ sys.path.append('..')
 from src.oflibpytorch.utils import get_valid_vecs, get_valid_shape, get_valid_ref, get_valid_mask, get_valid_padding, \
     get_valid_device, to_numpy, move_axis, flow_from_matrix, matrix_from_transform, matrix_from_transforms, \
     reverse_transform_values, normalise_coords, apply_flow, threshold_vectors, from_matrix, from_transforms,  \
-    load_kitti, load_sintel, load_sintel_mask, resize_flow, is_zero_flow, track_pts
+    load_kitti, load_sintel, load_sintel_mask, resize_flow, is_zero_flow, track_pts, get_flow_endpoints
 from src.oflibpytorch.flow_class import Flow
 from src.oflibpytorch.flow_operations import batch_flows
 
@@ -837,6 +837,24 @@ class TestTrackPts(unittest.TestCase):
             track_pts(flow, 's', pts=pts.transpose(0, -1))
         with self.assertRaises(TypeError):  # Wrong int_out type
             track_pts(flow, 's', pts, int_out='test')
+
+
+class TestGetFlowEndpoints(unittest.TestCase):
+    def test_get_flow_endpoints(self):
+        # ref 's'
+        flow = Flow.from_transforms([['translation', -2, 2]], (6, 6), 's')
+        x, y = get_flow_endpoints(flow.vecs, 's')
+        self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, 0, 0]), [-2, -1, 0, 1, 2, 3]))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, 0, :, 0]), [-2, -2, -2, -2, -2, -2]))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, 0, 0]), [2, 2, 2, 2, 2, 2]))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, 0, :, 0]), [2, 3, 4, 5, 6, 7]))
+        # ref 't'
+        flow = Flow.from_transforms([['translation', -2, 2]], (6, 6), 't')
+        x, y = get_flow_endpoints(flow.vecs, 't')
+        self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, 0, 0]), [2, 3, 4, 5, 6, 7]))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, 0, :, 0]), [2, 2, 2, 2, 2, 2]))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, 0, 0]), [-2, -2, -2, -2, -2, -2]))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, 0, :, 0]), [-2, -1, 0, 1, 2, 3]))
 
 
 if __name__ == '__main__':
