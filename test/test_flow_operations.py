@@ -163,6 +163,8 @@ class TestFlowOperations(unittest.TestCase):
         m_t = to_numpy(get_flow_matrix(torch.tensor(flow_t.vecs_numpy), 't', dof=4, method='ransac'))
         self.assertIsNone(np.testing.assert_allclose(m_s_f, m_s))
         self.assertIsNone(np.testing.assert_allclose(m_t_f, m_t))
+        m_s_2d = to_numpy(get_flow_matrix(to_numpy(flow_s.vecs[0]), 's', dof=4, method='ransac'))
+        self.assertEqual(len(m_s_2d.shape), 2)
 
     def test_visualise_flow(self):
         flow = Flow.from_transforms([['translation', 1, 0]], [200, 300])

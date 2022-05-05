@@ -300,7 +300,11 @@ def get_flow_matrix(
 ) -> torch.Tensor:
     """Fit a transformation matrix to the flow field using OpenCV functions
 
-    :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)` or :math:`(H, W, 2)`
+    :param flow: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as :math:`(2, H, W)`
+        or :math:`(N, 2, H, W)` if possible, otherwise as :math:`(H, W, 2)` or :math:`(N, H, W, 2)`, throwing a
+        ``ValueError`` if this isn't possible either. The dimension that is 2 (the channel dimension) contains the
+        flow vector in OpenCV convention: ``flow_vectors[..., 0]`` are the horizontal, ``flow_vectors[..., 1]`` are
+        the vertical vector components, defined as positive when pointing to the right / down.
     :param ref: Reference of the flow field, ``s`` or ``t``
     :param dof: Integer describing the degrees of freedom in the transformation matrix to be fitted, defaults to
         ``8``. Options are:
@@ -314,10 +318,11 @@ def get_flow_matrix(
         - ``lms``: Least mean squares
         - ``ransac``: RANSAC-based robust method
         - ``lmeds``: Least-Median robust method
-    :return: Torch tensor of shape :math:`(3, 3)` containing the transformation matrix
+    :return: Torch tensor of shape :math:`(3, 3)` or :math:`(N, 3, 3)` containing the transformation matrix
     """
 
-    return Flow(flow, ref).matrix(dof=dof, method=method)
+    m = Flow(flow, ref).matrix(dof=dof, method=method)
+    return m if len(flow.shape) > 3 else m.squeeze(0)
 
 
 def visualise_flow(
