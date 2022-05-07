@@ -844,17 +844,17 @@ class TestGetFlowEndpoints(unittest.TestCase):
         # ref 's'
         flow = Flow.from_transforms([['translation', -2, 2]], (6, 6), 's')
         x, y = get_flow_endpoints(flow.vecs, 's')
-        self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, 0, 0]), [-2, -1, 0, 1, 2, 3]))
-        self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, 0, :, 0]), [-2, -2, -2, -2, -2, -2]))
-        self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, 0, 0]), [2, 2, 2, 2, 2, 2]))
-        self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, 0, :, 0]), [2, 3, 4, 5, 6, 7]))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, 0]), [-2, -1, 0, 1, 2, 3]))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, :, 0]), [-2, -2, -2, -2, -2, -2]))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, 0]), [2, 2, 2, 2, 2, 2]))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, :, 0]), [2, 3, 4, 5, 6, 7]))
         # ref 't'
         flow = Flow.from_transforms([['translation', -2, 2]], (6, 6), 't')
         x, y = get_flow_endpoints(flow.vecs, 't')
-        self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, 0, 0]), [2, 3, 4, 5, 6, 7]))
-        self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, 0, :, 0]), [2, 2, 2, 2, 2, 2]))
-        self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, 0, 0]), [-2, -2, -2, -2, -2, -2]))
-        self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, 0, :, 0]), [-2, -1, 0, 1, 2, 3]))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, 0]), [2, 3, 4, 5, 6, 7]))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, :, 0]), [2, 2, 2, 2, 2, 2]))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, 0]), [-2, -2, -2, -2, -2, -2]))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, :, 0]), [-2, -1, 0, 1, 2, 3]))
 
 
 if __name__ == '__main__':

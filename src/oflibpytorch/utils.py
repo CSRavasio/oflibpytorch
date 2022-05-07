@@ -941,6 +941,6 @@ def get_flow_endpoints(flow: torch.Tensor, ref: str) -> tuple[torch.Tensor, torc
 
     n, _, h, w = flow.shape
     s = +1 if ref == 's' else -1  # if ref == 't'
-    x = s * flow[:, 0] + torch.arange(w, device=flow.device)[None, None, None, :]  # hor
-    y = s * flow[:, 1] + torch.arange(h, device=flow.device)[None, None, :, None]  # ver
+    x = s * flow[:, 0] + torch.arange(w, device=flow.device)[None, None, :]  # hor
+    y = s * flow[:, 1] + torch.arange(h, device=flow.device)[None, :, None]  # ver
     return x, y
