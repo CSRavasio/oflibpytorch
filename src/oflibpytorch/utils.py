@@ -832,7 +832,8 @@ def is_zero_flow(flow: Union[np.ndarray, torch.Tensor], thresholded: bool = None
     :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)`, :math:`(H, W, 2)`,
         :math:`(N, 2, H, W)`, or :math:`(N, H, W, 2)`
     :param thresholded: Boolean determining whether the flow is thresholded, defaults to ``True``
-    :return: ``True`` if the flow field is zero everywhere, otherwise ``False``
+    :return: Tensor of (batch) shape :math:`(N)` which is ``True`` if the flow field is zero everywhere,
+        otherwise ``False``
     """
 
     # Check input validity
