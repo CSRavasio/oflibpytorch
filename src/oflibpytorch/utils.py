@@ -954,3 +954,94 @@ def get_flow_endpoints(flow: torch.Tensor, ref: str) -> tuple[torch.Tensor, torc
     x = s * flow[:, 0] + torch.arange(w, device=flow.device)[None, None, :]  # hor
     y = s * flow[:, 1] + torch.arange(h, device=flow.device)[None, :, None]  # ver
     return x, y
+
+
+def grid_from_unstructured_data(
+    x: torch.Tensor,
+    y: torch.Tensor,
+    data: torch.Tensor,
+    mask: torch.Tensor = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Returns unstructured input data on a (sparse) regular grid. Credit:
+        - This is based on the algorithm suggested in: Sánchez, J., Salgado de la Nuez, A. J., & Monzón, N., "Direct
+        estimation of the backward flow", 2013
+        - The code implementation is a heavily reworked version of code suggested by Markus Hofinger in private
+        correspondence, a version of which he first used in: Hofinger, M., Bulò, S. R., Porzi, L., Knapitsch, A.,
+        Pock, T., & Kontschieder, P., "Improving optical flow on a pyramid level". ECCV 2020
+        - Markus Hofinger in turn credits the function _flow2distribution from the HD3 code base, used in: Yin, Z.,
+        Darrell, T., & Yu, F., "Hierarchical discrete distribution decomposition for match density estimation",
+        CAPER 2019
+
+    :param x: Horizontal data position grid, shape N1HW
+    :param y: Vertical data position grid, shape N1HW
+    :param data: Data value grid, shape NCHW
+    :param mask: Tensor masking data points, shape NCHW
+    :return: NCHW tensor of data interpolated on regular grid, N1HW tensor of interpolation density
+    """
+
+    # Input grids:          [N, H, W]
+    # Input data:           [N, C, H, W]
+    # Input mask:           [N, C, H, W]
+    # Output data:          [N, C, H, W]
+    # Uniqueness density:   [N, 1, H, W]
+
+    n, c, h, w = data.shape
+
+    x0 = torch.floor(x)                                             # NHW
+    y0 = torch.floor(y)                                             # NHW
+
+    # The integer points surrounding the flow endpoints
+    xx = torch.stack((x0, x0+1), dim=-1)                            # NHW2: x0, x1
+    yy = torch.stack((y0, y0+1), dim=-1)                            # NHW2: y0, y1
+
+    # Ensure the integer points are within bounds
+    xx_safe = torch.clamp(xx, min=0, max=w-1)                       # NHW2: x0_safe, x1_safe
+    yy_safe = torch.clamp(yy, min=0, max=h-1)                       # NHW2: y0_safe, y1_safe
+
+    # Hor / ver weights = offsets of corners from actual point, set to 0 if the safe points are out of bounds
+    wt_xx = torch.stack((xx[..., 1] - x, x - xx[..., 0]), dim=-1) * torch.eq(xx, xx_safe).float()  # NHW2: wt_x0, wt_y0
+    wt_yy = torch.stack((yy[..., 1] - y, y - yy[..., 0]), dim=-1) * torch.eq(yy, yy_safe).float()  # NHW2: wt_x0, wt_y0
+
+    # Corner weights are multiplied hor / ver weights
+    wgt = torch.matmul(wt_yy.unsqueeze(-1), wt_xx.unsqueeze(-2))  # matmul(NHW21, NHW12): N-H-W-2-2
+    wgt = wgt.permute(0, 3, 4, 1, 2).reshape(n*4, h*w)                                  # N*4-H*W
+
+    # Convert the corner points coordinates into a running position index
+    pos = (w * yy_safe).unsqueeze(-1) + xx_safe.unsqueeze(-2)            # NHW21 + NHW12: N-H-W-2-2
+    pos = pos.permute(0, 3, 4, 1, 2).reshape(n*4, h*w)                                  # N*4-H*W
+
+    # Mask the weights where mask is False (if mask given)
+    if mask is not None:
+        mask = mask.repeat_interleave(4, dim=0).view(n*4, h*w).to(torch.uint8)
+        wgt *= mask
+
+    # General note for density and grid_data: the 4 corner points that need to be scatter_add_ed individually are
+    # present in the shape of a channel dimension. They are "mixed" into the batch dimension in order to be able to
+    # use a single .scatter_add_() operation, then "unmixed". Adding up along the "unmixed" channel dim yields the
+    # same result as using .scatter_add_ for each corner point individually
+
+    # Calculate the summed up weight for each point by distributing the corner weights down dim=1 according to the
+    # corner point coordinates. Then reshape so a summed weight is available for each image coordinate
+    density = torch.zeros((n*4, h*w), device=data.device)  # N*4-H*W
+    density.scatter_add_(dim=1, index=pos.long(), src=wgt)
+    density = torch.sum(density.view(n, 4, h, w), dim=1, keepdim=True)
+
+    # Calculate the summed up data for each point by distributing the corner data down dim=1 according to the corner
+    # corner point coordinates
+    grid_data = torch.zeros((n*4*c, h*w), device=data.device)  # N*4*C-H*W
+    grid_data.scatter_add_(dim=1, index=pos.repeat_interleave(c, dim=0).long(),
+                           src=wgt.repeat_interleave(c, dim=0) * data.repeat_interleave(4, dim=0).view(n*4*c, h*w))
+
+    # Normalise by the sum of weights. To avoid division by zero, a minimum of 1e-3 is used. Where the sum of weights
+    # is 0, no data should have been allocated, so those divisions will be 0/1e-3 = 0
+    grid_data = torch.sum(grid_data.view(n, 4, c, h, w), dim=1) / torch.clamp_min(density, 1e-3)
+
+    # The following commented-out lines are a per-channel version of the above "grid_data" code
+    # grid_data_list = []
+    # for i in range(c):
+    #     grid_data = torch.zeros_like(wgt, device=data.device)
+    #     grid_data.scatter_add_(1, pos.long(), wgt * data[:, i, :, :].view(n, h*w).expand(n*4, -1))
+    #     grid_data_list.append(torch.sum(grid_data.view(n, 4, h, w), dim=1, keepdim=True))
+    # grid_data = torch.cat(grid_data_list, dim=1) / torch.clamp_min(density, 1e-3)
+
+    return grid_data, density

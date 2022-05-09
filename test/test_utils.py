@@ -21,7 +21,8 @@ sys.path.append('..')
 from src.oflibpytorch.utils import get_valid_vecs, get_valid_shape, get_valid_ref, get_valid_mask, get_valid_padding, \
     get_valid_device, to_numpy, move_axis, flow_from_matrix, matrix_from_transform, matrix_from_transforms, \
     reverse_transform_values, normalise_coords, apply_flow, threshold_vectors, from_matrix, from_transforms,  \
-    load_kitti, load_sintel, load_sintel_mask, resize_flow, is_zero_flow, track_pts, get_flow_endpoints
+    load_kitti, load_sintel, load_sintel_mask, resize_flow, is_zero_flow, track_pts, get_flow_endpoints, \
+    grid_from_unstructured_data
 from src.oflibpytorch.flow_class import Flow
 from src.oflibpytorch.flow_operations import batch_flows
 
@@ -855,6 +856,21 @@ class TestGetFlowEndpoints(unittest.TestCase):
         self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, :, 0]), [2, 2, 2, 2, 2, 2]))
         self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, 0]), [-2, -2, -2, -2, -2, -2]))
         self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, :, 0]), [-2, -1, 0, 1, 2, 3]))
+
+
+class TestGridFromUnstructuredData(unittest.TestCase):
+    def test_grid_from_unstructured_data(self):
+        flow = Flow.from_transforms([['rotation', 50, 75, -20]], (100, 150), ref='s')
+        flow = batch_flows((flow, flow))
+        flow_rev = flow.invert()
+        x, y = get_flow_endpoints(flow.vecs, flow.ref)
+        g = grid_from_unstructured_data(x, y, flow.vecs)
+        flow_approx = Flow(-g[0], flow.ref)
+        self.assertIsNone(np.testing.assert_allclose(flow_rev.vecs_numpy[flow_rev.mask_numpy],
+                                                     flow_approx.vecs_numpy[flow_rev.mask_numpy],
+                                                     atol=5e-2))
+        mask = to_numpy(g[1].squeeze(1) > 0.1)
+        self.assertIsNone(np.testing.assert_equal(mask[flow_rev.mask_numpy], flow_rev.mask_numpy[flow_rev.mask_numpy]))
 
 
 if __name__ == '__main__':
