@@ -1023,15 +1023,15 @@ def grid_from_unstructured_data(
     :param x: Horizontal data position grid, shape N1HW
     :param y: Vertical data position grid, shape N1HW
     :param data: Data value grid, shape NCHW
-    :param mask: Tensor masking data points, shape NCHW
-    :return: NCHW tensor of data interpolated on regular grid, N1HW tensor of interpolation density
+    :param mask: Tensor masking data points, shape NHW
+    :return: NCHW tensor of data interpolated on regular grid, NHW tensor of interpolation density
     """
 
     # Input grids:          [N, H, W]
     # Input data:           [N, C, H, W]
-    # Input mask:           [N, C, H, W]
+    # Input mask:           [N, H, W]
     # Output data:          [N, C, H, W]
-    # Uniqueness density:   [N, 1, H, W]
+    # Uniqueness density:   [N, H, W]
 
     n, c, h, w = data.shape
 
@@ -1091,7 +1091,7 @@ def grid_from_unstructured_data(
     #     grid_data_list.append(torch.sum(grid_data.view(n, 4, h, w), dim=1, keepdim=True))
     # grid_data = torch.cat(grid_data_list, dim=1) / torch.clamp_min(density, 1e-3)
 
-    return grid_data, density
+    return grid_data, density.squeeze(1)
 
 
 def apply_s_flow(
