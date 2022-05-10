@@ -298,7 +298,11 @@ def flow_from_matrix(matrix: torch.Tensor, shape: list) -> torch.Tensor:
     n, h, w = shape
     device = matrix.device
     ones = torch.ones((h, w)).to(device)
-    grid_x, grid_y = torch.meshgrid(torch.arange(0, h), torch.arange(0, w), indexing='ij')
+    torch_version = globals()['torch'].__version__
+    if int(torch_version[0]) == 1 and float(torch_version[2:4]) <= 9:
+        grid_x, grid_y = torch.meshgrid(torch.arange(0, h), torch.arange(0, w))
+    else:
+        grid_x, grid_y = torch.meshgrid(torch.arange(0, h), torch.arange(0, w), indexing='ij')
     default_vec_hom = torch.stack((grid_y.to(torch.float).to(device),
                                    grid_x.to(torch.float).to(device),
                                    ones), dim=-1)
@@ -475,7 +479,11 @@ def apply_flow(
     # Warp target
     if ref == 't':
         # Prepare grid
-        grid_x, grid_y = torch.meshgrid(torch.arange(0, h), torch.arange(0, w), indexing='ij')
+        torch_version = globals()['torch'].__version__
+        if int(torch_version[0]) == 1 and float(torch_version[2:4]) <= 9:
+            grid_x, grid_y = torch.meshgrid(torch.arange(0, h), torch.arange(0, w))
+        else:
+            grid_x, grid_y = torch.meshgrid(torch.arange(0, h), torch.arange(0, w), indexing='ij')
         grid = torch.stack((grid_y, grid_x), dim=-1).to(torch.float).to(device)
         field = normalise_coords(grid.unsqueeze(0) - flow, (h, w))
         torch_version = globals()['torch'].__version__

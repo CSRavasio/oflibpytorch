@@ -1110,7 +1110,12 @@ class Flow(object):
             v *= -1
 
         # Prepare grid
-        grid_x, grid_y = torch.meshgrid(torch.arange(0, self.shape[1]), torch.arange(0, self.shape[2]), indexing='ij')
+        torch_version = globals()['torch'].__version__
+        if int(torch_version[0]) == 1 and float(torch_version[2:4]) <= 9:
+            grid_x, grid_y = torch.meshgrid(torch.arange(0, self.shape[1]), torch.arange(0, self.shape[2]))
+        else:
+            grid_x, grid_y = torch.meshgrid(torch.arange(0, self.shape[1]), torch.arange(0, self.shape[2]),
+                                            indexing='ij')
         v[:, 0] -= grid_y.to(self._device)
         v[:, 1] -= grid_x.to(self._device)
         v *= -1
