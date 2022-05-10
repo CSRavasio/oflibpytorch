@@ -471,6 +471,9 @@ def apply_flow(
     target = target.to(torch.float)
     if target.device != flow.device:
         target = target.to(flow.device)
+    if mask is not None:
+        if mask.device != flow.device:
+            mask = mask.to(flow.device)
     target_dims = target.dim()
     if target_dims == 2:  # shape H-W to 1-1-H-W
         target = target.unsqueeze(0).unsqueeze(0)
