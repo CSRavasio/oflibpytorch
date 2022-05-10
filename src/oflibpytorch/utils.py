@@ -1020,8 +1020,7 @@ def grid_from_unstructured_data(
 
     # Mask the weights where mask is False (if mask given)
     if mask is not None:
-        mask = mask.repeat_interleave(4, dim=0).view(n*4, h*w).to(torch.uint8)
-        wgt *= mask
+        wgt *= mask.repeat_interleave(4, dim=0).view(n*4, h*w).to(torch.uint8)
 
     # General note for density and grid_data: the 4 corner points that need to be scatter_add_ed individually are
     # present in the shape of a channel dimension. They are "mixed" into the batch dimension in order to be able to
