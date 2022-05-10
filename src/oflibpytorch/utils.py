@@ -940,7 +940,7 @@ def track_pts(
     return warped_pts
 
 
-def get_flow_endpoints(flow: torch.Tensor, ref: str) -> tuple[torch.Tensor, torch.Tensor]:
+def get_flow_endpoints(flow: torch.Tensor, ref: str) -> tuple:
     """Calculates the endpoint (or strictly speaking start points if ref 't') coordinate grids x, y for a given
     flow field
 
@@ -961,7 +961,7 @@ def grid_from_unstructured_data(
     y: torch.Tensor,
     data: torch.Tensor,
     mask: torch.Tensor = None,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple:
     """Returns unstructured input data on a (sparse) regular grid. Credit:
         - This is based on the algorithm suggested in: Sánchez, J., Salgado de la Nuez, A. J., & Monzón, N., "Direct
         estimation of the backward flow", 2013
