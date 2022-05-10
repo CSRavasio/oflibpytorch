@@ -433,11 +433,15 @@ class TestApplyFlow(unittest.TestCase):
     def test_rotation(self):
         img = cv2.imread('smudge.png')[:, :480]
         img = torch.tensor(np.moveaxis(img, -1, 0))
+        desired_img = img.transpose(1, 2).flip(1)
         for dev in ['cpu', 'cuda']:
             for ref in ['t', 's']:
                 flow = Flow.from_transforms([['rotation', 239.5, 239.5, 90]], img.shape[1:], ref).vecs
+                set_pure_pytorch()
                 warped_img = apply_flow(flow.to(dev), img, ref)
-                desired_img = img.transpose(1, 2).flip(1)
+                self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img), to_numpy(desired_img)))
+                unset_pure_pytorch()
+                warped_img = apply_flow(flow.to(dev), img, ref)
                 self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img), to_numpy(desired_img)))
 
     def test_translation(self):
@@ -447,6 +451,11 @@ class TestApplyFlow(unittest.TestCase):
         for dev in ['cpu', 'cuda']:
             for ref in ['s', 't']:
                 flow = Flow.from_transforms([['translation', 10, -20]], img.shape[1:], ref).vecs
+                set_pure_pytorch()
+                warped_img = apply_flow(flow.to(dev), img, ref)
+                self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img[:, :-20, 10:]),
+                                                          to_numpy(img[:, 20:, :-10])))
+                unset_pure_pytorch()
                 warped_img = apply_flow(flow.to(dev), img, ref)
                 self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img[:, :-20, 10:]),
                                                           to_numpy(img[:, 20:, :-10])))
@@ -458,6 +467,11 @@ class TestApplyFlow(unittest.TestCase):
         for dev in ['cpu', 'cuda']:
             for ref in ['s', 't']:
                 flow = Flow.from_transforms([['translation', 10, -20]], img.shape, ref).vecs
+                set_pure_pytorch()
+                warped_img = apply_flow(flow.to(dev), img, ref)
+                self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img[:-20, 10:]),
+                                                          to_numpy(img[20:, :-10])))
+                unset_pure_pytorch()
                 warped_img = apply_flow(flow.to(dev), img, ref)
                 self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img[:-20, 10:]),
                                                           to_numpy(img[20:, :-10])))
@@ -477,12 +491,25 @@ class TestApplyFlow(unittest.TestCase):
                 Flow.from_transforms([['translation', 10, -20]], img.shape[:2], ref).vecs.repeat(4, 1, 1, 1),
             ]:
                 for i in [i_1chw, i_11hw, i_nchw, i_n1hw]:
+                    set_pure_pytorch()
+                    warped_i = apply_flow(f, i, ref)
+                    self.assertEqual(warped_i.shape[0], max(f.shape[0], i.shape[0]))
+                    for w_ind, i_ind in zip(warped_i, i):
+                        self.assertIsNone(np.testing.assert_equal(to_numpy(w_ind[:-20, 10:]),
+                                                                  to_numpy(i_ind[20:, :-10])))
+                    unset_pure_pytorch()
                     warped_i = apply_flow(f, i, ref)
                     self.assertEqual(warped_i.shape[0], max(f.shape[0], i.shape[0]))
                     for w_ind, i_ind in zip(warped_i, i):
                         self.assertIsNone(np.testing.assert_equal(to_numpy(w_ind[:-20, 10:]),
                                                                   to_numpy(i_ind[20:, :-10])))
         f = Flow.from_transforms([['translation', 10, -20]], img.shape[:2], 't').vecs.repeat(4, 1, 1, 1)
+        set_pure_pytorch()
+        warped_i = apply_flow(f, i_hw, 't')
+        self.assertEqual(warped_i.shape, (4, i_hw.shape[0], i_hw.shape[1]))
+        warped_i = apply_flow(f, i_chw, 't')
+        self.assertEqual(warped_i.shape, (4, 3, i_hw.shape[0], i_hw.shape[1]))
+        unset_pure_pytorch()
         warped_i = apply_flow(f, i_hw, 't')
         self.assertEqual(warped_i.shape, (4, i_hw.shape[0], i_hw.shape[1]))
         warped_i = apply_flow(f, i_chw, 't')

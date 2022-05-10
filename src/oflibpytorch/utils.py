@@ -513,9 +513,6 @@ def apply_flow(
                 mask = mask.repeat(target.shape[0], 1, 1)
         # Now batch dims either N and 1->N, 1->N and N, 1 and 1, or N and N
 
-    # Get flow in shape needed
-    flow = flow.permute(0, 2, 3, 1)  # N-2-H-W to N-H-W-2
-
     # Warp target
     if ref == 't':
         # Prepare grid
@@ -525,6 +522,7 @@ def apply_flow(
         else:
             grid_x, grid_y = torch.meshgrid(torch.arange(0, h), torch.arange(0, w), indexing='ij')
         grid = torch.stack((grid_y, grid_x), dim=-1).to(torch.float).to(device)
+        flow = flow.permute(0, 2, 3, 1)  # N-2-H-W to N-H-W-2
         field = normalise_coords(grid.unsqueeze(0) - flow, (h, w))
         torch_version = globals()['torch'].__version__
         if int(torch_version[0]) == 1 and float(torch_version[2:4]) <= 3:
@@ -550,28 +548,32 @@ def apply_flow(
         #        v
         #        y
     else:  # ref == 's'
-        # Get the positions of the unstructured points with known values
-        field = to_numpy(flow).astype('float32')
-        flow_flat = np.reshape(field[..., ::-1], (field.shape[0], -1, 2))               # N-H*W-2
-        x, y = np.mgrid[:h, :w]                                                         # H-W
-        positions = np.swapaxes(np.vstack([x.ravel(), y.ravel()]), 0, 1)                # H*W-2
-        pos = positions + flow_flat                                                     # N-H*W-2
-        # Get the known values themselves
-        target_np = np.moveaxis(to_numpy(target), 1, -1)                                # from N-C-H-W to N-H-W-C
-        target_flat = np.reshape(target_np, (target.shape[0], -1, target.shape[1]))     # from N-H-W-C to N-H*W-C
-        # Perform interpolation of regular grid from unstructured data
-        results = np.copy(target_np)                                                    # N-H-W-C
-        if mask is not None:
-            mask = to_numpy(mask.view(mask.shape[0], -1))
-        for i in range(target_flat.shape[0]):  # Perform griddata for each batch member
-            # Mask points, if required
+        if get_pure_pytorch():
+            result, _ = apply_s_flow(flow, target, mask, occlude_zero_flow=True)
+        else:
+            # Get the positions of the unstructured points with known values
+            flow = flow.permute(0, 2, 3, 1)  # N-2-H-W to N-H-W-2
+            field = to_numpy(flow).astype('float32')
+            flow_flat = np.reshape(field[..., ::-1], (field.shape[0], -1, 2))               # N-H*W-2
+            x, y = np.mgrid[:h, :w]                                                         # H-W
+            positions = np.swapaxes(np.vstack([x.ravel(), y.ravel()]), 0, 1)                # H*W-2
+            pos = positions + flow_flat                                                     # N-H*W-2
+            # Get the known values themselves
+            target_np = np.moveaxis(to_numpy(target), 1, -1)                                # from N-C-H-W to N-H-W-C
+            target_flat = np.reshape(target_np, (target.shape[0], -1, target.shape[1]))     # from N-H-W-C to N-H*W-C
+            # Perform interpolation of regular grid from unstructured data
+            results = np.copy(target_np)                                                    # N-H-W-C
             if mask is not None:
-                result = griddata(pos[i][mask[i]], target_flat[i][mask[i]], (x, y), method='linear')
-                results[i] = np.nan_to_num(result)
-            else:
-                result = griddata(pos[i], target_flat[i], (x, y), method='linear')
-                results[i] = np.nan_to_num(result)
-        result = torch.tensor(np.moveaxis(results, -1, 1)).to(flow.device)              # N-H-W-C to N-C-H-W
+                mask = to_numpy(mask.view(mask.shape[0], -1))
+            for i in range(target_flat.shape[0]):  # Perform griddata for each batch member
+                # Mask points, if required
+                if mask is not None:
+                    result = griddata(pos[i][mask[i]], target_flat[i][mask[i]], (x, y), method='linear')
+                    results[i] = np.nan_to_num(result)
+                else:
+                    result = griddata(pos[i], target_flat[i], (x, y), method='linear')
+                    results[i] = np.nan_to_num(result)
+            result = torch.tensor(np.moveaxis(results, -1, 1)).to(flow.device)              # N-H-W-C to N-C-H-W
 
     # Reduce target to original shape, as far as possible
     if result.shape[0] == 1:
