@@ -22,7 +22,7 @@ from src.oflibpytorch.utils import get_valid_vecs, get_valid_shape, get_valid_re
     get_valid_device, to_numpy, move_axis, flow_from_matrix, matrix_from_transform, matrix_from_transforms, \
     reverse_transform_values, normalise_coords, apply_flow, threshold_vectors, from_matrix, from_transforms,  \
     load_kitti, load_sintel, load_sintel_mask, resize_flow, is_zero_flow, track_pts, get_flow_endpoints, \
-    grid_from_unstructured_data
+    grid_from_unstructured_data, apply_s_flow
 from src.oflibpytorch.flow_class import Flow
 from src.oflibpytorch.flow_operations import batch_flows
 
@@ -871,6 +871,87 @@ class TestGridFromUnstructuredData(unittest.TestCase):
                                                      atol=5e-2))
         mask = to_numpy(g[1].squeeze(1) > 0.1)
         self.assertIsNone(np.testing.assert_equal(mask[flow_rev.mask_numpy], flow_rev.mask_numpy[flow_rev.mask_numpy]))
+
+
+class TestApplySFlow(unittest.TestCase):
+    def test_masked_s_flow(self):
+        # Mask     Flow     m-fl     m-fl
+        # 0000     0110     0000     ----
+        # 0100     0110     0100     -1--
+        # 0010     0000     0000     --0-
+        # 0000     0000     0000     ----
+        #
+        img = cv2.imread('smudge.png')  # 480x512 pixels
+        shape = img.shape[:2]
+        img = torch.tensor(np.moveaxis(img, -1, 0), dtype=torch.float).unsqueeze(0)
+        mask = torch.zeros_like(img[:, 0], dtype=torch.bool)
+        mask[:, 100:-100, 100:-100] = True
+        mask[:, 300:, :250] = False
+        mask[:, :300, 250:] = False
+        flow_base = Flow.from_transforms([['scaling', 256, 240, 1.3]], shape, 't')
+        img_base = flow_base.apply(img)
+        flow = Flow.from_transforms([['scaling', 256, 240, 1.3]], shape, 's', mask)
+        flow._vecs[:, :, 300:] = 0
+        flow._vecs[:, :, :, :100] = 0
+        flow._vecs[:, :, :, -100:] = 0
+
+        # masked, not occluding zero flow: output should match baseline within mask
+        img_w_true, dens_true = apply_s_flow(flow._vecs, img, flow._mask)
+        mask = np.zeros(shape, np.bool)
+        mask[100-42:300+18, 100-47:250-2] = True
+        mask[300:-100, 250:-100] = True
+        # Check the mask from density matches what it should be
+        self.assertEqual(np.count_nonzero(dens_true*255 - mask*255), 0)
+        mask[300:] = False
+        n = np.count_nonzero(mask) * 3
+        # Check the warped area matches approximately
+        self.assertGreater(np.count_nonzero(np.abs(img_w_true[0, :, mask] - img_base[0, :, mask]) < 1) / n, 0.55)
+        self.assertGreater(np.count_nonzero(np.abs(img_w_true[0, :, mask] - img_base[0, :, mask]) < 5) / n, 0.9)
+        self.assertGreater(np.count_nonzero(np.abs(img_w_true[0, :, mask] - img_base[0, :, mask]) < 10) / n, 0.98)
+        # Means: >55% of image pixels (and channel elements) within 1, >90% within 5, >98% within 10
+        # Check the non-warped area matches exactly
+        mask2 = np.zeros(shape, np.bool)
+        mask2[300:-100, 250:-100] = True
+        self.assertIsNone(np.testing.assert_equal(to_numpy(img_w_true[0, :, mask2]), to_numpy(img[0, :, mask2])))
+
+        # masked, occluding zero flow: output should be the same as before
+        img_w_true2, dens_true2 = apply_s_flow(flow._vecs, img, flow._mask, occlude_zero_flow=True)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(img_w_true), to_numpy(img_w_true2)))
+        dens_true[0, 300:-100, 250:-100] = False
+        self.assertIsNone(np.testing.assert_equal(to_numpy(dens_true), to_numpy(dens_true2)))
+
+        # not masked, not occluding zero flow: output should match baseline within mask
+        img_w_false, dens_false = apply_s_flow(flow._vecs, img)
+        # Check the mask from density matches what it should be
+        self.assertEqual(np.count_nonzero(dens_false*255 - 255), 0)
+        mask = np.zeros(shape, np.bool)
+        mask[100:300, 100:-100] = True
+        n = np.count_nonzero(mask) * 3
+        # Check the warped area matches approximately
+        self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 1) / n, 0.65)
+        self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 5) / n, 0.94)
+        self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 10) / n, 0.98)
+        # Means: >65% of image pixels (and channel elements) within 1, >94% within 5, >98% within 10
+        # Check the non-warped area matches exactly
+        mask2 = np.ones(shape, np.bool)
+        mask2[:300+18, 100-47:-100+47] = False
+        self.assertIsNone(np.testing.assert_equal(to_numpy(img_w_false[0, :, mask2]), to_numpy(img[0, :, mask2])))
+
+        # not masked, occluding zero flow: output should match baseline within mask
+        img_w_false, dens_false = apply_s_flow(flow._vecs, img, occlude_zero_flow=True)
+        mask = np.zeros(shape, np.bool)
+        mask[:300+18, 100-47:-100+47] = True
+        mask[240, 256] = False
+        # Check the mask from density matches what it should be
+        self.assertEqual(np.count_nonzero(dens_false*255 - mask*255), 0)
+        n = np.count_nonzero(mask) * 3
+        # Check the warped area matches approximately
+        self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 1) / n, 0.65)
+        self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 5) / n, 0.95)
+        self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 10) / n, 0.99)
+        # Means: >65% of image pixels (and channel elements) within 1, >95% within 5, >99% within 10
+        # Check the non-warped area matches exactly
+        self.assertIsNone(np.testing.assert_equal(to_numpy(img_w_false[0, :, ~mask]), to_numpy(img[0, :, ~mask])))
 
 
 if __name__ == '__main__':

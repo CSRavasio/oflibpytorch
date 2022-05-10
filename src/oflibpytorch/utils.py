@@ -1045,3 +1045,45 @@ def grid_from_unstructured_data(
     # grid_data = torch.cat(grid_data_list, dim=1) / torch.clamp_min(density, 1e-3)
 
     return grid_data, density
+
+
+def apply_s_flow(
+    flow: torch.Tensor,
+    data: torch.Tensor,
+    mask: torch.Tensor = None,
+    occlude_zero_flow: bool = None
+) -> torch.Tensor:
+    """Warp data with 's' reference flow
+
+    :param flow: Float tensor of shape N2HW, the input flow with reference 's'
+    :param data: Float tensor of shape NCHW, the data to be warped
+    :param mask: Boolean tensor of shape NHW, the mask belonging to the flow (optional)
+    :param occlude_zero_flow: Boolean determining whether data locations with corresponding flow of zero are occluded
+        (overwritten) by other data moved to the same location. Rationale: if the order of objects were reversed, i.e.
+        the zero flow points occlude the non-zero flow points, the latter wouldn't be known in the first place. This
+        logic breaks down when the flow points concerned have been inferred, e.g. from surrounding non-occluded known
+        points. Defaults to False
+    :return: Warped data as float tensor of shape NCHW, mask of where data points where warped to as bool tensor of
+        shape NHW (if occlude_zero_flow is True, this mask does not include zero flow points)
+    """
+
+    occlude_zero_flow = False if occlude_zero_flow is None else occlude_zero_flow
+
+    n, c, h, w = data.shape
+    x, y = get_flow_endpoints(flow, 's')                                         # NHW, NHW
+
+    if occlude_zero_flow:
+        override_mask = torch.sum(threshold_vectors(flow) == 0, dim=1) != 2
+        if mask is not None:
+            mask &= override_mask
+        else:
+            mask = override_mask
+    else:
+        if mask is not None:
+            mask = mask.unsqueeze(1)
+
+    warped_data, warped_density = grid_from_unstructured_data(x, y, data, mask)  # NCHW, N1HW
+    warped_mask = (warped_density > .25).expand(-1, c, -1, -1)                   # NCHW
+    warped_data[~warped_mask] = data[~warped_mask].float()                       # NCHW
+
+    return warped_data, warped_mask[:, 0]
