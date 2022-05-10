@@ -21,6 +21,24 @@ from typing import Any, Union, List
 
 
 DEFAULT_THRESHOLD = 1e-3
+PURE_PYTORCH = False
+
+
+def get_pure_pytorch():
+    global PURE_PYTORCH
+    return PURE_PYTORCH
+
+
+def set_pure_pytorch():
+    global PURE_PYTORCH
+    PURE_PYTORCH = True
+    print("Pure Pytorch mode set: no use of scipy.interpolate.griddata. Significantly faster, but more approximate")
+
+
+def unset_pure_pytorch():
+    global PURE_PYTORCH
+    PURE_PYTORCH = False
+    print("Pure Pytorch mode unset: scipy.interpolate.griddata used. Significantly slower, but more exact")
 
 
 def get_valid_vecs(vecs: Any, desired_shape: Union[tuple, list] = None, error_string: str = None) -> torch.Tensor:
