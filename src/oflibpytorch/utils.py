@@ -1117,20 +1117,24 @@ def apply_s_flow(
     occlude_zero_flow = False if occlude_zero_flow is None else occlude_zero_flow
 
     n, c, h, w = data.shape
-    x, y = get_flow_endpoints(flow, 's')                                         # NHW, NHW
+    x, y = get_flow_endpoints(flow, 's')                                                # NHW, NHW
 
+    zero_mask = None
+    if mask is None:
+        mask = torch.ones((n, h, w), dtype=torch.bool, device=flow.device)            # NHW
     if occlude_zero_flow:
-        override_mask = torch.sum(threshold_vectors(flow) == 0, dim=1) != 2
-        if mask is not None:
-            mask = mask & override_mask
-        else:
-            mask = override_mask
+        zero_mask = torch.sum(threshold_vectors(flow) == 0, dim=1) == 2                 # NHW
+        flow_mask = mask & ~zero_mask                                                   # NHW
     else:
-        if mask is not None:
-            mask = mask.unsqueeze(1)
+        flow_mask = mask                                                                # NHW
 
-    warped_data, warped_density = grid_from_unstructured_data(x, y, data, mask)  # NCHW, N1HW
-    warped_mask = (warped_density > .25).expand(-1, c, -1, -1)                   # NCHW
-    warped_data[~warped_mask] = data[~warped_mask].float()                       # NCHW
+    warped_data, warped_density = grid_from_unstructured_data(x, y, data, flow_mask)    # NCHW, N1HW
+    warped_mask = (warped_density > 0).squeeze(1)                                       # NHW
+    if occlude_zero_flow:
+        # Some zero flow positions were masked out so they could be overwritten. If they were not overwritten, as
+        # determined by checking warped_density, then these positions need to be filled in with the original data
+        # (which would not have moved anyway, as it is a zero flow position)
+        unocclude_mask = (mask & zero_mask & ~warped_mask).unsqueeze(1).expand(-1, c, -1, -1)  # NCHW
+        warped_data[unocclude_mask] = data[unocclude_mask].float()
 
-    return warped_data, warped_mask[:, 0]
+    return warped_data, warped_mask
