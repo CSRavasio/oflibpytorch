@@ -249,7 +249,7 @@ class TestFlowFromMatrix(unittest.TestCase):
     def test_scaling_with_shift(self):
         # Scaling factor 2 around point [20, 30] (hor, ver), to 200 by 300 flow field
         shape = [2, 200, 300]
-        matrix = torch.stack((torch.eye(3), torch.tensor([[2, 0, -20], [0, 2, -30], [0, 0, 1]])), dim=0)
+        matrix = torch.stack((torch.eye(3), torch.tensor([[2., 0, -20], [0, 2, -30], [0, 0, 1]])), dim=0)
         flow = flow_from_matrix(matrix, shape)
         self.assertIsNone(np.testing.assert_array_almost_equal(to_numpy(flow[1, :, 30, 20]), [0, 0]))
         self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[1, :, 30, 70]), [50, 0]))
