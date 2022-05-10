@@ -22,7 +22,7 @@ from typing import Union, Tuple
 import warnings
 from .utils import get_valid_vecs, get_valid_ref, get_valid_mask, get_valid_device, get_valid_padding, get_valid_shape,\
     to_numpy, move_axis, apply_flow, threshold_vectors, resize_flow, is_zero_flow, \
-    from_matrix, from_transforms, load_kitti, load_sintel, load_sintel_mask, track_pts
+    from_matrix, from_transforms, load_kitti, load_sintel, load_sintel_mask, track_pts, get_pure_pytorch
 
 
 FlowAlias = 'Flow'
@@ -1697,25 +1697,29 @@ class Flow(object):
             elif self._ref == flow._ref == 't':
                 # Strictly "translated" version from the ref 's' case:
                 # F2_t = F1_t{F3_t-as-s - F1_t-as-s}_as-t)
-                # result = (self.apply(flow.switch_ref() - self.switch_ref())).switch_ref()
-                #
-                # Improved version cutting down on operational complexity
-                # F3 - F1, where F1 has been resampled to the source positions of F3.
-                coord_1 = -self.vecs_numpy                                              # N-H-W-2
-                coord_1[:, :, :, 0] += np.arange(coord_1.shape[2])                      # N-H-W-2
-                coord_1[:, :, :, 1] += np.arange(coord_1.shape[1])[:, np.newaxis]       # N-H-W-2
-                coord_1_flat = np.reshape(coord_1, (self.shape[0], -1, 2))              # N-H*W-2
-                vecs_with_mask = np.concatenate((self.vecs_numpy, self.mask_numpy[..., np.newaxis]), axis=-1)  # N-H-W-3
-                vals_flat = np.reshape(vecs_with_mask, (self.shape[0], -1, 3))          # N-H*W-2
-                coord_3 = -flow.vecs_numpy                                              # N-H-W-2
-                coord_3[:, :, :, 0] += np.arange(coord_3.shape[2])                      # N-H-W-2
-                coord_3[:, :, :, 1] += np.arange(coord_3.shape[1])[:, np.newaxis]       # N-H-W-2
-                vals_resampled = np.zeros_like(vecs_with_mask)
-                for i in range(self.shape[0]):
-                    vals_resampled[i] = griddata(coord_1_flat[i], vals_flat[i],
-                                                 (coord_3[i, ..., 0], coord_3[i, ..., 1]),
-                                                 method='linear', fill_value=0)
-                result = flow - Flow(vals_resampled[..., :-1], 't', vals_resampled[..., -1] > .99)
+                if get_pure_pytorch():
+                    result = (self.apply(flow.switch_ref() - self.switch_ref())).switch_ref()
+                else:
+                    # result = (self.apply(flow.switch_ref() - self.switch_ref())).switch_ref()
+                    # Improved version cutting down on operational complexity
+                    # F3 - F1, where F1 has been resampled to the source positions of F3.
+                    coord_1 = -self.vecs_numpy                                              # N-H-W-2
+                    coord_1[:, :, :, 0] += np.arange(coord_1.shape[2])                      # N-H-W-2
+                    coord_1[:, :, :, 1] += np.arange(coord_1.shape[1])[:, np.newaxis]       # N-H-W-2
+                    coord_1_flat = np.reshape(coord_1, (self.shape[0], -1, 2))              # N-H*W-2
+                    vecs_with_mask = np.concatenate((self.vecs_numpy,
+                                                     self.mask_numpy[..., np.newaxis]),
+                                                    axis=-1)                                # N-H-W-3
+                    vals_flat = np.reshape(vecs_with_mask, (self.shape[0], -1, 3))          # N-H*W-2
+                    coord_3 = -flow.vecs_numpy                                              # N-H-W-2
+                    coord_3[:, :, :, 0] += np.arange(coord_3.shape[2])                      # N-H-W-2
+                    coord_3[:, :, :, 1] += np.arange(coord_3.shape[1])[:, np.newaxis]       # N-H-W-2
+                    vals_resampled = np.zeros_like(vecs_with_mask)
+                    for i in range(self.shape[0]):
+                        vals_resampled[i] = griddata(coord_1_flat[i], vals_flat[i],
+                                                     (coord_3[i, ..., 0], coord_3[i, ..., 1]),
+                                                     method='linear', fill_value=0)
+                    result = flow - Flow(vals_resampled[..., :-1], 't', vals_resampled[..., -1] > .99)
         elif mode == 3:  # Flows are in order (self, flow, desired_result)
             if self._ref == flow._ref == 's':
                 # Explanation: f3 is (f1 plus f2), when S2 is moved to S1, achieved by applying inverted(f1)

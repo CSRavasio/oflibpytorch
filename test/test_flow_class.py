@@ -20,7 +20,8 @@ import sys
 sys.path.append('..')
 from src.oflibpytorch.flow_class import Flow
 from src.oflibpytorch.flow_operations import batch_flows
-from src.oflibpytorch.utils import to_numpy, apply_flow, matrix_from_transforms, resize_flow
+from src.oflibpytorch.utils import to_numpy, apply_flow, matrix_from_transforms, resize_flow, \
+    get_pure_pytorch, set_pure_pytorch, unset_pure_pytorch
 
 
 class FlowTest(unittest.TestCase):
@@ -730,110 +731,112 @@ class FlowTest(unittest.TestCase):
         img_np = np.moveaxis(cv2.resize(cv2.imread('smudge.png'), None, fx=.25, fy=.25), -1, 0)
         img_pt = torch.tensor(img_np)
         # Check flow.apply results in the same as using apply_flow directly
-        for ref in ['t', 's']:
-            for consider_mask in [True, False]:
-                for device in ['cpu', 'cuda']:
-                    for img in [img_pt.to('cpu'), img_pt.to('cuda')]:
-                        mask = torch.ones(img_pt.shape[1:], dtype=torch.bool)
-                        mask[400:] = False
-                        flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref, mask, device)
-                        # Target is a 3D torch tensor
-                        warped_img_desired = apply_flow(flow.vecs, img, ref, mask if consider_mask else None)
-                        warped_img_actual = flow.apply(img, consider_mask=consider_mask)
-                        self.assertEqual(flow.device, warped_img_actual.device)
-                        self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
-                                                                  to_numpy(warped_img_desired)))
-                        warped_img_actual, _ = flow.apply(img, mask, True, consider_mask=consider_mask)
-                        self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
-                                                                  to_numpy(warped_img_desired)))
-                        # Target is a 2D torch tensor
-                        warped_img_desired = apply_flow(flow.vecs, img[0], ref, mask if consider_mask else None)
-                        warped_img_actual = flow.apply(img[0], consider_mask=consider_mask)
-                        self.assertEqual(flow.device, warped_img_actual.device)
-                        self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
-                                                                  to_numpy(warped_img_desired)))
-                        warped_img_actual, _ = flow.apply(img[0], mask, True, consider_mask=consider_mask)
-                        self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
-                                                                  to_numpy(warped_img_desired)))
-                    for f_device in ['cpu', 'cuda']:
-                        f = flow.to_device(f_device)
-                        # Target is a flow object
-                        warped_flow_desired = apply_flow(flow.vecs, f.vecs, ref, mask if consider_mask else None)
-                        warped_flow_actual = flow.apply(f, consider_mask=consider_mask)
-                        self.assertEqual(flow.device, warped_flow_actual.device)
-                        self.assertIsNone(np.testing.assert_equal(to_numpy(warped_flow_actual.vecs),
-                                                                  to_numpy(warped_flow_desired)))
-        # Check using a smaller flow field on a larger target works the same as a full flow field on the same target
-        img = img_pt.to(torch.float)
-        ref = 't'
-        flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref)
-        warped_img_desired = apply_flow(flow.vecs, img, ref)
-        shape = [img.shape[1] - 90, img.shape[2] - 110]
-        padding = [50, 40, 30, 80]
-        cut_flow = Flow.from_transforms([['rotation', 0, 0, 30]], shape, ref)
-        # ... not cutting (target torch tensor)
-        warped_img_actual = cut_flow.apply(img, padding=padding, cut=False)
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img_actual[:, padding[0]:-padding[1],
-                                                              padding[2]:-padding[3]]),
-                                                     to_numpy(warped_img_desired[:, padding[0]:-padding[1],
-                                                              padding[2]:-padding[3]]),
-                                                     atol=1e-3))
-        # ... cutting (target torch tensor)
-        warped_img_actual = cut_flow.apply(img, padding=padding, cut=True)
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img_actual).astype('f'),
-                                                     to_numpy(warped_img_desired[:, padding[0]:-padding[1],
-                                                              padding[2]:-padding[3]]).astype('f'),
-                                                     atol=1e-3))
-        # ... not cutting (target flow object)
-        target_flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref)
-        warped_flow_desired = apply_flow(flow.vecs, target_flow.vecs, ref)
-        warped_flow_actual = cut_flow.apply(target_flow, padding=padding, cut=False)
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_flow_actual.vecs[:, :, padding[0]:-padding[1],
-                                                              padding[2]:-padding[3]]),
-                                                     to_numpy(warped_flow_desired[:, :, padding[0]:-padding[1],
-                                                              padding[2]:-padding[3]]),
-                                                     atol=1e-1))
-        # ... cutting (target flow object)
-        warped_flow_actual = cut_flow.apply(target_flow, padding=padding, cut=True)
-        self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_flow_actual.vecs),
-                                                     to_numpy(warped_flow_desired[:, :, padding[0]:-padding[1],
-                                                              padding[2]:-padding[3]]),
-                                                     atol=1e-1))
-        # All combinations of differing batch sizes
-        i_shape = img_pt.shape[-2:]
-        i_chw = img_pt
-        i_hw = img_pt[0]
-        i_1chw = i_chw.unsqueeze(0)
-        i_11hw = i_1chw[:, 0:1]
-        i_nchw = i_1chw.repeat(4, 1, 1, 1)
-        i_n1hw = i_11hw.repeat(4, 1, 1, 1)
-        for ref in ['s', 't']:
-            flows = [
-                Flow.from_transforms([['translation', 10, -20]], i_shape, ref),
-                batch_flows(tuple(Flow.from_transforms([['translation', 10, -20]], i_shape, ref) for _ in range(4))),
-            ]
-            for f in flows:
-                for i in [i_1chw, i_11hw, i_nchw, i_n1hw]:
-                    for consider_mask in [True, False]:
-                        warped_i = f.apply(i, consider_mask=consider_mask)
-                        self.assertEqual(warped_i.shape[0], max(f.shape[0], i.shape[0]))
-                        for w_ind, i_ind in zip(warped_i, i):
-                            self.assertIsNone(np.testing.assert_equal(to_numpy(w_ind[:-20, 10:]),
-                                                                      to_numpy(i_ind[20:, :-10])))
-                for f2 in flows:
-                    for consider_mask in [True, False]:
-                        warped_f2 = f.apply(f2, consider_mask=consider_mask)
-                        self.assertEqual(warped_f2.shape[0], max(f.shape[0], f2.shape[0]))
-                        v = warped_f2.vecs_numpy
-                        for v_ind in v:
-                            self.assertIsNone(np.testing.assert_equal(v_ind[:, :-20, 10:],
-                                                                      f2.vecs_numpy[0, :, 20:, :-10]))
+        for f in [set_pure_pytorch, unset_pure_pytorch]:
+            f()
+            for ref in ['t', 's']:
+                for consider_mask in [True, False]:
+                    for device in ['cpu', 'cuda']:
+                        for img in [img_pt.to('cpu'), img_pt.to('cuda')]:
+                            mask = torch.ones(img_pt.shape[1:], dtype=torch.bool)
+                            mask[400:] = False
+                            flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref, mask, device)
+                            # Target is a 3D torch tensor
+                            warped_img_desired = apply_flow(flow.vecs, img, ref, mask if consider_mask else None)
+                            warped_img_actual = flow.apply(img, consider_mask=consider_mask)
+                            self.assertEqual(flow.device, warped_img_actual.device)
+                            self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
+                                                                      to_numpy(warped_img_desired)))
+                            warped_img_actual, _ = flow.apply(img, mask, True, consider_mask=consider_mask)
+                            self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
+                                                                      to_numpy(warped_img_desired)))
+                            # Target is a 2D torch tensor
+                            warped_img_desired = apply_flow(flow.vecs, img[0], ref, mask if consider_mask else None)
+                            warped_img_actual = flow.apply(img[0], consider_mask=consider_mask)
+                            self.assertEqual(flow.device, warped_img_actual.device)
+                            self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
+                                                                      to_numpy(warped_img_desired)))
+                            warped_img_actual, _ = flow.apply(img[0], mask, True, consider_mask=consider_mask)
+                            self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
+                                                                      to_numpy(warped_img_desired)))
+                        for f_device in ['cpu', 'cuda']:
+                            f = flow.to_device(f_device)
+                            # Target is a flow object
+                            warped_flow_desired = apply_flow(flow.vecs, f.vecs, ref, mask if consider_mask else None)
+                            warped_flow_actual = flow.apply(f, consider_mask=consider_mask)
+                            self.assertEqual(flow.device, warped_flow_actual.device)
+                            self.assertIsNone(np.testing.assert_equal(to_numpy(warped_flow_actual.vecs),
+                                                                      to_numpy(warped_flow_desired)))
+            # Check using a smaller flow field on a larger target works the same as a full flow field on the same target
+            img = img_pt.to(torch.float)
+            ref = 't'
+            flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref)
+            warped_img_desired = apply_flow(flow.vecs, img, ref)
+            shape = [img.shape[1] - 90, img.shape[2] - 110]
+            padding = [50, 40, 30, 80]
+            cut_flow = Flow.from_transforms([['rotation', 0, 0, 30]], shape, ref)
+            # ... not cutting (target torch tensor)
+            warped_img_actual = cut_flow.apply(img, padding=padding, cut=False)
+            self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img_actual[:, padding[0]:-padding[1],
+                                                                  padding[2]:-padding[3]]),
+                                                         to_numpy(warped_img_desired[:, padding[0]:-padding[1],
+                                                                  padding[2]:-padding[3]]),
+                                                         atol=1e-3))
+            # ... cutting (target torch tensor)
+            warped_img_actual = cut_flow.apply(img, padding=padding, cut=True)
+            self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img_actual).astype('f'),
+                                                         to_numpy(warped_img_desired[:, padding[0]:-padding[1],
+                                                                  padding[2]:-padding[3]]).astype('f'),
+                                                         atol=1e-3))
+            # ... not cutting (target flow object)
+            target_flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref)
+            warped_flow_desired = apply_flow(flow.vecs, target_flow.vecs, ref)
+            warped_flow_actual = cut_flow.apply(target_flow, padding=padding, cut=False)
+            self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_flow_actual.vecs[:, :, padding[0]:-padding[1],
+                                                                  padding[2]:-padding[3]]),
+                                                         to_numpy(warped_flow_desired[:, :, padding[0]:-padding[1],
+                                                                  padding[2]:-padding[3]]),
+                                                         atol=1e-1))
+            # ... cutting (target flow object)
+            warped_flow_actual = cut_flow.apply(target_flow, padding=padding, cut=True)
+            self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_flow_actual.vecs),
+                                                         to_numpy(warped_flow_desired[:, :, padding[0]:-padding[1],
+                                                                  padding[2]:-padding[3]]),
+                                                         atol=1e-1))
+            # All combinations of differing batch sizes
+            i_shape = img_pt.shape[-2:]
+            i_chw = img_pt
+            i_hw = img_pt[0]
+            i_1chw = i_chw.unsqueeze(0)
+            i_11hw = i_1chw[:, 0:1]
+            i_nchw = i_1chw.repeat(4, 1, 1, 1)
+            i_n1hw = i_11hw.repeat(4, 1, 1, 1)
+            for ref in ['s', 't']:
+                flows = [
+                    Flow.from_transforms([['translation', 10, -20]], i_shape, ref),
+                    batch_flows(tuple(Flow.from_transforms([['translation', 10, -20]], i_shape, ref) for _ in range(4))),
+                ]
+                for f in flows:
+                    for i in [i_1chw, i_11hw, i_nchw, i_n1hw]:
+                        for consider_mask in [True, False]:
+                            warped_i = f.apply(i, consider_mask=consider_mask)
+                            self.assertEqual(warped_i.shape[0], max(f.shape[0], i.shape[0]))
+                            for w_ind, i_ind in zip(warped_i, i):
+                                self.assertIsNone(np.testing.assert_equal(to_numpy(w_ind[:-20, 10:]),
+                                                                          to_numpy(i_ind[20:, :-10])))
+                    for f2 in flows:
+                        for consider_mask in [True, False]:
+                            warped_f2 = f.apply(f2, consider_mask=consider_mask)
+                            self.assertEqual(warped_f2.shape[0], max(f.shape[0], f2.shape[0]))
+                            v = warped_f2.vecs_numpy
+                            for v_ind in v:
+                                self.assertIsNone(np.testing.assert_equal(v_ind[:, :-20, 10:],
+                                                                          f2.vecs_numpy[0, :, 20:, :-10]))
 
-        f = Flow.from_transforms([['translation', 10, -20]], i_shape, 't').vecs.repeat(4, 1, 1, 1)
-        warped_i = apply_flow(f, i_hw, 't')
-        self.assertEqual(warped_i.shape, (4, i_hw.shape[0], i_hw.shape[1]))
-        warped_i = apply_flow(f, i_chw, 't')
-        self.assertEqual(warped_i.shape, (4, 3, i_hw.shape[0], i_hw.shape[1]))
+            f = Flow.from_transforms([['translation', 10, -20]], i_shape, 't').vecs.repeat(4, 1, 1, 1)
+            warped_i = apply_flow(f, i_hw, 't')
+            self.assertEqual(warped_i.shape, (4, i_hw.shape[0], i_hw.shape[1]))
+            warped_i = apply_flow(f, i_chw, 't')
+            self.assertEqual(warped_i.shape, (4, 3, i_hw.shape[0], i_hw.shape[1]))
         # Non-valid padding values
         for ref in ['t', 's']:
             flow = Flow.from_transforms([['rotation', 0, 0, 30]], shape, ref)
@@ -866,27 +869,33 @@ class FlowTest(unittest.TestCase):
         transforms = [['rotation', 256, 256, 30]]
         flow_s = Flow.from_transforms(transforms, shape, 's')
         flow_t = Flow.from_transforms(transforms, shape, 't')
-        switched_s = flow_t.switch_ref()
-        self.assertIsNone(np.testing.assert_allclose(switched_s.vecs_numpy[switched_s.mask_numpy],
-                                                     flow_s.vecs_numpy[switched_s.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
-        switched_t = flow_s.switch_ref()
-        self.assertIsNone(np.testing.assert_allclose(switched_t.vecs_numpy[switched_t.mask_numpy],
-                                                     flow_t.vecs_numpy[switched_t.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
+        for f in [set_pure_pytorch, unset_pure_pytorch]:
+            f()
+            if get_pure_pytorch():
+                rtol, atol = 1e-3, 6e-1
+            else:
+                rtol, atol = 1e-3, 1e-3
+            switched_s = flow_t.switch_ref()
+            self.assertIsNone(np.testing.assert_allclose(switched_s.vecs_numpy[switched_s.mask_numpy],
+                                                         flow_s.vecs_numpy[switched_s.mask_numpy],
+                                                         rtol=rtol, atol=atol))
+            switched_t = flow_s.switch_ref()
+            self.assertIsNone(np.testing.assert_allclose(switched_t.vecs_numpy[switched_t.mask_numpy],
+                                                         flow_t.vecs_numpy[switched_t.mask_numpy],
+                                                         rtol=rtol, atol=atol))
 
-        # Mode 'valid', batched flow
-        transforms = [[['rotation', 256, 256, 30]], [['translation', 10, -20]]]
-        flow_s = batch_flows([Flow.from_transforms(t, shape, 's') for t in transforms])
-        flow_t = batch_flows([Flow.from_transforms(t, shape, 't') for t in transforms])
-        switched_s = flow_t.switch_ref()
-        self.assertIsNone(np.testing.assert_allclose(switched_s.vecs_numpy[switched_s.mask_numpy],
-                                                     flow_s.vecs_numpy[switched_s.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
-        switched_t = flow_s.switch_ref()
-        self.assertIsNone(np.testing.assert_allclose(switched_t.vecs_numpy[switched_t.mask_numpy],
-                                                     flow_t.vecs_numpy[switched_t.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
+            # Mode 'valid', batched flow
+            transforms = [[['rotation', 256, 256, 30]], [['translation', 10, -20]]]
+            flow_s = batch_flows([Flow.from_transforms(t, shape, 's') for t in transforms])
+            flow_t = batch_flows([Flow.from_transforms(t, shape, 't') for t in transforms])
+            switched_s = flow_t.switch_ref()
+            self.assertIsNone(np.testing.assert_allclose(switched_s.vecs_numpy[switched_s.mask_numpy],
+                                                         flow_s.vecs_numpy[switched_s.mask_numpy],
+                                                         rtol=rtol, atol=atol))
+            switched_t = flow_s.switch_ref()
+            self.assertIsNone(np.testing.assert_allclose(switched_t.vecs_numpy[switched_t.mask_numpy],
+                                                         flow_t.vecs_numpy[switched_t.mask_numpy],
+                                                         rtol=rtol, atol=atol))
 
         # Invalid mode passed
         flow = Flow.from_transforms([['rotation', 30, 50, 30]], shape, 't')
@@ -900,72 +909,78 @@ class FlowTest(unittest.TestCase):
         f_t = Flow.from_transforms([['rotation', 50, 40, 30]], (80, 100), 't')   # Forwards
         b_s = Flow.from_transforms([['rotation', 50, 40, -30]], (80, 100), 's')  # Backwards
         b_t = Flow.from_transforms([['rotation', 50, 40, -30]], (80, 100), 't')  # Backwards
+        for f in [set_pure_pytorch, unset_pure_pytorch]:
+            f()
+            if get_pure_pytorch():
+                rtol, atol = 1e-3, 6e-1
+            else:
+                rtol, atol = 1e-3, 1e-3
 
-        # Inverting s to s
-        b_s_inv = f_s.invert()
-        self.assertIsNone(np.testing.assert_allclose(b_s_inv.vecs_numpy[b_s_inv.mask_numpy],
-                                                     b_s.vecs_numpy[b_s_inv.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
-        f_s_inv = b_s.invert()
-        self.assertIsNone(np.testing.assert_allclose(f_s_inv.vecs_numpy[f_s_inv.mask_numpy],
-                                                     f_s.vecs_numpy[f_s_inv.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
+            # Inverting s to s
+            b_s_inv = f_s.invert()
+            self.assertIsNone(np.testing.assert_allclose(b_s_inv.vecs_numpy[b_s_inv.mask_numpy],
+                                                         b_s.vecs_numpy[b_s_inv.mask_numpy],
+                                                         rtol=rtol, atol=atol))
+            f_s_inv = b_s.invert()
+            self.assertIsNone(np.testing.assert_allclose(f_s_inv.vecs_numpy[f_s_inv.mask_numpy],
+                                                         f_s.vecs_numpy[f_s_inv.mask_numpy],
+                                                         rtol=rtol, atol=atol))
 
-        # Inverting s to t
-        b_t_inv = f_s.invert('t')
-        self.assertIsNone(np.testing.assert_allclose(b_t_inv.vecs_numpy[b_t_inv.mask_numpy],
-                                                     b_t.vecs_numpy[b_t_inv.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
-        f_t_inv = b_s.invert('t')
-        self.assertIsNone(np.testing.assert_allclose(f_t_inv.vecs_numpy[f_t_inv.mask_numpy],
-                                                     f_t.vecs_numpy[f_t_inv.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
+            # Inverting s to t
+            b_t_inv = f_s.invert('t')
+            self.assertIsNone(np.testing.assert_allclose(b_t_inv.vecs_numpy[b_t_inv.mask_numpy],
+                                                         b_t.vecs_numpy[b_t_inv.mask_numpy],
+                                                         rtol=rtol, atol=atol))
+            f_t_inv = b_s.invert('t')
+            self.assertIsNone(np.testing.assert_allclose(f_t_inv.vecs_numpy[f_t_inv.mask_numpy],
+                                                         f_t.vecs_numpy[f_t_inv.mask_numpy],
+                                                         rtol=rtol, atol=atol))
 
-        # Inverting t to t
-        b_t_inv = f_t.invert()
-        self.assertIsNone(np.testing.assert_allclose(b_t_inv.vecs_numpy[b_t_inv.mask_numpy],
-                                                     b_t.vecs_numpy[b_t_inv.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
-        f_t_inv = b_t.invert()
-        self.assertIsNone(np.testing.assert_allclose(f_t_inv.vecs_numpy[f_t_inv.mask_numpy],
-                                                     f_t.vecs_numpy[f_t_inv.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
+            # Inverting t to t
+            b_t_inv = f_t.invert()
+            self.assertIsNone(np.testing.assert_allclose(b_t_inv.vecs_numpy[b_t_inv.mask_numpy],
+                                                         b_t.vecs_numpy[b_t_inv.mask_numpy],
+                                                         rtol=rtol, atol=atol))
+            f_t_inv = b_t.invert()
+            self.assertIsNone(np.testing.assert_allclose(f_t_inv.vecs_numpy[f_t_inv.mask_numpy],
+                                                         f_t.vecs_numpy[f_t_inv.mask_numpy],
+                                                         rtol=rtol, atol=atol))
 
-        # Inverting t to s
-        b_s_inv = f_t.invert('s')
-        self.assertIsNone(np.testing.assert_allclose(b_s_inv.vecs_numpy[b_s_inv.mask_numpy],
-                                                     b_s.vecs_numpy[b_s_inv.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
-        f_s_inv = b_t.invert('s')
-        self.assertIsNone(np.testing.assert_allclose(f_s_inv.vecs_numpy[f_s_inv.mask_numpy],
-                                                     f_s.vecs_numpy[f_s_inv.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
+            # Inverting t to s
+            b_s_inv = f_t.invert('s')
+            self.assertIsNone(np.testing.assert_allclose(b_s_inv.vecs_numpy[b_s_inv.mask_numpy],
+                                                         b_s.vecs_numpy[b_s_inv.mask_numpy],
+                                                         rtol=rtol, atol=atol))
+            f_s_inv = b_t.invert('s')
+            self.assertIsNone(np.testing.assert_allclose(f_s_inv.vecs_numpy[f_s_inv.mask_numpy],
+                                                         f_s.vecs_numpy[f_s_inv.mask_numpy],
+                                                         rtol=rtol, atol=atol))
 
-        # All of the above batched
-        bf_s = batch_flows((f_s, b_s))
-        bf_t = batch_flows((f_t, b_t))
-        bb_s = batch_flows((b_s, f_s))
-        bb_t = batch_flows((b_t, f_t))
-        f_s_inv = bf_s.invert()
-        f_s_inv_t = bf_s.invert('t')
-        f_t_inv = bf_t.invert()
-        f_t_inv_s = bf_t.invert('s')
-        # Inverting s to s
-        self.assertIsNone(np.testing.assert_allclose(f_s_inv.vecs_numpy[f_s_inv.mask_numpy],
-                                                     bb_s.vecs_numpy[f_s_inv.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
-        # Inverting s to t
-        self.assertIsNone(np.testing.assert_allclose(f_s_inv_t.vecs_numpy[f_s_inv_t.mask_numpy],
-                                                     bb_t.vecs_numpy[f_s_inv_t.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
-        # Inverting t to t
-        self.assertIsNone(np.testing.assert_allclose(f_t_inv.vecs_numpy[f_t_inv.mask_numpy],
-                                                     bb_t.vecs_numpy[f_t_inv.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
-        # Inverting t to s
-        self.assertIsNone(np.testing.assert_allclose(f_t_inv_s.vecs_numpy[f_t_inv_s.mask_numpy],
-                                                     bb_s.vecs_numpy[f_t_inv_s.mask_numpy],
-                                                     rtol=1e-3, atol=1e-3))
+            # All of the above batched
+            bf_s = batch_flows((f_s, b_s))
+            bf_t = batch_flows((f_t, b_t))
+            bb_s = batch_flows((b_s, f_s))
+            bb_t = batch_flows((b_t, f_t))
+            f_s_inv = bf_s.invert()
+            f_s_inv_t = bf_s.invert('t')
+            f_t_inv = bf_t.invert()
+            f_t_inv_s = bf_t.invert('s')
+            # Inverting s to s
+            self.assertIsNone(np.testing.assert_allclose(f_s_inv.vecs_numpy[f_s_inv.mask_numpy],
+                                                         bb_s.vecs_numpy[f_s_inv.mask_numpy],
+                                                         rtol=rtol, atol=atol))
+            # Inverting s to t
+            self.assertIsNone(np.testing.assert_allclose(f_s_inv_t.vecs_numpy[f_s_inv_t.mask_numpy],
+                                                         bb_t.vecs_numpy[f_s_inv_t.mask_numpy],
+                                                         rtol=rtol, atol=atol))
+            # Inverting t to t
+            self.assertIsNone(np.testing.assert_allclose(f_t_inv.vecs_numpy[f_t_inv.mask_numpy],
+                                                         bb_t.vecs_numpy[f_t_inv.mask_numpy],
+                                                         rtol=rtol, atol=atol))
+            # Inverting t to s
+            self.assertIsNone(np.testing.assert_allclose(f_t_inv_s.vecs_numpy[f_t_inv_s.mask_numpy],
+                                                         bb_s.vecs_numpy[f_t_inv_s.mask_numpy],
+                                                         rtol=rtol, atol=atol))
 
     def test_track(self):
         f_s = Flow.from_transforms([['rotation', 0, 0, 30]], (512, 512), 's')
@@ -982,6 +997,10 @@ class FlowTest(unittest.TestCase):
             [300, 200]          # Moved normally by invalid flow vector
         ])
         desired_valid_status = [False, False, True, True, False]
+        set_pure_pytorch()
+        _, tracked = f_t.track(pts, get_valid_status=True)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(tracked), desired_valid_status))
+        unset_pure_pytorch()
         _, tracked = f_t.track(pts, get_valid_status=True)
         self.assertIsNone(np.testing.assert_equal(to_numpy(tracked), desired_valid_status))
 
@@ -991,6 +1010,14 @@ class FlowTest(unittest.TestCase):
         d3 = [desired_valid_status, desired_valid_status, desired_valid_status]
         pts1 = pts.unsqueeze(0)
         pts3 = pts1.repeat(3, 1, 1)
+        set_pure_pytorch()
+        _, t_1_1 = f_s.track(pts1, get_valid_status=True)
+        _, t_3_1 = f3.track(pts1, get_valid_status=True)
+        _, t_3_3 = f3.track(pts3, get_valid_status=True)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(t_1_1), d1))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(t_3_1), d3))
+        self.assertIsNone(np.testing.assert_equal(to_numpy(t_3_3), d3))
+        unset_pure_pytorch()
         _, t_1_1 = f_s.track(pts1, get_valid_status=True)
         _, t_3_1 = f3.track(pts1, get_valid_status=True)
         _, t_3_3 = f3.track(pts3, get_valid_status=True)
@@ -1007,6 +1034,10 @@ class FlowTest(unittest.TestCase):
             [300, 200]          # Moved normally by invalid flow vector
         ])
         desired_valid_status = [False, False, True, True, False]
+        set_pure_pytorch()
+        _, tracked = f_s.track(pts, get_valid_status=True)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(tracked), desired_valid_status))
+        unset_pure_pytorch()
         _, tracked = f_s.track(pts, get_valid_status=True)
         self.assertIsNone(np.testing.assert_equal(to_numpy(tracked), desired_valid_status))
 
@@ -1025,6 +1056,8 @@ class FlowTest(unittest.TestCase):
         f_t_masked = Flow.from_transforms(transforms, shape, 't', mask)
         f_s = Flow.from_transforms(transforms, shape, 's')
         f_t = Flow.from_transforms(transforms, shape, 't')
+        f_s_b = batch_flows((f_s, f_s_masked))
+        f_t_b = batch_flows((f_t, f_t_masked))
         desired_area_s = np.array([
             [1, 1, 1, 1, 1, 1, 1],
             [0, 1, 1, 1, 1, 1, 1],
@@ -1032,6 +1065,15 @@ class FlowTest(unittest.TestCase):
             [0, 0, 0, 1, 1, 1, 0],
             [0, 0, 0, 0, 1, 0, 0],
             [0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0]
+        ]).astype('bool')
+        desired_area_s_pp = np.array([
+            [1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1],
+            [0, 1, 1, 1, 1, 1, 1],
+            [0, 0, 1, 1, 1, 1, 1],
+            [0, 0, 0, 1, 1, 1, 0],
+            [0, 0, 0, 0, 1, 1, 0],
             [0, 0, 0, 0, 0, 0, 0]
         ]).astype('bool')
         desired_area_t = np.array([
@@ -1052,10 +1094,28 @@ class FlowTest(unittest.TestCase):
             [0, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0]
         ]).astype('bool')
+        desired_area_s_masked_consider_mask_pp = np.array([
+            [1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1],
+            [0, 1, 1, 1, 0, 1, 1],
+            [0, 0, 1, 1, 0, 0, 1],
+            [0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0]
+        ]).astype('bool')
         desired_area_s_masked = np.array([
             [1, 1, 1, 1, 1, 1, 1],
             [0, 1, 1, 1, 0, 0, 1],
             [0, 0, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0]
+        ]).astype('bool')
+        desired_area_s_masked_pp = np.array([
+            [1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 0, 0, 1],
+            [0, 1, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0],
@@ -1070,18 +1130,32 @@ class FlowTest(unittest.TestCase):
             [0, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0]
         ]).astype('bool')
+
+        # Test using pure pytorch
+        set_pure_pytorch()
+        self.assertIsNone(np.testing.assert_equal(f_s.valid_target()[0], desired_area_s_pp))
+        self.assertIsNone(np.testing.assert_equal(f_t.valid_target()[0], desired_area_t))
+        self.assertIsNone(np.testing.assert_equal(f_s_masked.valid_target()[0], desired_area_s_masked_consider_mask_pp))
+        self.assertIsNone(np.testing.assert_equal(f_s_masked.valid_target(False)[0], desired_area_s_masked_pp))
+        self.assertIsNone(np.testing.assert_equal(f_t_masked.valid_target()[0], desired_area_t_masked))
+        # All of the above batched
+        self.assertIsNone(np.testing.assert_equal(f_s_b.valid_target()[0], desired_area_s_pp))
+        self.assertIsNone(np.testing.assert_equal(f_s_b.valid_target()[1], desired_area_s_masked_consider_mask_pp))
+        self.assertIsNone(np.testing.assert_equal(f_t_b.valid_target()[0], desired_area_t))
+        self.assertIsNone(np.testing.assert_equal(f_t_b.valid_target()[1], desired_area_t_masked))
+
+        # Test using griddata
+        unset_pure_pytorch()
         self.assertIsNone(np.testing.assert_equal(f_s.valid_target()[0], desired_area_s))
         self.assertIsNone(np.testing.assert_equal(f_t.valid_target()[0], desired_area_t))
         self.assertIsNone(np.testing.assert_equal(f_s_masked.valid_target()[0], desired_area_s_masked_consider_mask))
         self.assertIsNone(np.testing.assert_equal(f_s_masked.valid_target(False)[0], desired_area_s_masked))
         self.assertIsNone(np.testing.assert_equal(f_t_masked.valid_target()[0], desired_area_t_masked))
         # All of the above batched
-        f_s = batch_flows((f_s, f_s_masked))
-        f_t = batch_flows((f_t, f_t_masked))
-        self.assertIsNone(np.testing.assert_equal(f_s.valid_target()[0], desired_area_s))
-        self.assertIsNone(np.testing.assert_equal(f_s.valid_target()[1], desired_area_s_masked_consider_mask))
-        self.assertIsNone(np.testing.assert_equal(f_t.valid_target()[0], desired_area_t))
-        self.assertIsNone(np.testing.assert_equal(f_t.valid_target()[1], desired_area_t_masked))
+        self.assertIsNone(np.testing.assert_equal(f_s_b.valid_target()[0], desired_area_s))
+        self.assertIsNone(np.testing.assert_equal(f_s_b.valid_target()[1], desired_area_s_masked_consider_mask))
+        self.assertIsNone(np.testing.assert_equal(f_t_b.valid_target()[0], desired_area_t))
+        self.assertIsNone(np.testing.assert_equal(f_t_b.valid_target()[1], desired_area_t_masked))
 
     def test_valid_source(self):
         transforms = [['rotation', 0, 0, 45]]
@@ -1094,6 +1168,8 @@ class FlowTest(unittest.TestCase):
         f_t_masked = Flow.from_transforms(transforms, shape, 't', mask)
         f_s = Flow.from_transforms(transforms, shape, 's')
         f_t = Flow.from_transforms(transforms, shape, 't')
+        f_s_b = batch_flows((f_s, f_s_masked))
+        f_t_b = batch_flows((f_t, f_t_masked))
         desired_area_s = np.array([
             [1, 0, 0, 0, 0, 0, 0],
             [1, 1, 0, 0, 0, 0, 0],
@@ -1111,6 +1187,15 @@ class FlowTest(unittest.TestCase):
             [1, 1, 1, 1, 1, 0, 0],
             [1, 1, 1, 1, 0, 0, 0],
             [1, 1, 1, 0, 0, 0, 0]
+        ]).astype('bool')
+        desired_area_t_pp = np.array([
+            [1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0],
+            [1, 1, 1, 1, 0, 0, 0],
+            [1, 1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 1, 1, 1, 0],
+            [1, 1, 1, 1, 1, 1, 0],
+            [1, 1, 1, 1, 0, 0, 0]
         ]).astype('bool')
         desired_area_s_masked = np.array([
             [1, 0, 0, 0, 0, 0, 0],
@@ -1130,6 +1215,15 @@ class FlowTest(unittest.TestCase):
             [1, 1, 1, 0, 0, 0, 0],
             [1, 1, 1, 0, 0, 0, 0]
         ]).astype('bool')
+        desired_area_t_masked_consider_mask_pp = np.array([
+            [1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0],
+            [1, 1, 1, 1, 0, 0, 0],
+            [1, 1, 1, 1, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0],
+            [1, 1, 1, 1, 0, 0, 0]
+        ]).astype('bool')
         desired_area_t_masked = np.array([
             [1, 0, 0, 0, 0, 0, 0],
             [1, 1, 0, 0, 0, 0, 0],
@@ -1139,18 +1233,39 @@ class FlowTest(unittest.TestCase):
             [1, 0, 0, 0, 0, 0, 0],
             [1, 1, 0, 0, 0, 0, 0]
         ]).astype('bool')
+        desired_area_t_masked_pp = np.array([
+            [1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0],
+            [1, 0, 0, 0, 0, 0, 0],
+            [1, 0, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0]
+        ]).astype('bool')
+
+        set_pure_pytorch()
+        self.assertIsNone(np.testing.assert_equal(f_s.valid_source()[0], desired_area_s))
+        self.assertIsNone(np.testing.assert_equal(f_t.valid_source()[0], desired_area_t_pp))
+        self.assertIsNone(np.testing.assert_equal(f_s_masked.valid_source()[0], desired_area_s_masked))
+        self.assertIsNone(np.testing.assert_equal(f_t_masked.valid_source()[0], desired_area_t_masked_consider_mask_pp))
+        self.assertIsNone(np.testing.assert_equal(f_t_masked.valid_source(False)[0], desired_area_t_masked_pp))
+        # All of the above batched
+        self.assertIsNone(np.testing.assert_equal(f_s_b.valid_source()[0], desired_area_s))
+        self.assertIsNone(np.testing.assert_equal(f_s_b.valid_source()[1], desired_area_s_masked))
+        self.assertIsNone(np.testing.assert_equal(f_t_b.valid_source()[0], desired_area_t_pp))
+        self.assertIsNone(np.testing.assert_equal(f_t_b.valid_source()[1], desired_area_t_masked_consider_mask_pp))
+
+        unset_pure_pytorch()
         self.assertIsNone(np.testing.assert_equal(f_s.valid_source()[0], desired_area_s))
         self.assertIsNone(np.testing.assert_equal(f_t.valid_source()[0], desired_area_t))
         self.assertIsNone(np.testing.assert_equal(f_s_masked.valid_source()[0], desired_area_s_masked))
         self.assertIsNone(np.testing.assert_equal(f_t_masked.valid_source()[0], desired_area_t_masked_consider_mask))
         self.assertIsNone(np.testing.assert_equal(f_t_masked.valid_source(False)[0], desired_area_t_masked))
         # All of the above batched
-        f_s = batch_flows((f_s, f_s_masked))
-        f_t = batch_flows((f_t, f_t_masked))
-        self.assertIsNone(np.testing.assert_equal(f_s.valid_source()[0], desired_area_s))
-        self.assertIsNone(np.testing.assert_equal(f_s.valid_source()[1], desired_area_s_masked))
-        self.assertIsNone(np.testing.assert_equal(f_t.valid_source()[0], desired_area_t))
-        self.assertIsNone(np.testing.assert_equal(f_t.valid_source()[1], desired_area_t_masked_consider_mask))
+        self.assertIsNone(np.testing.assert_equal(f_s_b.valid_source()[0], desired_area_s))
+        self.assertIsNone(np.testing.assert_equal(f_s_b.valid_source()[1], desired_area_s_masked))
+        self.assertIsNone(np.testing.assert_equal(f_t_b.valid_source()[0], desired_area_t))
+        self.assertIsNone(np.testing.assert_equal(f_t_b.valid_source()[1], desired_area_t_masked_consider_mask))
 
     def test_get_padding(self):
         transforms = [['rotation', 0, 0, 45]]
@@ -1167,6 +1282,8 @@ class FlowTest(unittest.TestCase):
         f_t_desired = [0, 3, 5, 0]
         f_s_masked_desired = [3, 0, 0, 1]
         f_t_masked_desired = [0, 1, 3, 0]
+
+        set_pure_pytorch()
         self.assertIsNone(np.testing.assert_equal(f_s.get_padding()[0], f_s_desired))
         self.assertIsNone(np.testing.assert_equal(f_t.get_padding()[0], f_t_desired))
         self.assertIsNone(np.testing.assert_equal(f_s_masked.get_padding()[0], f_s_masked_desired))
@@ -1174,7 +1291,18 @@ class FlowTest(unittest.TestCase):
         # batched
         f = batch_flows((f_s, f_s))
         self.assertIsNone(np.testing.assert_equal(f.get_padding(), [f_s_desired, f_s_desired]))
+        f = Flow.zero(shape)
+        f._vecs[0] = torch.rand(*shape) * 1e-4
+        self.assertIsNone(np.testing.assert_equal(f.get_padding(), [[0, 0, 0, 0]]))
 
+        unset_pure_pytorch()
+        self.assertIsNone(np.testing.assert_equal(f_s.get_padding()[0], f_s_desired))
+        self.assertIsNone(np.testing.assert_equal(f_t.get_padding()[0], f_t_desired))
+        self.assertIsNone(np.testing.assert_equal(f_s_masked.get_padding()[0], f_s_masked_desired))
+        self.assertIsNone(np.testing.assert_equal(f_t_masked.get_padding()[0], f_t_masked_desired))
+        # batched
+        f = batch_flows((f_s, f_s))
+        self.assertIsNone(np.testing.assert_equal(f.get_padding(), [f_s_desired, f_s_desired]))
         f = Flow.zero(shape)
         f._vecs[0] = torch.rand(*shape) * 1e-4
         self.assertIsNone(np.testing.assert_equal(f.get_padding(), [[0, 0, 0, 0]]))
@@ -1524,73 +1652,76 @@ class FlowTest(unittest.TestCase):
             ['rotation', 255.5, 255.5, -20],
             ['scaling', 80, 110, 0.9],
         ]
-        for ref in ['s', 't']:
-            f1 = Flow.from_transforms(transforms[0:1], shape, ref)
-            f2 = Flow.from_transforms(transforms[1:2], shape, ref)
-            f3 = Flow.from_transforms(transforms, shape, ref)
-            bf1 = batch_flows((f1, Flow.from_transforms(transforms2[0:1], shape, ref)))
-            bf2 = batch_flows((f2, Flow.from_transforms(transforms2[1:2], shape, ref)))
-            bf3 = batch_flows((f3, Flow.from_transforms(transforms2, shape, ref)))
+        for f in [set_pure_pytorch, unset_pure_pytorch]:
+            f(1)
+            for ref in ['s', 't']:
+                atol = 8e-1 if get_pure_pytorch() else 5e-2
+                f1 = Flow.from_transforms(transforms[0:1], shape, ref)
+                f2 = Flow.from_transforms(transforms[1:2], shape, ref)
+                f3 = Flow.from_transforms(transforms, shape, ref)
+                bf1 = batch_flows((f1, Flow.from_transforms(transforms2[0:1], shape, ref)))
+                bf2 = batch_flows((f2, Flow.from_transforms(transforms2[1:2], shape, ref)))
+                bf3 = batch_flows((f3, Flow.from_transforms(transforms2, shape, ref)))
 
-            # Mode 1
-            f1_actual = f2.combine_with(f3, 1)
-            # Uncomment the following two lines to see / check the flow fields
-            # f1.show(wait=500, show_mask=True, show_mask_borders=True)
-            # f1_actual.show(show_mask=True, show_mask_borders=True)
-            self.assertIsInstance(f1_actual, Flow)
-            self.assertEqual(f1_actual.ref, ref)
-            comb_mask = f1_actual.mask_numpy & f1.mask_numpy
-            self.assertIsNone(np.testing.assert_allclose(f1_actual.vecs_numpy[comb_mask], f1.vecs_numpy[comb_mask],
-                                                         atol=5e-2))
-            bf1_actual = bf2.combine_with(bf3, 1)
-            # Uncomment the following two lines to see / check the flow fields
-            # bf1.show(1, wait=500, show_mask=True, show_mask_borders=True)
-            # bf1_actual.show(1, show_mask=True, show_mask_borders=True)
-            self.assertIsInstance(bf1_actual, Flow)
-            self.assertEqual(bf1_actual.ref, ref)
-            comb_mask = bf1_actual.mask_numpy & bf1.mask_numpy
-            self.assertIsNone(np.testing.assert_allclose(bf1_actual.vecs_numpy[comb_mask], bf1.vecs_numpy[comb_mask],
-                                                         atol=5e-2))
+                # Mode 1
+                f1_actual = f2.combine_with(f3, 1)
+                # Uncomment the following two lines to see / check the flow fields
+                # f1.show(wait=500, show_mask=True, show_mask_borders=True)
+                # f1_actual.show(show_mask=True, show_mask_borders=True)
+                self.assertIsInstance(f1_actual, Flow)
+                self.assertEqual(f1_actual.ref, ref)
+                comb_mask = f1_actual.mask_numpy & f1.mask_numpy
+                self.assertIsNone(np.testing.assert_allclose(f1_actual.vecs_numpy[comb_mask], f1.vecs_numpy[comb_mask],
+                                                             atol=atol))
+                bf1_actual = bf2.combine_with(bf3, 1)
+                # Uncomment the following two lines to see / check the flow fields
+                # bf1.show(1, wait=500, show_mask=True, show_mask_borders=True)
+                # bf1_actual.show(1, show_mask=True, show_mask_borders=True)
+                self.assertIsInstance(bf1_actual, Flow)
+                self.assertEqual(bf1_actual.ref, ref)
+                comb_mask = bf1_actual.mask_numpy & bf1.mask_numpy
+                self.assertIsNone(np.testing.assert_allclose(bf1_actual.vecs_numpy[comb_mask], bf1.vecs_numpy[comb_mask],
+                                                             atol=atol))
 
-            # Mode 2
-            f2_actual = f1.combine_with(f3, 2)
-            # Uncomment the following two lines to see / check the flow fields
-            # f2.show(wait=500, show_mask=True, show_mask_borders=True)
-            # f2_actual.show(show_mask=True, show_mask_borders=True)
-            self.assertIsInstance(f2_actual, Flow)
-            self.assertEqual(f2_actual.ref, ref)
-            comb_mask = f2_actual.mask_numpy & f2.mask_numpy
-            self.assertIsNone(np.testing.assert_allclose(f2_actual.vecs_numpy[comb_mask], f2.vecs_numpy[comb_mask],
-                                                         atol=5e-2))
-            bf2_actual = bf1.combine_with(bf3, 2)
-            # Uncomment the following two lines to see / check the flow fields
-            # bf2.show(1, wait=500, show_mask=True, show_mask_borders=True)
-            # bf2_actual.show(1, show_mask=True, show_mask_borders=True)
-            self.assertIsInstance(bf2_actual, Flow)
-            self.assertEqual(bf2_actual.ref, ref)
-            comb_mask = bf2_actual.mask_numpy & bf2.mask_numpy
-            self.assertIsNone(np.testing.assert_allclose(bf2_actual.vecs_numpy[comb_mask], bf2.vecs_numpy[comb_mask],
-                                                         atol=5e-2))
+                # Mode 2
+                f2_actual = f1.combine_with(f3, 2)
+                # Uncomment the following two lines to see / check the flow fields
+                # f2.show(wait=500, show_mask=True, show_mask_borders=True)
+                # f2_actual.show(show_mask=True, show_mask_borders=True)
+                self.assertIsInstance(f2_actual, Flow)
+                self.assertEqual(f2_actual.ref, ref)
+                comb_mask = f2_actual.mask_numpy & f2.mask_numpy
+                self.assertIsNone(np.testing.assert_allclose(f2_actual.vecs_numpy[comb_mask], f2.vecs_numpy[comb_mask],
+                                                             atol=atol))
+                bf2_actual = bf1.combine_with(bf3, 2)
+                # Uncomment the following two lines to see / check the flow fields
+                # bf2.show(1, wait=500, show_mask=True, show_mask_borders=True)
+                # bf2_actual.show(1, show_mask=True, show_mask_borders=True)
+                self.assertIsInstance(bf2_actual, Flow)
+                self.assertEqual(bf2_actual.ref, ref)
+                comb_mask = bf2_actual.mask_numpy & bf2.mask_numpy
+                self.assertIsNone(np.testing.assert_allclose(bf2_actual.vecs_numpy[comb_mask], bf2.vecs_numpy[comb_mask],
+                                                             atol=atol))
 
-            # Mode 3
-            f3_actual = f1.combine_with(f2, 3)
-            # Uncomment the following two lines to see / check the flow fields
-            # f3.show(wait=500, show_mask=True, show_mask_borders=True)
-            # f3_actual.show(show_mask=True, show_mask_borders=True)
-            self.assertIsInstance(f3_actual, Flow)
-            self.assertEqual(f3_actual.ref, ref)
-            comb_mask = f3_actual.mask_numpy & f3.mask_numpy
-            self.assertIsNone(np.testing.assert_allclose(f3_actual.vecs_numpy[comb_mask], f3.vecs_numpy[comb_mask],
-                                                         atol=5e-2))
-            bf3_actual = bf1.combine_with(bf2, 3)
-            # Uncomment the following two lines to see / check the flow fields
-            # bf3.show(1, wait=500, show_mask=True, show_mask_borders=True)
-            # bf3_actual.show(1, show_mask=True, show_mask_borders=True)
-            self.assertIsInstance(bf3_actual, Flow)
-            self.assertEqual(bf3_actual.ref, ref)
-            comb_mask = bf3_actual.mask_numpy & bf3.mask_numpy
-            self.assertIsNone(np.testing.assert_allclose(bf3_actual.vecs_numpy[comb_mask], bf3.vecs_numpy[comb_mask],
-                                                         atol=5e-2))
+                # Mode 3
+                f3_actual = f1.combine_with(f2, 3)
+                # Uncomment the following two lines to see / check the flow fields
+                # f3.show(wait=500, show_mask=True, show_mask_borders=True)
+                # f3_actual.show(show_mask=True, show_mask_borders=True)
+                self.assertIsInstance(f3_actual, Flow)
+                self.assertEqual(f3_actual.ref, ref)
+                comb_mask = f3_actual.mask_numpy & f3.mask_numpy
+                self.assertIsNone(np.testing.assert_allclose(f3_actual.vecs_numpy[comb_mask], f3.vecs_numpy[comb_mask],
+                                                             atol=5e-2))
+                bf3_actual = bf1.combine_with(bf2, 3)
+                # Uncomment the following two lines to see / check the flow fields
+                # bf3.show(1, wait=500, show_mask=True, show_mask_borders=True)
+                # bf3_actual.show(1, show_mask=True, show_mask_borders=True)
+                self.assertIsInstance(bf3_actual, Flow)
+                self.assertEqual(bf3_actual.ref, ref)
+                comb_mask = bf3_actual.mask_numpy & bf3.mask_numpy
+                self.assertIsNone(np.testing.assert_allclose(bf3_actual.vecs_numpy[comb_mask], bf3.vecs_numpy[comb_mask],
+                                                             atol=5e-2))
 
         # Invalid inputs
         fs = Flow.from_transforms(transforms[0:1], [20, 20], 's')

@@ -21,7 +21,7 @@ from typing import Any, Union, List
 
 
 DEFAULT_THRESHOLD = 1e-3
-PURE_PYTORCH = False
+PURE_PYTORCH = True
 
 
 def get_pure_pytorch():
