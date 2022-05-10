@@ -1082,7 +1082,7 @@ def apply_s_flow(
     if occlude_zero_flow:
         override_mask = torch.sum(threshold_vectors(flow) == 0, dim=1) != 2
         if mask is not None:
-            mask &= override_mask
+            mask = mask & override_mask
         else:
             mask = override_mask
     else:
