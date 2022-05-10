@@ -862,15 +862,16 @@ class TestGridFromUnstructuredData(unittest.TestCase):
     def test_grid_from_unstructured_data(self):
         flow = Flow.from_transforms([['rotation', 50, 75, -20]], (100, 150), ref='s')
         flow = batch_flows((flow, flow))
-        flow_rev = flow.invert()
+        flow_rev = Flow.from_transforms([['rotation', 50, 75, 20]], (100, 150), ref='s')
+        flow_rev = batch_flows((flow_rev, flow_rev))
         x, y = get_flow_endpoints(flow.vecs, flow.ref)
-        g = grid_from_unstructured_data(x, y, flow.vecs)
-        flow_approx = Flow(-g[0], flow.ref)
-        self.assertIsNone(np.testing.assert_allclose(flow_rev.vecs_numpy[flow_rev.mask_numpy],
-                                                     flow_approx.vecs_numpy[flow_rev.mask_numpy],
+        data, mask = grid_from_unstructured_data(x, y, flow.vecs)
+        flow_approx = Flow(-data, flow.ref)
+        mask = to_numpy(mask.squeeze(1) > 0.95)
+        self.assertIsNone(np.testing.assert_allclose(flow_rev.vecs_numpy[mask],
+                                                     flow_approx.vecs_numpy[mask],
                                                      atol=5e-2))
-        mask = to_numpy(g[1].squeeze(1) > 0.1)
-        self.assertIsNone(np.testing.assert_equal(mask[flow_rev.mask_numpy], flow_rev.mask_numpy[flow_rev.mask_numpy]))
+        self.assertEqual(np.count_nonzero(mask), 24664)
 
 
 class TestApplySFlow(unittest.TestCase):
