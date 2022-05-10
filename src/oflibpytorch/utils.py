@@ -25,20 +25,39 @@ PURE_PYTORCH = False
 
 
 def get_pure_pytorch():
+    """Returns `True` if only Python functions are being used, else `False`. The latter means
+    :func:`scipy.interpolate.griddata` is used: significantly slower, but more accurate"""
+
     global PURE_PYTORCH
     return PURE_PYTORCH
 
 
-def set_pure_pytorch():
+def set_pure_pytorch(warn: bool = None):
+    """Set pure PyTorch mode. This means :func:`scipy.interpolate.griddata` is never called, affording significant
+    speed increases (an order of magnitude). However, the results are less accurate.
+
+    :param warn: Boolean determining whether a warning is printed in console. Useful for debugging
+    """
+
     global PURE_PYTORCH
     PURE_PYTORCH = True
-    print("Pure Pytorch mode set: no use of scipy.interpolate.griddata. Significantly faster, but more approximate")
+    warn = False if warn is None else bool(warn)
+    if warn:
+        print("Pure Pytorch mode set: no use of scipy.interpolate.griddata. Significantly faster, but more approximate")
 
 
-def unset_pure_pytorch():
+def unset_pure_pytorch(warn: bool = None):
+    """Unset pure PyTorch mode. This means :func:`scipy.interpolate.griddata` is used instead of the faster pytorch-
+    only functions. The results will be more accurate, but significantly slower (an order of magnitude).
+
+    :param warn: Boolean determining whether a warning is printed in console. Useful for debugging
+    """
+
     global PURE_PYTORCH
     PURE_PYTORCH = False
-    print("Pure Pytorch mode unset: scipy.interpolate.griddata used. Significantly slower, but more exact")
+    warn = False if warn is None else bool(warn)
+    if warn:
+        print("Pure Pytorch mode unset: scipy.interpolate.griddata used. Significantly slower, but more accurate")
 
 
 def get_valid_vecs(vecs: Any, desired_shape: Union[tuple, list] = None, error_string: str = None) -> torch.Tensor:

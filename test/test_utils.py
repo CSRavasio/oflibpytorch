@@ -22,9 +22,21 @@ from src.oflibpytorch.utils import get_valid_vecs, get_valid_shape, get_valid_re
     get_valid_device, to_numpy, move_axis, flow_from_matrix, matrix_from_transform, matrix_from_transforms, \
     reverse_transform_values, normalise_coords, apply_flow, threshold_vectors, from_matrix, from_transforms,  \
     load_kitti, load_sintel, load_sintel_mask, resize_flow, is_zero_flow, track_pts, get_flow_endpoints, \
-    grid_from_unstructured_data, apply_s_flow
+    grid_from_unstructured_data, apply_s_flow, get_pure_pytorch, set_pure_pytorch, unset_pure_pytorch
 from src.oflibpytorch.flow_class import Flow
 from src.oflibpytorch.flow_operations import batch_flows
+
+
+class TestPurePytorch(unittest.TestCase):
+    def test_set_pure_pytorch(self):
+        unset_pure_pytorch()
+        set_pure_pytorch()
+        self.assertEqual(get_pure_pytorch(), True)
+
+    def test_unset_pure_pytorch(self):
+        set_pure_pytorch()
+        unset_pure_pytorch()
+        self.assertEqual(get_pure_pytorch(), False)
 
 
 class TestMoveAxis(unittest.TestCase):
