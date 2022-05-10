@@ -879,7 +879,7 @@ class Flow(object):
             if not return_dtype.is_floating_point:
                 warped_t = torch.round(warped_t.float())
                 if return_dtype == torch.uint8:
-                    warped_t = torch.clip(warped_t, 0, 255)
+                    warped_t = torch.clamp(warped_t, 0, 255)
             warped_t = warped_t.to(return_dtype)
             if return_2d and warped_t.shape[0] == 1:
                 warped_t = warped_t.squeeze(0).squeeze(0)

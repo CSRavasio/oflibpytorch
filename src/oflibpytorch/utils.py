@@ -548,7 +548,7 @@ def apply_flow(
     if not target_dtype.is_floating_point:
         result = torch.round(result)
         if target_dtype == torch.uint8:
-            result = torch.clip(result, 0, 255)
+            result = torch.clamp(result, 0, 255)
     result = result.to(target_dtype)
 
     return result
