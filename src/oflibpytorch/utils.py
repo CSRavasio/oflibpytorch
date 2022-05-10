@@ -269,11 +269,11 @@ def show_masked_image(img: Union[torch.Tensor, np.ndarray], mask: Union[torch.Te
         mask = np.ones(img.shape[:2], 'bool')
     elif isinstance(mask, torch.Tensor):
         mask = to_numpy(mask)
-    img = np.round(img).astype('uint8')
+    img = np.clip(np.round(img), 0, 255).astype('uint8')
     if len(img.shape) == 2:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    hsv[np.invert(mask), 2] = 180
+    hsv[np.invert(mask), 2] = hsv[np.invert(mask), 2] / 2
     contours, hierarchy = cv2.findContours((255 * mask).astype('uint8'),
                                            cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     cv2.drawContours(hsv, contours, -1, (0, 0, 0), 1)
