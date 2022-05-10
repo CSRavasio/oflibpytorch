@@ -810,6 +810,19 @@ class TestTrackPts(unittest.TestCase):
         self.assertIsInstance(pts_tracked_s, torch.Tensor)
         self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s)[0], desired_pts, rtol=1e-6))
 
+        set_pure_pytorch()
+        # Reference 't'
+        pts_tracked_t = track_pts(f_t, 't', pts)
+        self.assertIsInstance(pts_tracked_t, torch.Tensor)
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_t), desired_pts, rtol=5e-3))
+
+        # Reference 't', integer output
+        pts_tracked_t = track_pts(f_t, 't', pts, int_out=True)
+        self.assertIsInstance(pts_tracked_t, torch.Tensor)
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_t), np.round(desired_pts), atol=1))
+        self.assertEqual(pts_tracked_t.dtype, torch.long)
+
+        unset_pure_pytorch()
         # Reference 't'
         pts_tracked_t = track_pts(f_t, 't', pts)
         self.assertIsInstance(pts_tracked_t, torch.Tensor)
@@ -861,6 +874,10 @@ class TestTrackPts(unittest.TestCase):
             for d2 in ['cpu', 'cuda']:
                 f = Flow.from_transforms([['translation', 10, 20]], (512, 512), 's', device=d1).vecs
                 pts = torch.tensor([[20, 10], [8, 7]]).to(d2)
+                set_pure_pytorch()
+                pts_tracked = track_pts(f, 's', pts)
+                self.assertEqual(pts_tracked.device, f.device)
+                unset_pure_pytorch()
                 pts_tracked = track_pts(f, 's', pts)
                 self.assertEqual(pts_tracked.device, f.device)
 

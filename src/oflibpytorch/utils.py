@@ -949,6 +949,12 @@ def track_pts(
     if all(is_zero_flow(flow, thresholded=True)):
         warped_pts = pts
     else:
+        if get_pure_pytorch() and ref == 't':
+            # flow_copy_s = self.switch_ref(mode='invalid')  # so apply_to is ref-s; see window pic 08/04/19
+            # return (-flow_copy_s).apply(flow_copy_s)
+            x, y = get_flow_endpoints(-flow, 's')
+            flow, _ = grid_from_unstructured_data(x, y, flow)
+            ref = 's'
         if ref == 's':
             if not pts.dtype.is_floating_point:
                 flow_vecs = flow.permute(0, 2, 3, 1)                                # from N2HW to NHW2
