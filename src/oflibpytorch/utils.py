@@ -458,8 +458,8 @@ def apply_flow(
     """Uses a given flow to warp a target. The flow reference, if not given, is assumed to be ``t``. Optionally, a mask
     can be passed which (only for flows in ``s`` reference) masks undesired (e.g. undefined or invalid) flow vectors.
 
-    If `PURE_PYTORCH` is set to `True` (default, see also :meth:`~oflibpytorch.set_pure_pytorch`), the output is fully
-    differentiable with respect to the input :attr:`flow` and :attr:`target`. If `PURE_PYTORCH` is `False` (see also
+    If ``PURE_PYTORCH`` is set to `True` (default, see also :meth:`~oflibpytorch.set_pure_pytorch`), the output is fully
+    differentiable with respect to the input :attr:`flow` and :attr:`target`. If ``PURE_PYTORCH`` is `False` (see also
     :meth:`~oflibpytorch.unset_pure_pytorch`) and :attr:`ref` is ``s``, the more accurate function
     :func:`scipy.interpolate.griddata` is used. This is not only significantly slower, but also means the output does
     not have a `grad_fn` and is therefore not differentiable in the PyTorch context.
@@ -914,8 +914,8 @@ def track_pts(
 ) -> torch.Tensor:
     """Warp input points with a flow field, returning the warped point coordinates as integers if required.
 
-    If `PURE_PYTORCH` is set to `True` (default, see also :meth:`~oflibpytorch.set_pure_pytorch`), the output is fully
-    differentiable with respect to the input :attr:`flow` and :attr:`pts`. If `PURE_PYTORCH` is `False` (see also
+    If ``PURE_PYTORCH`` is set to `True` (default, see also :meth:`~oflibpytorch.set_pure_pytorch`), the output is fully
+    differentiable with respect to the input :attr:`flow` and :attr:`pts`. If ``PURE_PYTORCH`` is `False` (see also
     :meth:`~oflibpytorch.unset_pure_pytorch`) and :attr:`ref` is ``t``, the more accurate function
     :func:`scipy.interpolate.griddata` is used. This is not only significantly slower, but also means the output does
     not have a `grad_fn` and is therefore not differentiable in the PyTorch context.
