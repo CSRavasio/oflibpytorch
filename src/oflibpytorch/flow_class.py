@@ -736,13 +736,14 @@ class Flow(object):
             illustrative example, see the section ":ref:`Applying a Flow`" in the usage documentation.
 
         :param target: Torch tensor of shape :math:`(H, W)`, :math:`(C, H, W)`, or :math:`(N, C, H, W)`, or a flow
-            object of shape :math:`(H, W)` to which the flow should be applied, where :math:`H` and :math:`W` are
+            object of shape :math:`(N, H, W)` to which the flow should be applied, where :math:`H` and :math:`W` are
             equal or larger than the corresponding dimensions of the flow itself
-        :param target_mask: Optional torch tensor of shape :math:`(H, W)` and type ``bool`` that indicates which part
-            of the target is valid (only relevant if `target` is not a flow object). Defaults to ``True`` everywhere
+        :param target_mask: Optional torch tensor of shape :math:`(H, W)` or :math:`(N, H, W)` and type ``bool`` that
+            indicates which part of the target is valid (only relevant if `target` is not a flow object). Defaults
+            to ``True`` everywhere
         :param return_valid_area: Boolean determining whether the valid image area is returned (only if the target is a
             numpy array), defaults to ``False``. The valid image area is returned as a boolean torch tensor of shape
-            :math:`(H, W)`.
+            :math:`(N, H, W)`.
         :param consider_mask: Boolean determining whether the flow vectors are masked before application (only relevant
             for flows with reference ``ref = 's'``). Results in smoother outputs, but more artefacts. Defaults to
             ``True``
@@ -750,8 +751,11 @@ class Flow(object):
             if the flow and the target don't have the same shape. Defaults to ``None``, which means no padding needed
         :param cut: Boolean determining whether the warped target is returned cut from :math:`(H_{target}, W_{target})`
             to :math:`(H_{flow}, W_{flow})`, in the case that the shapes are not the same. Defaults to ``True``
-        :return: The warped target of the same shape :math:`(C, H, W)` and type as the input (rounded if necessary),
-            and optionally the valid area of the flow as a boolean torch tensor of shape :math:`(H, W)`.
+        :return: The warped target of the same shape :math:`(C, H, W)` or :math:`(N, C, H, W)` and type as the input
+            (rounded if necessary), except when this is an integer type and ``PURE_PYTORCH`` is ``True``. In that
+            case, outputs should be differentiable and are therefore kept as floats (but still rounded if the input
+            is an integer type). Optionally also returns the valid area of the flow as a boolean torch tensor of
+            shape :math:`(N, H, W)`.
         """
 
         return_valid_area = False if return_valid_area is None else return_valid_area
@@ -880,7 +884,11 @@ class Flow(object):
                 warped_t = torch.round(warped_t.float())
                 if return_dtype == torch.uint8:
                     warped_t = torch.clamp(warped_t, 0, 255)
-            warped_t = warped_t.to(return_dtype)
+                if not get_pure_pytorch():
+                    # If PURE_PYTORCH, the output needs to be differentiable -> no integers possible
+                    warped_t = warped_t.to(return_dtype)
+            else:
+                warped_t = warped_t.to(return_dtype)
             if return_2d and warped_t.shape[0] == 1:
                 warped_t = warped_t.squeeze(0).squeeze(0)
             if return_3d and warped_t.shape[0] == 1:
