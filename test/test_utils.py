@@ -214,7 +214,7 @@ class TestFlowFromMatrix(unittest.TestCase):
     def test_identity(self):
         # No transformation, equals passing identity matrix, to 200 by 300 flow field
         shape = [5, 200, 300]
-        matrix = torch.eye(3, requires_grad=True).unsqueeze(0).repeat(5, 1, 1)
+        matrix = torch.eye(3, requires_grad=True).unsqueeze(0).expand(5, -1, -1)
         flow = flow_from_matrix(matrix, shape)
         self.assertIsNone(np.testing.assert_equal(to_numpy(flow), 0))
         self.assertIsNone(np.testing.assert_equal(flow.shape[0], shape[0]))
@@ -436,8 +436,9 @@ class TestNormaliseCoords(unittest.TestCase):
                                    [0, 0],
                                    [1.1, 1.2],
                                    [1, 1]])
-        coord_list = [coords, coords.unsqueeze(0), coords.unsqueeze(0).unsqueeze(0).repeat(4, 3, 1, 1)]
-        exp_coord_list = [exp_coords, exp_coords.unsqueeze(0), exp_coords.unsqueeze(0).unsqueeze(0).repeat(4, 3, 1, 1)]
+        coord_list = [coords, coords.unsqueeze(0), coords.unsqueeze(0).unsqueeze(0).expand(4, 3, -1, -1)]
+        exp_coord_list = [exp_coords, exp_coords.unsqueeze(0),
+                          exp_coords.unsqueeze(0).unsqueeze(0).expand(4, 3, -1, -1)]
         for c, e_c in zip(coord_list, exp_coord_list):
             n_c = normalise_coords(c, shape)
             self.assertIsNone(np.testing.assert_allclose(to_numpy(n_c), to_numpy(e_c), rtol=1e-6))
@@ -507,12 +508,12 @@ class TestApplyFlow(unittest.TestCase):
         i_hw = i_chw[0]
         i_1chw = i_chw.unsqueeze(0)
         i_11hw = i_1chw[:, 0:1]
-        i_nchw = i_1chw.repeat(4, 1, 1, 1)
-        i_n1hw = i_11hw.repeat(4, 1, 1, 1)
+        i_nchw = i_1chw.expand(4, -1, -1, -1)
+        i_n1hw = i_11hw.expand(4, -1, -1, -1)
         for ref in ['s', 't']:
             for f in [
                 Flow.from_transforms([['translation', 10, -20]], img.shape[:2], ref).vecs,
-                Flow.from_transforms([['translation', 10, -20]], img.shape[:2], ref).vecs.repeat(4, 1, 1, 1),
+                Flow.from_transforms([['translation', 10, -20]], img.shape[:2], ref).vecs.expand(4, -1, -1, -1),
             ]:
                 for i in [i_1chw, i_11hw, i_nchw, i_n1hw]:
                     set_pure_pytorch()
@@ -529,7 +530,7 @@ class TestApplyFlow(unittest.TestCase):
                     for w_ind, i_ind in zip(warped_i, i):
                         self.assertIsNone(np.testing.assert_allclose(to_numpy(w_ind[:-20, 10:]),
                                                                      to_numpy(i_ind[20:, :-10]), atol=5e-3))
-        f = Flow.from_transforms([['translation', 10, -20]], img.shape[:2], 't').vecs.repeat(4, 1, 1, 1)
+        f = Flow.from_transforms([['translation', 10, -20]], img.shape[:2], 't').vecs.expand(4, -1, -1, -1)
         set_pure_pytorch()
         warped_i = apply_flow(f, i_hw, 't')
         self.assertIsNotNone(warped_i.grad_fn)

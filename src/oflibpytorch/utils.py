@@ -344,7 +344,6 @@ def flow_from_matrix(matrix: torch.Tensor, shape: list) -> torch.Tensor:
     default_vec_hom = torch.stack((grid_y.to(torch.float).to(device),
                                    grid_x.to(torch.float).to(device),
                                    ones), dim=-1)
-    # default_vec_hom = default_vec_hom.unsqueeze(0).repeat(n, 1, 1, 1)
 
     # Calculate the flow from the difference of the transformed default vectors, and the original default vector field
     transformed_vec_hom = torch.matmul(matrix.to(torch.float).unsqueeze(1).unsqueeze(1),    # [N, 1, 1, 3, 3]
@@ -513,11 +512,11 @@ def apply_flow(
                          .format(flow.shape[0], target.shape[0]))
     else:
         if target.shape[0] < flow.shape[0]:  # target batch dim smaller than flow, means it is 1, needs to be repeated
-            target = target.repeat(flow.shape[0], 1, 1, 1)
+            target = target.expand(flow.shape[0], -1, -1, -1)
         elif flow.shape[0] < target.shape[0]:  # flow batch dim smaller than target, means it is 1, needs to be repeated
-            flow = flow.repeat(target.shape[0], 1, 1, 1)
+            flow = flow.expand(target.shape[0], -1, -1, -1)
             if mask is not None:
-                mask = mask.repeat(target.shape[0], 1, 1)
+                mask = mask.expand(target.shape[0], -1, -1)
         # Now batch dims either N and 1->N, 1->N and N, 1 and 1, or N and N
 
     # Warp target
@@ -618,7 +617,7 @@ def threshold_vectors(vecs: torch.Tensor, threshold: Union[float, int] = None, u
 
     f = vecs.clone()
     if use_mag:
-        mags = torch.norm(vecs, dim=1, keepdim=True).repeat(1, 2, 1, 1)
+        mags = torch.norm(vecs, dim=1, keepdim=True).expand(-1, 2, -1, -1)
         f[mags < threshold] = 0
     else:
         f[(vecs < threshold) & (vecs > -threshold)] = 0
@@ -940,11 +939,11 @@ def track_pts(
     return_2d = False
     if pts.dim() == 2:
         return_2d = True
-        pts = pts.unsqueeze(0).repeat(flow.shape[0], 1, 1)  # N, M, 2
+        pts = pts.unsqueeze(0).expand(flow.shape[0], -1, -1)  # N, M, 2
     elif pts.dim() == 3:
         if pts.shape[0] != flow.shape[0]:
             if pts.shape[0] == 1:
-                pts = pts.repeat(flow.shape[0], 1, 1)
+                pts = pts.expand(flow.shape[0], -1, -1)
             else:
                 raise ValueError("Error tracking points: "
                                  "If used, pts batch size needs to be equal to the flow batch size")

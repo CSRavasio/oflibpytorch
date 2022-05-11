@@ -824,7 +824,7 @@ class Flow(object):
                     if self.shape[0] >= mask.shape[0]:
                         tmp_self_mask = self._mask
                     else:  # i.e. if self has fewer batch dims than target, where 'mask' derives from
-                        tmp_self_mask = self._mask.repeat(mask.shape[0], 1, 1)
+                        tmp_self_mask = self._mask.expand(mask.shape[0], -1, -1)
                     for i in range(mask.shape[0]):
                         m = mask[i, padding[0]:padding[0] + self.shape[1],
                                  padding[2]:padding[2] + self.shape[2]].clone()
@@ -834,7 +834,7 @@ class Flow(object):
                 else:
                     mask = mask & self._mask  # Now broadcast to NHW, where N is the max of batch dim of self and t
             if mask.shape[0] != t.shape[0]:  # mask has higher batch dim due to combination with self
-                t = t.repeat(mask.shape[0], 1, 1, 1)
+                t = t.expand(mask.shape[0], -1, -1, -1)
             t = torch.cat((t.float(), mask.unsqueeze(1).float()), dim=1)  # NC+1HW
 
         # Determine flow to use for warping, and warp
@@ -942,7 +942,7 @@ class Flow(object):
                 pts = torch.round(pts)
             pts2 = pts.unsqueeze(0) if input_2d else pts
             if pts2.shape[0] != self.shape[0]:
-                pts2 = pts2.repeat(self.shape[0], 1, 1)  # Ensure N-M-2
+                pts2 = pts2.expand(self.shape[0], -1, -1)  # Ensure N-M-2
             valid_source = self.valid_source().view(self.shape[0], -1)  # N-H-W to N-H*W
             pts2 = pts2[..., 0] * self.shape[-1] + pts2[..., 1]           # N-M, with coords "unravelled"
             status_array = torch.gather(valid_source, 1, pts2.long())   # N-M
@@ -1158,7 +1158,7 @@ class Flow(object):
 
         f = self._vecs.clone()
         if masked:
-            f[~self._mask.unsqueeze(1).repeat(1, 2, 1, 1)] = 0
+            f[~self._mask.unsqueeze(1).expand(-1, 2, -1, -1)] = 0
         return is_zero_flow(f, thresholded)
 
     def visualise(

@@ -992,8 +992,8 @@ class FlowTest(unittest.TestCase):
             i_hw = img_pt[0]
             i_1chw = i_chw.unsqueeze(0)
             i_11hw = i_1chw[:, 0:1]
-            i_nchw = i_1chw.repeat(4, 1, 1, 1)
-            i_n1hw = i_11hw.repeat(4, 1, 1, 1)
+            i_nchw = i_1chw.expand(4, -1, -1, -1)
+            i_n1hw = i_11hw.expand(4, -1, -1, -1)
             for ref in ['s', 't']:
                 flows = [
                     Flow.from_transforms([['translation', 10, -20]], i_shape, ref),
@@ -1023,7 +1023,7 @@ class FlowTest(unittest.TestCase):
                                 self.assertIsNone(np.testing.assert_equal(v_ind[:, :-20, 10:],
                                                                           f2.vecs_numpy[0, :, 20:, :-10]))
 
-            f = Flow.from_transforms([['translation', 10, -20]], i_shape, 't').vecs.repeat(4, 1, 1, 1)
+            f = Flow.from_transforms([['translation', 10, -20]], i_shape, 't').vecs.expand(4, -1, -1, -1)
             warped_i = apply_flow(f, i_hw, 't')
             self.assertEqual(warped_i.shape, (4, i_hw.shape[0], i_hw.shape[1]))
             warped_i = apply_flow(f, i_chw, 't')
@@ -1241,7 +1241,7 @@ class FlowTest(unittest.TestCase):
         d3 = [desired_valid_status, desired_valid_status, desired_valid_status]
         pts.requires_grad = False
         pts1 = pts.unsqueeze(0)
-        pts3 = pts1.repeat(3, 1, 1)
+        pts3 = pts1.expand(3, -1, -1)
         set_pure_pytorch()
         p_11, t_1_1 = f_s.track(pts1, get_valid_status=True)
         p_31, t_3_1 = f3.track(pts1, get_valid_status=True)
@@ -1671,7 +1671,7 @@ class FlowTest(unittest.TestCase):
         img_np_3 = np.broadcast_to(img_np, (3, *img_np.shape)).copy()
         img_pt = torch.tensor(img_np).permute(2, 0, 1)
         img_pt_1 = img_pt.unsqueeze(0)
-        img_pt_3 = img_pt_1.repeat(3, 1, 1, 1)
+        img_pt_3 = img_pt_1.expand(3, -1, -1, -1)
         mask = np.zeros(img_np.shape[:2])
         mask[50:-50, 20:-20] = 1
         for ref in ['s', 't']:
