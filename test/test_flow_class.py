@@ -36,8 +36,8 @@ class FlowTest(unittest.TestCase):
         np_1hw2 = np.zeros((1, 100, 200, 2))
         np_2hw = np.zeros((2, 100, 200))
         np_hw2 = np.zeros((100, 200, 2))
-        pt_2hw = torch.zeros((2, 100, 200))
-        pt_hw2 = torch.zeros((100, 200, 2))
+        pt_2hw = torch.zeros((2, 100, 200), requires_grad=True)
+        pt_hw2 = torch.zeros((100, 200, 2), requires_grad=True)
         mask_empty = None
         mask_1np = np.ones((1, 100, 200), 'bool')
         mask_np = np.ones((100, 200), 'bool')
@@ -55,12 +55,14 @@ class FlowTest(unittest.TestCase):
                         self.assertEqual(flow.device.type, device_expected)
                         self.assertEqual(flow.vecs.device.type, device_expected)
                         self.assertEqual(flow.mask.device.type, device_expected)
+                        if isinstance(vecs, torch.Tensor):
+                            self.assertIsNotNone(flow.vecs.grad_fn)
 
         # 4-dim vec inputs
         np_n2hw = np.zeros((5, 2, 100, 200))
         np_nhw2 = np.zeros((5, 100, 200, 2))
-        pt_n2hw = torch.zeros((5, 2, 100, 200))
-        pt_nhw2 = torch.zeros((5, 100, 200, 2))
+        pt_n2hw = torch.zeros((5, 2, 100, 200), requires_grad=True)
+        pt_nhw2 = torch.zeros((5, 100, 200, 2), requires_grad=True)
         mask_empty = None
         mask_np_nhw = np.ones((5, 100, 200), 'bool')
         mask_pt_nhw = torch.ones(5, 100, 200).to(torch.bool)
@@ -77,17 +79,20 @@ class FlowTest(unittest.TestCase):
                         self.assertEqual(flow.device.type, device_expected)
                         self.assertEqual(flow.vecs.device.type, device_expected)
                         self.assertEqual(flow.mask.device.type, device_expected)
+                        if isinstance(vecs, torch.Tensor):
+                            self.assertTrue(flow.vecs.requires_grad)
 
         # tensor to cuda, test cuda
         if torch.cuda.is_available():
             expected_device_list = ['cpu', 'cuda', 'cuda']
         else:
             expected_device_list = ['cpu', 'cpu', 'cpu']
-        vecs_pt_cuda = torch.zeros((2, 100, 200)).to('cuda')
+        vecs_pt_cuda = torch.zeros((2, 100, 200), requires_grad=True).to('cuda')
         for ref, ref_expected in zip(['t', 's', None], ['t', 's', 't']):
             for mask in [mask_empty, mask_np, mask_pt]:
                 for device, device_expected in zip(['cpu', 'cuda', None], expected_device_list):
                     flow = Flow(vecs_pt_cuda, ref=ref, mask=mask, device=device)
+                    self.assertIsNotNone(flow.vecs.grad_fn)
                     self.assertIsNone(np.testing.assert_equal(to_numpy(flow.vecs), np_12hw))
                     self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, np_1hw2))
                     self.assertEqual(flow.ref, ref_expected)
@@ -162,7 +167,7 @@ class FlowTest(unittest.TestCase):
         matrix_np = np.array([[math.sqrt(3) / 2, -.5, 26.3397459622],
                               [.5, math.sqrt(3) / 2, 1.69872981078],
                               [0, 0, 1]])
-        matrix_pt = torch.tensor(matrix_np)
+        matrix_pt = torch.tensor(matrix_np, requires_grad=True)
         shape = [200, 300]
         matrix_device_list = ['cpu', 'cuda']
         flow_device_list = ['cpu', 'cuda', None]
@@ -176,6 +181,8 @@ class FlowTest(unittest.TestCase):
                     if isinstance(matrix, torch.Tensor):
                         matrix = matrix.to(matrix_device)
                     flow = Flow.from_matrix(matrix, shape, 't', device=flow_device)
+                    if isinstance(matrix, torch.Tensor):
+                        self.assertIsNotNone(flow.vecs.grad_fn)
                     if flow_expected_device is None:  # If no device passed, expect same device as the matrix passed in
                         flow_expected_device = matrix.device.type if isinstance(matrix, torch.Tensor) else 'cpu'
                     self.assertEqual(flow.device.type, flow_expected_device)
@@ -242,19 +249,30 @@ class FlowTest(unittest.TestCase):
                 self.assertEqual(flow.ref, flow_copy.ref)
                 self.assertEqual(flow.device, flow_copy.device)
                 self.assertNotEqual(id(flow), id(flow_copy))
+        v = torch.tensor(vectors, requires_grad=True)
+        flow = Flow(v)
+        self.assertIsNotNone(flow.vecs.grad_fn)
+        flow_copy = flow.copy()
+        self.assertIsNotNone(flow_copy.vecs.grad_fn)
 
     def test_to_device(self):
-        vectors = np.random.rand(200, 200, 2)
-        mask = np.random.rand(200, 200) > 0.5
-        for ref in ['t', 's']:
-            for start_device in ['cpu', 'cuda']:
-                for target_device in ['cpu', 'cuda']:
-                    flow = Flow(vectors, ref, mask, start_device)
-                    f = flow.to_device(target_device)
-                    self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, f.vecs_numpy))
-                    self.assertIsNone(np.testing.assert_equal(flow.mask_numpy, f.mask_numpy))
-                    self.assertEqual(flow.ref, f.ref)
-                    self.assertEqual(f.device.type, target_device)
+        if torch.cuda.is_available():
+            vectors = np.random.rand(200, 200, 2)
+            mask = np.random.rand(200, 200) > 0.5
+            for ref in ['t', 's']:
+                for start_device in ['cpu', 'cuda']:
+                    for target_device in ['cpu', 'cuda']:
+                        flow = Flow(vectors, ref, mask, start_device)
+                        f = flow.to_device(target_device)
+                        self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, f.vecs_numpy))
+                        self.assertIsNone(np.testing.assert_equal(flow.mask_numpy, f.mask_numpy))
+                        self.assertEqual(flow.ref, f.ref)
+                        self.assertEqual(f.device.type, target_device)
+            v = torch.tensor(vectors, requires_grad=True)
+            flow = Flow(v, device='cpu')
+            self.assertIsNotNone(flow.vecs.grad_fn)
+            flow_copy = flow.to_device('cuda')
+            self.assertIsNotNone(flow_copy.vecs.grad_fn)
 
     def test_str(self):
         flow = Flow.zero(shape=(100, 200), ref='s', device='cuda')
@@ -265,12 +283,14 @@ class FlowTest(unittest.TestCase):
         matrix = torch.tensor([[math.sqrt(3) / 2, -.5, 26.3397459622],
                                [.5, math.sqrt(3) / 2, 1.69872981078],
                                [0, 0, 1]])
-        matrix = torch.stack((torch.eye(3), matrix), dim=0)
+        matrix = torch.stack((torch.eye(3), matrix), dim=0).requires_grad_()
         shape = [200, 300]
         flow = Flow.from_matrix(matrix, shape)
         self.assertIsNone(np.testing.assert_equal(flow.select(0).vecs_numpy, 0))
         self.assertIsNone(np.testing.assert_allclose(flow.select(1).vecs_numpy[0, 50, 10], [0, 0], atol=1e-4))
         self.assertIsNone(np.testing.assert_allclose(flow.select(-1).vecs_numpy[0, 50, 10], [0, 0], atol=1e-4))
+        self.assertIsNotNone(flow.select(0).vecs.grad_fn)
+        self.assertIsNotNone(flow.select(1).vecs.grad_fn)
 
         with self.assertRaises(TypeError):  # item not an integer
             flow.select(0.5)
@@ -279,17 +299,21 @@ class FlowTest(unittest.TestCase):
 
     def test_getitem(self):
         vectors = np.random.rand(200, 200, 2)
-        flow = Flow(vectors)
+        flow = Flow(torch.tensor(vectors, requires_grad=True))
         indices = np.random.randint(0, 150, size=(20, 2))
         for i in indices:
             # Cutting a number of elements
-            self.assertIsNone(np.testing.assert_allclose(flow[i].vecs_numpy[0], vectors[i]))
+            sel = flow[i]
+            self.assertIsNone(np.testing.assert_allclose(sel.vecs_numpy[0], vectors[i]))
+            self.assertIsNotNone(sel.vecs.grad_fn)
             # Cutting a specific item
-            self.assertIsNone(np.testing.assert_allclose(flow[i[0]:i[0] + 1, i[1]:i[1] + 1].vecs_numpy[0],
-                                                         vectors[i[0]:i[0] + 1, i[1]:i[1] + 1]))
+            sel = flow[i[0]:i[0] + 1, i[1]:i[1] + 1]
+            self.assertIsNone(np.testing.assert_allclose(sel.vecs_numpy[0], vectors[i[0]:i[0] + 1, i[1]:i[1] + 1]))
+            self.assertIsNotNone(sel.vecs.grad_fn)
             # Cutting an area
-            self.assertIsNone(np.testing.assert_allclose(flow[i[0]:i[0] + 40, i[1]:i[1] + 40].vecs_numpy[0],
-                                                         vectors[i[0]:i[0] + 40, i[1]:i[1] + 40]))
+            sel = flow[i[0]:i[0] + 40, i[1]:i[1] + 40]
+            self.assertIsNone(np.testing.assert_allclose(sel.vecs_numpy[0], vectors[i[0]:i[0] + 40, i[1]:i[1] + 40]))
+            self.assertIsNotNone(sel.vecs.grad_fn)
         # Make sure the device hasn't changed
         for device in ['cpu', 'cuda']:
             flow = Flow(vectors, device=device)
@@ -311,7 +335,7 @@ class FlowTest(unittest.TestCase):
             vec_list.append(torch.rand(2, 100, 200).to('cuda'))
             vec_list.append(torch.rand(100, 200, 2).to('cuda'))
         vecs3 = np.random.rand(200, 200, 2)
-        flow1 = Flow(vecs1, mask=mask1)
+        flow1 = Flow(torch.tensor(vecs1, requires_grad=True), mask=mask1)
         flow2 = Flow(vecs2, mask=mask2)
         flow3 = Flow(vecs3)
         flow4 = Flow(np.random.rand(3, 200, 200, 2))
@@ -321,21 +345,51 @@ class FlowTest(unittest.TestCase):
 
         # Addition
         for vecs in vec_list:
+            s = flow1 + vecs
+            self.assertIsNotNone(s.vecs.grad_fn)
             if isinstance(vecs, torch.Tensor):
                 v = to_numpy(vecs)
             else:
                 v = vecs
             if v.shape[0] == 2:
                 v = np.moveaxis(v, 0, -1)
-            self.assertIsNone(np.testing.assert_allclose((flow1 + vecs).vecs_numpy[0], vecs1 + v,
-                                                         rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 + vecs).device, flow1.vecs.device)
-            self.assertEqual((flow1 + vecs).device, flow1.mask.device)
-        self.assertIsNone(np.testing.assert_allclose((flow1 + flow2).vecs_numpy[0],
-                                                     vecs1 + vecs2, rtol=1e-6, atol=1e-6))
-        self.assertIsNone(np.testing.assert_equal(np.sum(to_numpy((flow1 + flow2).mask)), (60 - 40) * 200))
-        self.assertIsNone(np.testing.assert_allclose((flow1 + flow6).vecs_numpy,
-                                                     vecs1 + vecs6, rtol=1e-6, atol=1e-6))
+            self.assertIsNone(np.testing.assert_allclose(s.vecs_numpy[0], vecs1 + v, rtol=1e-6, atol=1e-6))
+            self.assertEqual(s.device, flow1.vecs.device)
+            self.assertEqual(s.device, flow1.mask.device)
+        s = flow1 + flow2
+        self.assertIsNotNone(s.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(s.vecs_numpy[0], vecs1 + vecs2, rtol=1e-6, atol=1e-6))
+        self.assertIsNone(np.testing.assert_equal(np.sum(to_numpy(s.mask)), (60 - 40) * 200))
+        s = flow1 + flow6
+        self.assertIsNotNone(s.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(s.vecs_numpy, vecs1 + vecs6, rtol=1e-6, atol=1e-6))
+
+        flow1 = Flow(vecs1, mask=mask1)
+        flow2 = Flow(torch.tensor(vecs2, requires_grad=True), mask=mask2)
+        flow6 = Flow(torch.tensor(vecs6, requires_grad=True))
+        for vecs in vec_list:
+            if isinstance(vecs, torch.Tensor):
+                v = to_numpy(vecs)
+                vecs.requires_grad_()
+            else:
+                v = vecs
+            s = flow1 + vecs
+            if isinstance(vecs, torch.Tensor):
+                self.assertIsNotNone(s.vecs.grad_fn)
+            if v.shape[0] == 2:
+                v = np.moveaxis(v, 0, -1)
+            self.assertIsNone(np.testing.assert_allclose(s.vecs_numpy[0], vecs1 + v, rtol=1e-6, atol=1e-6))
+            self.assertEqual(s.device, flow1.vecs.device)
+            self.assertEqual(s.device, flow1.mask.device)
+        s = flow1 + flow2
+        self.assertIsNotNone(s.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(s.vecs_numpy[0], vecs1 + vecs2, rtol=1e-6, atol=1e-6))
+        self.assertIsNone(np.testing.assert_equal(np.sum(to_numpy(s.mask)), (60 - 40) * 200))
+        s = flow1 + flow6
+        self.assertIsNotNone(s.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(s.vecs_numpy, vecs1 + vecs6, rtol=1e-6, atol=1e-6))
+
+        # Errors
         with self.assertRaises(TypeError):
             flow1 + 'test'
         with self.assertRaises(ValueError):
@@ -360,7 +414,7 @@ class FlowTest(unittest.TestCase):
             vec_list.append(torch.rand(2, 100, 200).to('cuda'))
             vec_list.append(torch.rand(100, 200, 2).to('cuda'))
         vecs3 = np.random.rand(200, 200, 2)
-        flow1 = Flow(vecs1, mask=mask1)
+        flow1 = Flow(torch.tensor(vecs1, requires_grad=True), mask=mask1)
         flow2 = Flow(vecs2, mask=mask2)
         flow3 = Flow(vecs3)
         flow4 = Flow(np.random.rand(3, 200, 200, 2))
@@ -368,23 +422,53 @@ class FlowTest(unittest.TestCase):
         vecs6 = np.random.rand(5, 100, 200, 2)
         flow6 = Flow(vecs6)
 
-        # Subtraction
+        # Addition
         for vecs in vec_list:
+            s = flow1 - vecs
+            self.assertIsNotNone(s.vecs.grad_fn)
             if isinstance(vecs, torch.Tensor):
                 v = to_numpy(vecs)
             else:
                 v = vecs
             if v.shape[0] == 2:
                 v = np.moveaxis(v, 0, -1)
-            self.assertIsNone(np.testing.assert_allclose((flow1 - vecs).vecs_numpy[0], vecs1 - v,
-                                                         rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 - vecs).device, flow1.vecs.device)
-            self.assertEqual((flow1 - vecs).device, flow1.mask.device)
-        self.assertIsNone(np.testing.assert_allclose((flow1 - flow2).vecs_numpy[0],
-                                                     vecs1 - vecs2, rtol=1e-6, atol=1e-6))
-        self.assertIsNone(np.testing.assert_equal(np.sum(to_numpy((flow1 - flow2).mask)), (60 - 40) * 200))
-        self.assertIsNone(np.testing.assert_allclose((flow1 - flow6).vecs_numpy,
-                                                     vecs1 - vecs6, rtol=1e-6, atol=1e-6))
+            self.assertIsNone(np.testing.assert_allclose(s.vecs_numpy[0], vecs1 - v, rtol=1e-6, atol=1e-6))
+            self.assertEqual(s.device, flow1.vecs.device)
+            self.assertEqual(s.device, flow1.mask.device)
+        s = flow1 - flow2
+        self.assertIsNotNone(s.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(s.vecs_numpy[0], vecs1 - vecs2, rtol=1e-6, atol=1e-6))
+        self.assertIsNone(np.testing.assert_equal(np.sum(to_numpy(s.mask)), (60 - 40) * 200))
+        s = flow1 - flow6
+        self.assertIsNotNone(s.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(s.vecs_numpy, vecs1 - vecs6, rtol=1e-6, atol=1e-6))
+
+        flow1 = Flow(vecs1, mask=mask1)
+        flow2 = Flow(torch.tensor(vecs2, requires_grad=True), mask=mask2)
+        flow6 = Flow(torch.tensor(vecs6, requires_grad=True))
+        for vecs in vec_list:
+            if isinstance(vecs, torch.Tensor):
+                v = to_numpy(vecs)
+                vecs.requires_grad_()
+            else:
+                v = vecs
+            s = flow1 - vecs
+            if isinstance(vecs, torch.Tensor):
+                self.assertIsNotNone(s.vecs.grad_fn)
+            if v.shape[0] == 2:
+                v = np.moveaxis(v, 0, -1)
+            self.assertIsNone(np.testing.assert_allclose(s.vecs_numpy[0], vecs1 - v, rtol=1e-6, atol=1e-6))
+            self.assertEqual(s.device, flow1.vecs.device)
+            self.assertEqual(s.device, flow1.mask.device)
+        s = flow1 - flow2
+        self.assertIsNotNone(s.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(s.vecs_numpy[0], vecs1 - vecs2, rtol=1e-6, atol=1e-6))
+        self.assertIsNone(np.testing.assert_equal(np.sum(to_numpy(s.mask)), (60 - 40) * 200))
+        s = flow1 - flow6
+        self.assertIsNotNone(s.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(s.vecs_numpy, vecs1 - vecs6, rtol=1e-6, atol=1e-6))
+
+        # Errors
         with self.assertRaises(TypeError):
             flow1 - 'test'
         with self.assertRaises(ValueError):
@@ -398,28 +482,40 @@ class FlowTest(unittest.TestCase):
         vecs1 = np.random.rand(100, 200, 2)
         vecs2 = np.random.rand(100, 200, 2)
         flow1 = Flow(vecs1)
+        flow1_g = Flow(torch.tensor(vecs1, requires_grad=True))
 
         # Multiplication
         ints = np.random.randint(-10, 10, 100)
         floats = (np.random.rand(100) - .5) * 20
         # ... using ints and floats
         for i, f in zip(ints, floats):
-            self.assertIsNone(np.testing.assert_allclose((flow1 * i).vecs_numpy[0], vecs1 * i, rtol=1e-6, atol=1e-6))
-            self.assertIsNone(np.testing.assert_allclose((flow1 * f).vecs_numpy[0], vecs1 * f, rtol=1e-6, atol=1e-6))
+            m = flow1_g * i
+            self.assertIsNotNone(m.vecs.grad_fn)
+            self.assertIsNone(np.testing.assert_allclose(m.vecs_numpy[0], vecs1 * i, rtol=1e-6, atol=1e-6))
+            m = flow1_g * f
+            self.assertIsNotNone(m.vecs.grad_fn)
+            self.assertIsNone(np.testing.assert_allclose(m.vecs_numpy[0], vecs1 * f, rtol=1e-6, atol=1e-6))
+
         # ... using a list of length 2
         int_list = np.random.randint(-10, 10, (100, 2))
         for li in int_list:
             v = vecs1.astype('f')
             v[..., 0] *= li[0]
             v[..., 1] *= li[1]
-            self.assertIsNone(np.testing.assert_allclose((flow1 * list(li)).vecs_numpy[0], v, rtol=1e-6, atol=1e-6))
+            m = flow1_g * list(li)
+            self.assertIsNotNone(m.vecs.grad_fn)
+            self.assertIsNone(np.testing.assert_allclose(m.vecs_numpy[0], v, rtol=1e-6, atol=1e-6))
+
         # ... using a numpy array of size 2
         int_list = np.random.randint(-10, 10, (100, 2))
         for li in int_list:
             v = vecs1.astype('f')
             v[..., 0] *= li[0]
             v[..., 1] *= li[1]
-            self.assertIsNone(np.testing.assert_allclose((flow1 * li).vecs_numpy[0], v, rtol=1e-6, atol=1e-6))
+            m = flow1_g * li
+            self.assertIsNotNone(m.vecs.grad_fn)
+            self.assertIsNone(np.testing.assert_allclose(m.vecs_numpy[0], v, rtol=1e-6, atol=1e-6))
+
         # ... using a numpy array and torch tensor of the same shape as the flow
         vecs2_pt_hw2 = torch.rand(100, 200, 2)
         vecs_list = [vecs2, vecs2_pt_hw2]
@@ -427,13 +523,17 @@ class FlowTest(unittest.TestCase):
             vecs_list.append(torch.rand(100, 200, 2).to('cuda'))
         for vecs in vecs_list:
             if isinstance(vecs, torch.Tensor):
+                vecs.requires_grad_()
                 v = to_numpy(vecs)
             else:
                 v = vecs
-            self.assertIsNone(np.testing.assert_allclose((flow1 * vecs[..., 0]).vecs_numpy[0], vecs1 * v[..., :1],
-                                                         rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 * vecs[..., 0]).device, flow1.vecs.device)
-            self.assertEqual((flow1 * vecs[..., 0]).device, flow1.mask.device)
+            m = flow1 * vecs[..., 0]
+            if isinstance(vecs, torch.Tensor):
+                self.assertIsNotNone(m.vecs.grad_fn)
+            self.assertIsNone(np.testing.assert_allclose(m.vecs_numpy[0], vecs1 * v[..., :1], rtol=1e-6, atol=1e-6))
+            self.assertEqual(m.device, flow1.vecs.device)
+            self.assertEqual(m.device, flow1.mask.device)
+
         # ... using numpy arrays and torch tensors of the same shape as the flow vectors
         vecs2_np_2hw = np.random.rand(2, 100, 200)
         vecs2_pt_2hw = torch.rand(2, 100, 200)
@@ -444,24 +544,31 @@ class FlowTest(unittest.TestCase):
             vecs_list.append(torch.rand(100, 200, 2).to('cuda'))
         for vecs in vecs_list:
             if isinstance(vecs, torch.Tensor):
+                vecs.requires_grad_()
                 v = to_numpy(vecs)
             else:
                 v = vecs
             if v.shape[0] == 2:
                 v = np.moveaxis(v, 0, -1)
-            self.assertIsNone(np.testing.assert_allclose((flow1 * vecs).vecs_numpy[0], vecs1 * v,
-                                                         rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 * vecs).device, flow1.vecs.device)
-            self.assertEqual((flow1 * vecs).device, flow1.mask.device)
+            m = flow1 * vecs
+            if isinstance(vecs, torch.Tensor):
+                self.assertIsNotNone(m.vecs.grad_fn)
+            self.assertIsNone(np.testing.assert_allclose(m.vecs_numpy[0], vecs1 * v, rtol=1e-6, atol=1e-6))
+            self.assertEqual(m.device, flow1.vecs.device)
+            self.assertEqual(m.device, flow1.mask.device)
+
         # ... using torch tensors of the same, and different, batch dimension
         v1 = np.random.rand(1, 100, 200, 2)
         v2 = np.random.rand(3, 100, 200, 2)
         v3 = np.random.rand(5, 100, 200, 2)
-        f2 = Flow(v2)
-        self.assertIsNone(np.testing.assert_allclose((f2 * np.moveaxis(v1, -1, 1)).vecs_numpy, v1 * v2,
-                                                     rtol=1e-6, atol=1e-6))
-        self.assertIsNone(np.testing.assert_allclose((flow1 * np.moveaxis(v3, -1, 1)).vecs_numpy, vecs1 * v3,
-                                                     rtol=1e-6, atol=1e-6))
+        f2 = Flow(torch.tensor(v2, requires_grad=True))
+        m = f2 * np.moveaxis(v1, -1, 1)
+        self.assertIsNotNone(m.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(m.vecs_numpy, v1 * v2, rtol=1e-6, atol=1e-6))
+        m = flow1_g * np.moveaxis(v3, -1, 1)
+        self.assertIsNotNone(m.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(m.vecs_numpy, vecs1 * v3, rtol=1e-6, atol=1e-6))
+
         # ... using a list of the wrong length
         with self.assertRaises(ValueError):
             flow1 * [0, 1, 2]
@@ -487,6 +594,7 @@ class FlowTest(unittest.TestCase):
         vecs1 = np.random.rand(100, 200, 2) + .5
         vecs2 = -np.random.rand(100, 200, 2) - .5
         flow1 = Flow(vecs1)
+        flow1_g = Flow(torch.tensor(vecs1, requires_grad=True))
 
         # Division
         ints = np.random.randint(-10, 10, 100)
@@ -494,11 +602,14 @@ class FlowTest(unittest.TestCase):
         # ... using ints and floats
         for i, f in zip(ints, floats):
             if i < -1e-5 or i > 1e-5:
-                self.assertIsNone(np.testing.assert_allclose((flow1 / i).vecs_numpy[0],
-                                                             vecs1 / i, rtol=1e-6, atol=1e-6))
+                d = flow1_g / i
+                self.assertIsNotNone(d.vecs.grad_fn)
+                self.assertIsNone(np.testing.assert_allclose(d.vecs_numpy[0], vecs1 / i, rtol=1e-6, atol=1e-6))
             if f < -1e-5 or f > 1e-5:
-                self.assertIsNone(np.testing.assert_allclose((flow1 / f).vecs_numpy[0],
-                                                             vecs1 / f, rtol=1e-6, atol=1e-6))
+                d = flow1_g / f
+                self.assertIsNotNone(d.vecs.grad_fn)
+                self.assertIsNone(np.testing.assert_allclose(d.vecs_numpy[0], vecs1 / f, rtol=1e-6, atol=1e-6))
+
         # ... using a list of length 2
         int_list = np.random.randint(-10, 10, (100, 2))
         for li in int_list:
@@ -506,7 +617,10 @@ class FlowTest(unittest.TestCase):
                 v = vecs1.astype('f')
                 v[..., 0] /= li[0]
                 v[..., 1] /= li[1]
-                self.assertIsNone(np.testing.assert_allclose((flow1 / list(li)).vecs_numpy[0], v, rtol=1e-6, atol=1e-6))
+                d = flow1_g / list(li)
+                self.assertIsNotNone(d.vecs.grad_fn)
+                self.assertIsNone(np.testing.assert_allclose(d.vecs_numpy[0], v, rtol=1e-6, atol=1e-6))
+
         # ... using a numpy array of size 2
         int_list = np.random.randint(-10, 10, (100, 2))
         for li in int_list:
@@ -514,7 +628,10 @@ class FlowTest(unittest.TestCase):
                 v = vecs1.astype('f')
                 v[..., 0] /= li[0]
                 v[..., 1] /= li[1]
-                self.assertIsNone(np.testing.assert_allclose((flow1 / li).vecs_numpy[0], v, rtol=1e-6, atol=1e-6))
+                d = flow1_g / li
+                self.assertIsNotNone(d.vecs.grad_fn)
+                self.assertIsNone(np.testing.assert_allclose(d.vecs_numpy[0], v, rtol=1e-6, atol=1e-6))
+
         # ... using a numpy array and torch tensor of the same shape as the flow
         vecs2_pt_hw2 = torch.rand(100, 200, 2) + .5
         vecs_list = [vecs2, vecs2_pt_hw2]
@@ -522,13 +639,17 @@ class FlowTest(unittest.TestCase):
             vecs_list.append(torch.rand(100, 200, 2).to('cuda') + .5)
         for vecs in vecs_list:
             if isinstance(vecs, torch.Tensor):
+                vecs.requires_grad_()
                 v = to_numpy(vecs)
             else:
                 v = vecs
-            self.assertIsNone(np.testing.assert_allclose((flow1 / vecs[..., 0]).vecs_numpy[0], vecs1 / v[..., :1],
-                                                         rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 / vecs[..., 0]).device, flow1.vecs.device)
-            self.assertEqual((flow1 / vecs[..., 0]).device, flow1.mask.device)
+            d = flow1 / vecs[..., 0]
+            if isinstance(vecs, torch.Tensor):
+                self.assertIsNotNone(d.vecs.grad_fn)
+            self.assertIsNone(np.testing.assert_allclose(d.vecs_numpy[0], vecs1 / v[..., :1], rtol=1e-6, atol=1e-6))
+            self.assertEqual(d.device, flow1.vecs.device)
+            self.assertEqual(d.device, flow1.mask.device)
+
         # ... using numpy arrays and torch tensors of the same shape as the flow vectors
         vecs2_np_2hw = np.random.rand(2, 100, 200) + .5
         vecs2_pt_2hw = torch.rand(2, 100, 200) + .5
@@ -539,24 +660,31 @@ class FlowTest(unittest.TestCase):
             vecs_list.append(torch.rand(100, 200, 2).to('cuda') + .5)
         for vecs in vecs_list:
             if isinstance(vecs, torch.Tensor):
+                vecs.requires_grad_()
                 v = to_numpy(vecs)
             else:
                 v = vecs
             if v.shape[0] == 2:
                 v = np.moveaxis(v, 0, -1)
-            self.assertIsNone(np.testing.assert_allclose((flow1 / vecs).vecs_numpy[0], vecs1 / v,
-                                                         rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 / vecs).device, flow1.vecs.device)
-            self.assertEqual((flow1 / vecs).device, flow1.mask.device)
+            d = flow1 / vecs
+            if isinstance(vecs, torch.Tensor):
+                self.assertIsNotNone(d.vecs.grad_fn)
+            self.assertIsNone(np.testing.assert_allclose(d.vecs_numpy[0], vecs1 / v, rtol=1e-6, atol=1e-6))
+            self.assertEqual(d.device, flow1.vecs.device)
+            self.assertEqual(d.device, flow1.mask.device)
+
         # ... using torch tensors of the same, and different, batch dimension
         v1 = np.random.rand(1, 100, 200, 2)
         v2 = np.random.rand(3, 100, 200, 2)
         v3 = np.random.rand(5, 100, 200, 2)
-        f2 = Flow(v2)
-        self.assertIsNone(np.testing.assert_allclose((f2 / np.moveaxis(v1, -1, 1)).vecs_numpy, v2 / v1,
-                                                     rtol=1e-6, atol=1e-6))
-        self.assertIsNone(np.testing.assert_allclose((flow1 / np.moveaxis(v3, -1, 1)).vecs_numpy, vecs1 / v3,
-                                                     rtol=1e-6, atol=1e-6))
+        f2 = Flow(torch.tensor(v2, requires_grad=True))
+        d = f2 / np.moveaxis(v1, -1, 1)
+        self.assertIsNotNone(d.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(d.vecs_numpy, v2 / v1, rtol=1e-6, atol=1e-6))
+        d = flow1_g / np.moveaxis(v3, -1, 1)
+        self.assertIsNotNone(d.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(d.vecs_numpy, vecs1 / v3, rtol=1e-6, atol=1e-6))
+
         # ... using a list of the wrong length
         with self.assertRaises(ValueError):
             flow1 / [1, 2, 3]
@@ -582,28 +710,40 @@ class FlowTest(unittest.TestCase):
         vecs1 = np.random.rand(100, 200, 2)
         vecs2 = np.random.rand(100, 200, 2)
         flow1 = Flow(vecs1)
+        flow1_g = Flow(torch.tensor(vecs1, requires_grad=True))
 
         # Exponentiation
         ints = np.random.randint(-2, 2, 100)
         floats = (np.random.rand(100) - .5) * 4
         # ... using ints and floats
         for i, f in zip(ints, floats):
-            self.assertIsNone(np.testing.assert_allclose((flow1 ** i).vecs_numpy[0], vecs1 ** i, rtol=1e-6, atol=1e-6))
-            self.assertIsNone(np.testing.assert_allclose((flow1 ** f).vecs_numpy[0], vecs1 ** f, rtol=1e-6, atol=1e-6))
+            p = flow1_g ** i
+            self.assertIsNotNone(p.vecs.grad_fn)
+            self.assertIsNone(np.testing.assert_allclose(p.vecs_numpy[0], vecs1 ** i, rtol=1e-6, atol=1e-6))
+            p = flow1_g ** f
+            self.assertIsNotNone(p.vecs.grad_fn)
+            self.assertIsNone(np.testing.assert_allclose(p.vecs_numpy[0], vecs1 ** f, rtol=1e-6, atol=1e-6))
+
         # ... using a list of length 2
         int_list = np.random.randint(-5, 5, (100, 2))
         for li in int_list:
             v = vecs1.astype('f')
             v[..., 0] **= li[0]
             v[..., 1] **= li[1]
-            self.assertIsNone(np.testing.assert_allclose((flow1 ** list(li)).vecs_numpy[0], v, rtol=1e-6, atol=1e-6))
+            p = flow1_g ** list(li)
+            self.assertIsNotNone(p.vecs.grad_fn)
+            self.assertIsNone(np.testing.assert_allclose(p.vecs_numpy[0], v, rtol=1e-6, atol=1e-6))
+
         # ... using a numpy array of size 2
         int_list = np.random.randint(-5, 5, (100, 2))
         for li in int_list:
             v = vecs1.astype('f')
             v[..., 0] **= li[0]
             v[..., 1] **= li[1]
-            self.assertIsNone(np.testing.assert_allclose((flow1 ** li).vecs_numpy[0], v, rtol=1e-6, atol=1e-6))
+            p = flow1_g ** li
+            self.assertIsNotNone(p.vecs.grad_fn)
+            self.assertIsNone(np.testing.assert_allclose(p.vecs_numpy[0], v, rtol=1e-6, atol=1e-6))
+
         # ... using a numpy array and torch tensor of the same shape as the flow
         vecs2_pt_hw2 = torch.rand(100, 200, 2)
         vecs_list = [vecs2, vecs2_pt_hw2]
@@ -611,13 +751,17 @@ class FlowTest(unittest.TestCase):
             vecs_list.append(torch.rand(100, 200, 2).to('cuda'))
         for vecs in vecs_list:
             if isinstance(vecs, torch.Tensor):
+                vecs.requires_grad_()
                 v = to_numpy(vecs)
             else:
                 v = vecs
-            self.assertIsNone(np.testing.assert_allclose((flow1 ** vecs[..., 0]).vecs_numpy[0], vecs1 ** v[..., :1],
-                                                         rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 ** vecs[..., 0]).device, flow1.vecs.device)
-            self.assertEqual((flow1 ** vecs[..., 0]).device, flow1.mask.device)
+            p = flow1 ** vecs[..., 0]
+            if isinstance(vecs, torch.Tensor):
+                self.assertIsNotNone(p.vecs.grad_fn)
+            self.assertIsNone(np.testing.assert_allclose(p.vecs_numpy[0], vecs1 ** v[..., :1], rtol=1e-6, atol=1e-6))
+            self.assertEqual(p.device, flow1.vecs.device)
+            self.assertEqual(p.device, flow1.mask.device)
+
         # ... using numpy arrays and torch tensors of the same shape as the flow vectors
         vecs2_np_2hw = np.random.rand(2, 100, 200)
         vecs2_pt_2hw = torch.rand(2, 100, 200)
@@ -628,24 +772,31 @@ class FlowTest(unittest.TestCase):
             vecs_list.append(torch.rand(100, 200, 2).to('cuda'))
         for vecs in vecs_list:
             if isinstance(vecs, torch.Tensor):
+                vecs.requires_grad_()
                 v = to_numpy(vecs)
             else:
                 v = vecs
             if v.shape[0] == 2:
                 v = np.moveaxis(v, 0, -1)
-            self.assertIsNone(np.testing.assert_allclose((flow1 ** vecs).vecs_numpy[0], vecs1 ** v,
-                                                         rtol=1e-6, atol=1e-6))
-            self.assertEqual((flow1 ** vecs).device, flow1.vecs.device)
-            self.assertEqual((flow1 ** vecs).device, flow1.mask.device)
+            p = flow1 ** vecs
+            if isinstance(vecs, torch.Tensor):
+                self.assertIsNotNone(p.vecs.grad_fn)
+            self.assertIsNone(np.testing.assert_allclose(p.vecs_numpy[0], vecs1 ** v, rtol=1e-6, atol=1e-6))
+            self.assertEqual(p.device, flow1.vecs.device)
+            self.assertEqual(p.device, flow1.mask.device)
+
         # ... using torch tensors of the same, and different, batch dimension
         v1 = np.random.rand(1, 100, 200, 2)
         v2 = np.random.rand(3, 100, 200, 2)
         v3 = np.random.rand(5, 100, 200, 2)
-        f2 = Flow(v2)
-        self.assertIsNone(np.testing.assert_allclose((f2 ** np.moveaxis(v1, -1, 1)).vecs_numpy, v2 ** v1,
-                                                     rtol=1e-6, atol=1e-6))
-        self.assertIsNone(np.testing.assert_allclose((flow1 ** np.moveaxis(v3, -1, 1)).vecs_numpy, vecs1 ** v3,
-                                                     rtol=1e-6, atol=1e-6))
+        f2 = Flow(torch.tensor(v2, requires_grad=True))
+        p = f2 ** np.moveaxis(v1, -1, 1)
+        self.assertIsNotNone(p.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(p.vecs_numpy, v2 ** v1, rtol=1e-6, atol=1e-6))
+        p = flow1_g ** np.moveaxis(v3, -1, 1)
+        self.assertIsNotNone(p.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(p.vecs_numpy, vecs1 ** v3, rtol=1e-6, atol=1e-6))
+
         # ... using a list of the wrong length
         with self.assertRaises(ValueError):
             flow1 ** [0, 1, 2]
@@ -668,19 +819,23 @@ class FlowTest(unittest.TestCase):
             f2 * np.random.rand(6, 2, 100, 200)
 
     def test_neg(self):
-        vecs1 = np.random.rand(100, 200, 2)
+        vecs1 = torch.rand((100, 200, 2), requires_grad=True)
         flow1 = Flow(vecs1)
-        self.assertIsNone(np.testing.assert_allclose((-flow1).vecs_numpy[0], -vecs1))
+        self.assertIsNotNone(flow1.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose((-flow1).vecs_numpy[0], -to_numpy(vecs1)))
 
     def test_resize(self):
         shape = [20, 10]
         ref = 's'
         flow = Flow.from_transforms([['rotation', 30, 50, 30]], shape, ref)
+        flow.vecs.requires_grad_()
 
         # Different scales
         scales = [.2, .5, 1, 1.5, 2, 10]
         for scale in scales:
-            self.assertIsNone(np.testing.assert_equal(flow.resize(scale).vecs_numpy,
+            r = flow.resize(scale)
+            self.assertIsNotNone(r.vecs.grad_fn)
+            self.assertIsNone(np.testing.assert_equal(r.vecs_numpy,
                                                       to_numpy(resize_flow(flow.vecs, scale), switch_channels=True)))
         # Scale mask
         shape_small = (20, 40)
@@ -690,21 +845,27 @@ class FlowTest(unittest.TestCase):
         mask_large = np.ones(shape_large, 'bool')
         mask_large[:9, :40] = 0
         flow_small = Flow.from_transforms([['rotation', 0, 0, 30]], shape_small, 't', mask_small)
+        flow_small.vecs.requires_grad_()
         flow_large = flow_small.resize((1.5, 2))
+        self.assertIsNotNone(flow_large.vecs.grad_fn)
         self.assertIsNone(np.testing.assert_equal(to_numpy(flow_large.mask)[0], mask_large))
 
         # Check scaling is performed correctly based on the actual flow field
         ref = 't'
         flow_small = Flow.from_transforms([['rotation', 0, 0, 30]], (50, 80), ref)
         flow_large = Flow.from_transforms([['rotation', 0, 0, 30]], (150, 240), ref)
+        flow_large.vecs.requires_grad_()
         flow_resized = flow_large.resize(1/3)
+        self.assertIsNotNone(flow_resized.vecs.grad_fn)
         self.assertIsNone(np.testing.assert_allclose(flow_resized.vecs_numpy, flow_small.vecs_numpy, atol=1, rtol=.1))
 
     def test_pad(self):
         shape = [100, 80]
         for ref in ['t', 's']:
             flow = Flow.zero(shape, ref, np.ones(shape, 'bool'))
+            flow.vecs.requires_grad_()
             flow = flow.pad([10, 20, 30, 40])
+            self.assertIsNotNone(flow.vecs.grad_fn)
             self.assertIsNone(np.testing.assert_equal(flow.shape[1:], [shape[0] + 10 + 20, shape[1] + 30 + 40]))
             self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, 0))
             self.assertIsNone(np.testing.assert_equal(to_numpy(flow[10:-20, 30:-40].mask), 1))
@@ -714,12 +875,15 @@ class FlowTest(unittest.TestCase):
 
         # 'Replicate' padding
         flow = Flow.from_transforms([['rotation', 30, 50, 30]], shape, ref)
+        flow.vecs.requires_grad_()
         padded_flow = flow.pad([10, 10, 20, 20], mode='replicate')
+        self.assertIsNotNone(padded_flow.vecs.grad_fn)
         self.assertIsNone(np.testing.assert_equal(padded_flow.vecs_numpy[:, 0, 20:-20], flow.vecs_numpy[:, 0]))
         self.assertIsNone(np.testing.assert_equal(padded_flow.vecs_numpy[:, 10:-10, 0], flow.vecs_numpy[:, :, 0]))
 
         # 'Reflect' padding
         padded_flow = flow.pad([10, 10, 20, 20], mode='reflect')
+        self.assertIsNotNone(padded_flow.vecs.grad_fn)
         self.assertIsNone(np.testing.assert_equal(padded_flow.vecs_numpy[:, 0, 20:-20], flow.vecs_numpy[:, 10]))
         self.assertIsNone(np.testing.assert_equal(padded_flow.vecs_numpy[:, 10:-10, 0], flow.vecs_numpy[:, :, 20]))
 
@@ -732,42 +896,54 @@ class FlowTest(unittest.TestCase):
         img_pt = torch.tensor(img_np)
         # Check flow.apply results in the same as using apply_flow directly
         for f in [set_pure_pytorch, unset_pure_pytorch]:
-            f()
+            f()  # set PURE_PYTORCH to True or False
             for ref in ['t', 's']:
                 for consider_mask in [True, False]:
                     for device in ['cpu', 'cuda']:
                         for img in [img_pt.to('cpu'), img_pt.to('cuda')]:
+                            img = img.float().requires_grad_()
                             mask = torch.ones(img_pt.shape[1:], dtype=torch.bool)
-                            mask[400:] = False
+                            mask[20:] = False
                             flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref, mask, device)
                             # Target is a 3D torch tensor
                             warped_img_desired = apply_flow(flow.vecs, img, ref, mask if consider_mask else None)
                             warped_img_actual = flow.apply(img, consider_mask=consider_mask)
+                            if ref != 's' or get_pure_pytorch():
+                                self.assertIsNotNone(warped_img_actual.grad_fn)
                             self.assertEqual(flow.device, warped_img_actual.device)
                             self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
                                                                       to_numpy(warped_img_desired)))
                             warped_img_actual, _ = flow.apply(img, mask, True, consider_mask=consider_mask)
+                            if ref != 's' or get_pure_pytorch():
+                                self.assertIsNotNone(warped_img_actual.grad_fn)
                             self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
                                                                       to_numpy(warped_img_desired)))
                             # Target is a 2D torch tensor
                             warped_img_desired = apply_flow(flow.vecs, img[0], ref, mask if consider_mask else None)
                             warped_img_actual = flow.apply(img[0], consider_mask=consider_mask)
+                            if ref != 's' or get_pure_pytorch():
+                                self.assertIsNotNone(warped_img_actual.grad_fn)
                             self.assertEqual(flow.device, warped_img_actual.device)
                             self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
                                                                       to_numpy(warped_img_desired)))
                             warped_img_actual, _ = flow.apply(img[0], mask, True, consider_mask=consider_mask)
+                            if ref != 's' or get_pure_pytorch():
+                                self.assertIsNotNone(warped_img_actual.grad_fn)
                             self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
                                                                       to_numpy(warped_img_desired)))
                         for f_device in ['cpu', 'cuda']:
                             f = flow.to_device(f_device)
+                            f.vecs.requires_grad_()
                             # Target is a flow object
                             warped_flow_desired = apply_flow(flow.vecs, f.vecs, ref, mask if consider_mask else None)
                             warped_flow_actual = flow.apply(f, consider_mask=consider_mask)
+                            if ref != 's' or get_pure_pytorch():
+                                self.assertIsNotNone(warped_flow_actual.vecs.grad_fn)
                             self.assertEqual(flow.device, warped_flow_actual.device)
                             self.assertIsNone(np.testing.assert_equal(to_numpy(warped_flow_actual.vecs),
                                                                       to_numpy(warped_flow_desired)))
             # Check using a smaller flow field on a larger target works the same as a full flow field on the same target
-            img = img_pt.to(torch.float)
+            img = img_pt.to(torch.float).requires_grad_()
             ref = 't'
             flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref)
             warped_img_desired = apply_flow(flow.vecs, img, ref)
@@ -776,6 +952,8 @@ class FlowTest(unittest.TestCase):
             cut_flow = Flow.from_transforms([['rotation', 0, 0, 30]], shape, ref)
             # ... not cutting (target torch tensor)
             warped_img_actual = cut_flow.apply(img, padding=padding, cut=False)
+            if ref != 's' or get_pure_pytorch():
+                self.assertIsNotNone(warped_img_actual.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img_actual[:, padding[0]:-padding[1],
                                                                   padding[2]:-padding[3]]),
                                                          to_numpy(warped_img_desired[:, padding[0]:-padding[1],
@@ -783,6 +961,8 @@ class FlowTest(unittest.TestCase):
                                                          atol=1e-3))
             # ... cutting (target torch tensor)
             warped_img_actual = cut_flow.apply(img, padding=padding, cut=True)
+            if ref != 's' or get_pure_pytorch():
+                self.assertIsNotNone(warped_img_actual.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img_actual).astype('f'),
                                                          to_numpy(warped_img_desired[:, padding[0]:-padding[1],
                                                                   padding[2]:-padding[3]]).astype('f'),
@@ -791,6 +971,8 @@ class FlowTest(unittest.TestCase):
             target_flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref)
             warped_flow_desired = apply_flow(flow.vecs, target_flow.vecs, ref)
             warped_flow_actual = cut_flow.apply(target_flow, padding=padding, cut=False)
+            if ref != 's' or get_pure_pytorch():
+                self.assertIsNotNone(warped_img_actual.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_flow_actual.vecs[:, :, padding[0]:-padding[1],
                                                                   padding[2]:-padding[3]]),
                                                          to_numpy(warped_flow_desired[:, :, padding[0]:-padding[1],
@@ -798,6 +980,8 @@ class FlowTest(unittest.TestCase):
                                                          atol=1e-1))
             # ... cutting (target flow object)
             warped_flow_actual = cut_flow.apply(target_flow, padding=padding, cut=True)
+            if ref != 's' or get_pure_pytorch():
+                self.assertIsNotNone(warped_img_actual.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_flow_actual.vecs),
                                                          to_numpy(warped_flow_desired[:, :, padding[0]:-padding[1],
                                                                   padding[2]:-padding[3]]),
@@ -813,20 +997,27 @@ class FlowTest(unittest.TestCase):
             for ref in ['s', 't']:
                 flows = [
                     Flow.from_transforms([['translation', 10, -20]], i_shape, ref),
-                    batch_flows(tuple(Flow.from_transforms([['translation', 10, -20]], i_shape, ref) for _ in range(4))),
+                    batch_flows(tuple(Flow.from_transforms([['translation', 10, -20]], i_shape, ref)
+                                      for _ in range(4))),
                 ]
-                for f in flows:
+                for f1 in flows:
+                    f1 = f1.copy()
+                    f1.vecs.requires_grad_()
                     for i in [i_1chw, i_11hw, i_nchw, i_n1hw]:
                         for consider_mask in [True, False]:
-                            warped_i = f.apply(i, consider_mask=consider_mask)
-                            self.assertEqual(warped_i.shape[0], max(f.shape[0], i.shape[0]))
+                            warped_i = f1.apply(i, consider_mask=consider_mask)
+                            if get_pure_pytorch():
+                                self.assertIsNotNone(warped_i.grad_fn)
+                            self.assertEqual(warped_i.shape[0], max(f1.shape[0], i.shape[0]))
                             for w_ind, i_ind in zip(warped_i, i):
                                 self.assertIsNone(np.testing.assert_equal(to_numpy(w_ind[:-20, 10:]),
                                                                           to_numpy(i_ind[20:, :-10])))
                     for f2 in flows:
                         for consider_mask in [True, False]:
-                            warped_f2 = f.apply(f2, consider_mask=consider_mask)
-                            self.assertEqual(warped_f2.shape[0], max(f.shape[0], f2.shape[0]))
+                            warped_f2 = f1.apply(f2, consider_mask=consider_mask)
+                            if ref != 's' or get_pure_pytorch():
+                                self.assertIsNotNone(warped_f2.vecs.grad_fn)
+                            self.assertEqual(warped_f2.shape[0], max(f1.shape[0], f2.shape[0]))
                             v = warped_f2.vecs_numpy
                             for v_ind in v:
                                 self.assertIsNone(np.testing.assert_equal(v_ind[:, :-20, 10:],
@@ -837,6 +1028,7 @@ class FlowTest(unittest.TestCase):
             self.assertEqual(warped_i.shape, (4, i_hw.shape[0], i_hw.shape[1]))
             warped_i = apply_flow(f, i_chw, 't')
             self.assertEqual(warped_i.shape, (4, 3, i_hw.shape[0], i_hw.shape[1]))
+
         # Non-valid padding values
         for ref in ['t', 's']:
             flow = Flow.from_transforms([['rotation', 0, 0, 30]], shape, ref)
@@ -868,7 +1060,9 @@ class FlowTest(unittest.TestCase):
         # Mode 'valid'
         transforms = [['rotation', 256, 256, 30]]
         flow_s = Flow.from_transforms(transforms, shape, 's')
+        flow_s.vecs.requires_grad_()
         flow_t = Flow.from_transforms(transforms, shape, 't')
+        flow_t.vecs.requires_grad_()
         for f in [set_pure_pytorch, unset_pure_pytorch]:
             f()
             if get_pure_pytorch():
@@ -876,10 +1070,14 @@ class FlowTest(unittest.TestCase):
             else:
                 rtol, atol = 1e-3, 1e-3
             switched_s = flow_t.switch_ref()
+            if get_pure_pytorch():
+                self.assertIsNotNone(switched_s.vecs.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(switched_s.vecs_numpy[switched_s.mask_numpy],
                                                          flow_s.vecs_numpy[switched_s.mask_numpy],
                                                          rtol=rtol, atol=atol))
             switched_t = flow_s.switch_ref()
+            if get_pure_pytorch():
+                self.assertIsNotNone(switched_t.vecs.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(switched_t.vecs_numpy[switched_t.mask_numpy],
                                                          flow_t.vecs_numpy[switched_t.mask_numpy],
                                                          rtol=rtol, atol=atol))
@@ -887,12 +1085,18 @@ class FlowTest(unittest.TestCase):
             # Mode 'valid', batched flow
             transforms = [[['rotation', 256, 256, 30]], [['translation', 10, -20]]]
             flow_s = batch_flows([Flow.from_transforms(t, shape, 's') for t in transforms])
+            flow_s.vecs.requires_grad_()
             flow_t = batch_flows([Flow.from_transforms(t, shape, 't') for t in transforms])
+            flow_t.vecs.requires_grad_()
             switched_s = flow_t.switch_ref()
+            if get_pure_pytorch():
+                self.assertIsNotNone(switched_s.vecs.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(switched_s.vecs_numpy[switched_s.mask_numpy],
                                                          flow_s.vecs_numpy[switched_s.mask_numpy],
                                                          rtol=rtol, atol=atol))
             switched_t = flow_s.switch_ref()
+            if get_pure_pytorch():
+                self.assertIsNotNone(switched_t.vecs.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(switched_t.vecs_numpy[switched_t.mask_numpy],
                                                          flow_t.vecs_numpy[switched_t.mask_numpy],
                                                          rtol=rtol, atol=atol))
@@ -909,6 +1113,10 @@ class FlowTest(unittest.TestCase):
         f_t = Flow.from_transforms([['rotation', 50, 40, 30]], (80, 100), 't')   # Forwards
         b_s = Flow.from_transforms([['rotation', 50, 40, -30]], (80, 100), 's')  # Backwards
         b_t = Flow.from_transforms([['rotation', 50, 40, -30]], (80, 100), 't')  # Backwards
+        f_s.vecs.requires_grad_()
+        f_t.vecs.requires_grad_()
+        b_s.vecs.requires_grad_()
+        b_t.vecs.requires_grad_()
         for f in [set_pure_pytorch, unset_pure_pytorch]:
             f()
             if get_pure_pytorch():
@@ -918,40 +1126,52 @@ class FlowTest(unittest.TestCase):
 
             # Inverting s to s
             b_s_inv = f_s.invert()
+            if get_pure_pytorch():
+                self.assertIsNotNone(b_s_inv.vecs.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(b_s_inv.vecs_numpy[b_s_inv.mask_numpy],
                                                          b_s.vecs_numpy[b_s_inv.mask_numpy],
                                                          rtol=rtol, atol=atol))
             f_s_inv = b_s.invert()
+            if get_pure_pytorch():
+                self.assertIsNotNone(f_s_inv.vecs.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(f_s_inv.vecs_numpy[f_s_inv.mask_numpy],
                                                          f_s.vecs_numpy[f_s_inv.mask_numpy],
                                                          rtol=rtol, atol=atol))
 
             # Inverting s to t
             b_t_inv = f_s.invert('t')
+            self.assertIsNotNone(b_t_inv.vecs.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(b_t_inv.vecs_numpy[b_t_inv.mask_numpy],
                                                          b_t.vecs_numpy[b_t_inv.mask_numpy],
                                                          rtol=rtol, atol=atol))
             f_t_inv = b_s.invert('t')
+            self.assertIsNotNone(f_t_inv.vecs.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(f_t_inv.vecs_numpy[f_t_inv.mask_numpy],
                                                          f_t.vecs_numpy[f_t_inv.mask_numpy],
                                                          rtol=rtol, atol=atol))
 
             # Inverting t to t
             b_t_inv = f_t.invert()
+            if get_pure_pytorch():
+                self.assertIsNotNone(b_t_inv.vecs.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(b_t_inv.vecs_numpy[b_t_inv.mask_numpy],
                                                          b_t.vecs_numpy[b_t_inv.mask_numpy],
                                                          rtol=rtol, atol=atol))
             f_t_inv = b_t.invert()
+            if get_pure_pytorch():
+                self.assertIsNotNone(f_t_inv.vecs.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(f_t_inv.vecs_numpy[f_t_inv.mask_numpy],
                                                          f_t.vecs_numpy[f_t_inv.mask_numpy],
                                                          rtol=rtol, atol=atol))
 
             # Inverting t to s
             b_s_inv = f_t.invert('s')
+            self.assertIsNotNone(b_s_inv.vecs.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(b_s_inv.vecs_numpy[b_s_inv.mask_numpy],
                                                          b_s.vecs_numpy[b_s_inv.mask_numpy],
                                                          rtol=rtol, atol=atol))
             f_s_inv = b_t.invert('s')
+            self.assertIsNotNone(f_s_inv.vecs.grad_fn)
             self.assertIsNone(np.testing.assert_allclose(f_s_inv.vecs_numpy[f_s_inv.mask_numpy],
                                                          f_s.vecs_numpy[f_s_inv.mask_numpy],
                                                          rtol=rtol, atol=atol))
@@ -961,10 +1181,19 @@ class FlowTest(unittest.TestCase):
             bf_t = batch_flows((f_t, b_t))
             bb_s = batch_flows((b_s, f_s))
             bb_t = batch_flows((b_t, f_t))
+            bf_s.vecs.requires_grad_()
+            bf_t.vecs.requires_grad_()
+            bb_s.vecs.requires_grad_()
+            bb_t.vecs.requires_grad_()
             f_s_inv = bf_s.invert()
             f_s_inv_t = bf_s.invert('t')
             f_t_inv = bf_t.invert()
             f_t_inv_s = bf_t.invert('s')
+            if get_pure_pytorch():
+                self.assertIsNotNone(f_s_inv.vecs.grad_fn)
+                self.assertIsNotNone(f_t_inv.vecs.grad_fn)
+            self.assertIsNotNone(f_s_inv_t.vecs.grad_fn)
+            self.assertIsNotNone(f_t_inv_s.vecs.grad_fn)
             # Inverting s to s
             self.assertIsNone(np.testing.assert_allclose(f_s_inv.vecs_numpy[f_s_inv.mask_numpy],
                                                          bb_s.vecs_numpy[f_s_inv.mask_numpy],
@@ -995,32 +1224,39 @@ class FlowTest(unittest.TestCase):
             [8.3, 7.2],         # Moved normally by valid flow vector
             [120.4, 160.2],     # Moved normally by valid flow vector
             [300, 200]          # Moved normally by invalid flow vector
-        ])
+        ], requires_grad=True)
         desired_valid_status = [False, False, True, True, False]
         set_pure_pytorch()
-        _, tracked = f_t.track(pts, get_valid_status=True)
+        t_pts, tracked = f_t.track(pts, get_valid_status=True)
+        self.assertIsNotNone(t_pts.grad_fn)
         self.assertIsNone(np.testing.assert_equal(to_numpy(tracked), desired_valid_status))
         unset_pure_pytorch()
-        _, tracked = f_t.track(pts, get_valid_status=True)
+        t_pts, tracked = f_t.track(pts, get_valid_status=True)
         self.assertIsNone(np.testing.assert_equal(to_numpy(tracked), desired_valid_status))
 
         # Batched
+        f_s.vecs.requires_grad_()
         f3 = batch_flows([f_s, f_s, f_s])
         d1 = [desired_valid_status]
         d3 = [desired_valid_status, desired_valid_status, desired_valid_status]
+        pts.requires_grad = False
         pts1 = pts.unsqueeze(0)
         pts3 = pts1.repeat(3, 1, 1)
         set_pure_pytorch()
-        _, t_1_1 = f_s.track(pts1, get_valid_status=True)
-        _, t_3_1 = f3.track(pts1, get_valid_status=True)
-        _, t_3_3 = f3.track(pts3, get_valid_status=True)
+        p_11, t_1_1 = f_s.track(pts1, get_valid_status=True)
+        p_31, t_3_1 = f3.track(pts1, get_valid_status=True)
+        p_33, t_3_3 = f3.track(pts3, get_valid_status=True)
+        for p in [p_11, p_31, p_33]:
+            self.assertIsNotNone(p.grad_fn)
         self.assertIsNone(np.testing.assert_equal(to_numpy(t_1_1), d1))
         self.assertIsNone(np.testing.assert_equal(to_numpy(t_3_1), d3))
         self.assertIsNone(np.testing.assert_equal(to_numpy(t_3_3), d3))
         unset_pure_pytorch()
-        _, t_1_1 = f_s.track(pts1, get_valid_status=True)
-        _, t_3_1 = f3.track(pts1, get_valid_status=True)
-        _, t_3_3 = f3.track(pts3, get_valid_status=True)
+        p_11, t_1_1 = f_s.track(pts1, get_valid_status=True)
+        p_31, t_3_1 = f3.track(pts1, get_valid_status=True)
+        p_33, t_3_3 = f3.track(pts3, get_valid_status=True)
+        for p in [p_11, p_31, p_33]:
+            self.assertIsNotNone(p.grad_fn)
         self.assertIsNone(np.testing.assert_equal(to_numpy(t_1_1), d1))
         self.assertIsNone(np.testing.assert_equal(to_numpy(t_3_1), d3))
         self.assertIsNone(np.testing.assert_equal(to_numpy(t_3_3), d3))
@@ -1032,13 +1268,16 @@ class FlowTest(unittest.TestCase):
             [8.3, 7.2],         # Moved normally by valid flow vector
             [120.4, 160.2],     # Moved normally by valid flow vector
             [300, 200]          # Moved normally by invalid flow vector
-        ])
+        ], requires_grad=True)
+        f_s.vecs.requires_grad = False
         desired_valid_status = [False, False, True, True, False]
         set_pure_pytorch()
-        _, tracked = f_s.track(pts, get_valid_status=True)
+        t_pts, tracked = f_s.track(pts, get_valid_status=True)
+        self.assertIsNotNone(t_pts.grad_fn)
         self.assertIsNone(np.testing.assert_equal(to_numpy(tracked), desired_valid_status))
         unset_pure_pytorch()
-        _, tracked = f_s.track(pts, get_valid_status=True)
+        t_pts, tracked = f_s.track(pts, get_valid_status=True)
+        self.assertIsNotNone(t_pts.grad_fn)
         self.assertIsNone(np.testing.assert_equal(to_numpy(tracked), desired_valid_status))
 
         # Invalid inputs
@@ -1642,18 +1881,18 @@ class FlowTest(unittest.TestCase):
             flow_s.matrix(dof=4, method='lms', masked='test')
 
     def test_combine_with(self):
-        img = cv2.imread('smudge.png')
+        img = cv2.resize(cv2.imread('smudge.png'), None, fx=.125, fy=.125)
         shape = img.shape[:2]
         transforms = [
-            ['rotation', 255.5, 255.5, -30],
-            ['scaling', 100, 100, 0.8],
+            ['rotation', 60, 80, -30],
+            ['scaling', 40, 30, 0.8],
         ]
         transforms2 = [
-            ['rotation', 255.5, 255.5, -20],
-            ['scaling', 80, 110, 0.9],
+            ['rotation', 50, 70, -20],
+            ['scaling', 20, 50, 0.9],
         ]
         for f in [set_pure_pytorch, unset_pure_pytorch]:
-            f(1)
+            f()
             for ref in ['s', 't']:
                 atol = 8e-1 if get_pure_pytorch() else 5e-2
                 f1 = Flow.from_transforms(transforms[0:1], shape, ref)
@@ -1664,7 +1903,11 @@ class FlowTest(unittest.TestCase):
                 bf3 = batch_flows((f3, Flow.from_transforms(transforms2, shape, ref)))
 
                 # Mode 1
-                f1_actual = f2.combine_with(f3, 1)
+                f2_g = f2.copy()
+                f2_g.vecs.requires_grad_()
+                f1_actual = f2_g.combine_with(f3, 1)
+                if get_pure_pytorch() or ref != 't':
+                    self.assertIsNotNone(f1_actual.vecs.grad_fn)
                 # Uncomment the following two lines to see / check the flow fields
                 # f1.show(wait=500, show_mask=True, show_mask_borders=True)
                 # f1_actual.show(show_mask=True, show_mask_borders=True)
@@ -1673,7 +1916,11 @@ class FlowTest(unittest.TestCase):
                 comb_mask = f1_actual.mask_numpy & f1.mask_numpy
                 self.assertIsNone(np.testing.assert_allclose(f1_actual.vecs_numpy[comb_mask], f1.vecs_numpy[comb_mask],
                                                              atol=atol))
-                bf1_actual = bf2.combine_with(bf3, 1)
+                bf3_g = bf3.copy()
+                bf3_g.vecs.requires_grad_()
+                bf1_actual = bf2.combine_with(bf3_g, 1)
+                if get_pure_pytorch() or ref != 't':
+                    self.assertIsNotNone(bf1_actual.vecs.grad_fn)
                 # Uncomment the following two lines to see / check the flow fields
                 # bf1.show(1, wait=500, show_mask=True, show_mask_borders=True)
                 # bf1_actual.show(1, show_mask=True, show_mask_borders=True)
@@ -1684,7 +1931,11 @@ class FlowTest(unittest.TestCase):
                                                              atol=atol))
 
                 # Mode 2
-                f2_actual = f1.combine_with(f3, 2)
+                f1_g = f1.copy()
+                f1_g.vecs.requires_grad_()
+                f2_actual = f1_g.combine_with(f3, 2)
+                if get_pure_pytorch():
+                    self.assertIsNotNone(f2_actual.vecs.grad_fn)
                 # Uncomment the following two lines to see / check the flow fields
                 # f2.show(wait=500, show_mask=True, show_mask_borders=True)
                 # f2_actual.show(show_mask=True, show_mask_borders=True)
@@ -1693,7 +1944,11 @@ class FlowTest(unittest.TestCase):
                 comb_mask = f2_actual.mask_numpy & f2.mask_numpy
                 self.assertIsNone(np.testing.assert_allclose(f2_actual.vecs_numpy[comb_mask], f2.vecs_numpy[comb_mask],
                                                              atol=atol))
-                bf2_actual = bf1.combine_with(bf3, 2)
+                bf3_g = bf3.copy()
+                bf3_g.vecs.requires_grad_()
+                bf2_actual = bf1.combine_with(bf3_g, 2)
+                if get_pure_pytorch():
+                    self.assertIsNotNone(bf2_actual.vecs.grad_fn)
                 # Uncomment the following two lines to see / check the flow fields
                 # bf2.show(1, wait=500, show_mask=True, show_mask_borders=True)
                 # bf2_actual.show(1, show_mask=True, show_mask_borders=True)
@@ -1704,7 +1959,10 @@ class FlowTest(unittest.TestCase):
                                                              atol=atol))
 
                 # Mode 3
-                f3_actual = f1.combine_with(f2, 3)
+                f1_g = f1.copy()
+                f1_g.vecs.requires_grad_()
+                f3_actual = f1_g.combine_with(f2, 3)
+                self.assertIsNotNone(f3_actual.vecs.grad_fn)
                 # Uncomment the following two lines to see / check the flow fields
                 # f3.show(wait=500, show_mask=True, show_mask_borders=True)
                 # f3_actual.show(show_mask=True, show_mask_borders=True)
@@ -1713,7 +1971,10 @@ class FlowTest(unittest.TestCase):
                 comb_mask = f3_actual.mask_numpy & f3.mask_numpy
                 self.assertIsNone(np.testing.assert_allclose(f3_actual.vecs_numpy[comb_mask], f3.vecs_numpy[comb_mask],
                                                              atol=5e-2))
-                bf3_actual = bf1.combine_with(bf2, 3)
+                bf2_g = bf2.copy()
+                bf2_g.vecs.requires_grad_()
+                bf3_actual = bf1.combine_with(bf2_g, 3)
+                self.assertIsNotNone(bf3_actual.vecs.grad_fn)
                 # Uncomment the following two lines to see / check the flow fields
                 # bf3.show(1, wait=500, show_mask=True, show_mask_borders=True)
                 # bf3_actual.show(1, show_mask=True, show_mask_borders=True)
