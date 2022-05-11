@@ -855,6 +855,7 @@ class TestIsZeroFlow(unittest.TestCase):
 
 class TestTrackPts(unittest.TestCase):
     def test_track_pts(self):
+        set_pure_pytorch()
         f_s = Flow.from_transforms([['rotation', 0, 0, 30]], (200, 210), 's').vecs
         f_t = Flow.from_transforms([['rotation', 0, 0, 30]], (200, 210), 't').vecs
         pts = torch.tensor([
@@ -869,13 +870,16 @@ class TestTrackPts(unittest.TestCase):
         ]
         # Gradient propagation when flow / points / both require grad
         p = torch.tensor([[20.5, 10.5]])
+        p_g = torch.tensor([[20.5, 10.5]], requires_grad=True)
+        f_s_g = f_s.clone().requires_grad_()
+        f_t_g = f_t.clone().requires_grad_()
         tracked_list = [
-            track_pts(f_s, 's', p.requires_grad_()),
-            track_pts(f_s.requires_grad_(), 's', p),
-            track_pts(f_s.requires_grad_(), 's', p.requires_grad_()),
-            track_pts(f_t, 't', p.requires_grad_()),
-            track_pts(f_t.requires_grad_(), 't', p),
-            track_pts(f_t.requires_grad_(), 't', p.requires_grad_()),
+            track_pts(f_s, 's', p_g),
+            track_pts(f_s_g, 's', p),
+            track_pts(f_s_g, 's', p_g),
+            track_pts(f_t, 't', p_g),
+            track_pts(f_t_g, 't', p),
+            track_pts(f_t_g, 't', p_g),
         ]
         for tracked in tracked_list:
             self.assertIsNotNone(tracked.grad_fn)
@@ -920,6 +924,7 @@ class TestTrackPts(unittest.TestCase):
         f_trans = Flow.from_transforms([['translation', 10, 20]], (200, 210), 's')
         f_rot = Flow.from_transforms([['rotation', 0, 0, 30]], (200, 210), 's')
         f_s = batch_flows((f_trans, f_rot, f_rot))
+        f_s_g = f_s.vecs.clone().requires_grad_()
         pts = np.stack(([[20, 10], [8, 7], [12, 15]],
                         [[18, 9], [6, 5], [110, 150]],
                         [[6, 5], [110, 150], [18, 9]]), axis=0)
@@ -936,14 +941,14 @@ class TestTrackPts(unittest.TestCase):
                 [11.088456153869629, 16.794227600097656]
             ]
         ]
-        pts_tracked_s = track_pts(f_s.vecs.requires_grad_(), 's', torch.tensor(pts))
+        pts_tracked_s = track_pts(f_s_g, 's', torch.tensor(pts))
         self.assertIsNotNone(pts_tracked_s.grad_fn)
         for i in range(pts_tracked_s.shape[0]):
             self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s[i]), desired_pts[i], rtol=1e-6))
-        pts_tracked_s = track_pts(f_s.vecs.requires_grad_(), 's', torch.tensor(pts)[0:1])
+        pts_tracked_s = track_pts(f_s_g, 's', torch.tensor(pts)[0:1])
         self.assertIsNotNone(pts_tracked_s.grad_fn)
         self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s[0]), desired_pts[0], rtol=1e-6))
-        pts_tracked_s = track_pts(f_s.vecs.requires_grad_(), 's', torch.tensor(pts).to(torch.float))
+        pts_tracked_s = track_pts(f_s_g, 's', torch.tensor(pts).to(torch.float))
         self.assertIsNotNone(pts_tracked_s.grad_fn)
         for i in range(pts_tracked_s.shape[0]):
             self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s[i]), desired_pts[i], rtol=1e-6))
@@ -1026,8 +1031,9 @@ class TestGridFromUnstructuredData(unittest.TestCase):
 
         # Check differentiability
         vecs = flow.vecs
-        vecs_list = [vecs, vecs.requires_grad_(), vecs.requires_grad_()]
-        data_list = [vecs.requires_grad_(), vecs, vecs.requires_grad_()]
+        vecs_g = vecs.clone().requires_grad_()
+        vecs_list = [vecs, vecs_g, vecs_g]
+        data_list = [vecs_g, vecs, vecs_g]
         for v, d in zip(vecs_list, data_list):
             x, y = get_flow_endpoints(v, 's')
             data, mask = grid_from_unstructured_data(x, y, d)
@@ -1056,8 +1062,10 @@ class TestApplySFlow(unittest.TestCase):
         flow._vecs[:, :, 300:] = 0
         flow._vecs[:, :, :, :100] = 0
         flow._vecs[:, :, :, -100:] = 0
-        flow_list = [flow._vecs.requires_grad_(), flow._vecs.requires_grad_(), flow._vecs]
-        img_list = [img, img.requires_grad_(), img.requires_grad_()]
+        vecs_g = flow._vecs.clone().requires_grad_()
+        img_g = img.clone().requires_grad_()
+        flow_list = [vecs_g, vecs_g, flow._vecs]
+        img_list = [img, img_g, img_g]
         for f, i in zip(flow_list, img_list):
             # masked, not occluding zero flow: output should match baseline within mask
             img_w_true, dens_true = apply_s_flow(f, i, flow._mask)
