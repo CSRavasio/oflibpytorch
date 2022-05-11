@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.abspath('../src'))
 # -- Project information -----------------------------------------------------
 
 project = 'oflibpytorch'
-copyright = '2021, Claudio S. Ravasio'
+copyright = '2022, Claudio S. Ravasio'
 author = 'Claudio S. Ravasio'
 
 

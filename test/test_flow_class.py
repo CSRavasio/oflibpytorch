@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright: 2021, Claudio S. Ravasio
+# Copyright: 2022, Claudio S. Ravasio
 # License: MIT (https://opensource.org/licenses/MIT)
 # Author: Claudio S. Ravasio, PhD student at University College London (UCL), research assistant at King's College
 # London (KCL), supervised by:

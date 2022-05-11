@@ -111,7 +111,7 @@ Contribution & Support
 
 License
 -------
-Copyright (c) 2021 Claudio S. Ravasio, PhD student at University College London (UCL), research assistant at King's
+Copyright (c) 2022 Claudio S. Ravasio, PhD student at University College London (UCL), research assistant at King's
 College London (KCL), supervised by:
 
 - Dr Christos Bergeles, PI of the Robotics and Vision in Medicine (RViM) lab in the School of Biomedical Engineering &
