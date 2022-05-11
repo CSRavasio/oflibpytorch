@@ -41,11 +41,12 @@ class TestPurePytorch(unittest.TestCase):
 
 class TestMoveAxis(unittest.TestCase):
     def test_move_axis(self):
-        ip_tensor = torch.tensor(np.ones((1, 2, 3, 4)))
+        ip_tensor = torch.tensor(np.ones((1, 2, 3, 4)), requires_grad=True)
         ip_shape = ip_tensor.shape
         for i in range(4):
             for j in range(4):
                 op_tensor = move_axis(ip_tensor, i, j)
+                self.assertIsNotNone(op_tensor.grad_fn)
                 ip_shape_copy = list(ip_shape)
                 active_dim = ip_shape[i]
                 ip_shape_copy.pop(i)
@@ -55,6 +56,7 @@ class TestMoveAxis(unittest.TestCase):
         for i in range(4):
             for j in range(4):
                 op_tensor = move_axis(ip_tensor, -i - 1, -j - 1)
+                self.assertIsNotNone(op_tensor.grad_fn)
                 ip_shape_copy = list(reversed(ip_shape))
                 active_dim = ip_shape_copy[i]
                 ip_shape_copy.pop(i)
@@ -68,12 +70,15 @@ class TestValidityChecks(unittest.TestCase):
         np_12hw = np.zeros((1, 2, 100, 200))
         np_2hw = np.zeros((2, 100, 200))
         np_hw2 = np.zeros((100, 200, 2))
-        pt_2hw = torch.zeros((2, 100, 200))
-        pt_hw2 = torch.zeros((100, 200, 2))
+        pt_2hw = torch.zeros((2, 100, 200), requires_grad=True)
+        pt_hw2 = torch.zeros((100, 200, 2), requires_grad=True)
         for vecs in [np_2hw, np_hw2, pt_2hw, pt_hw2]:
             for desired_shape in [[100, 200], [1, 100, 200]]:
-                self.assertIsInstance(get_valid_vecs(vecs, desired_shape), torch.Tensor)
-                self.assertIsNone(np.testing.assert_equal(to_numpy(get_valid_vecs(vecs, desired_shape)), np_12hw))
+                v = get_valid_vecs(vecs, desired_shape)
+                self.assertIsInstance(v, torch.Tensor)
+                self.assertIsNone(np.testing.assert_equal(to_numpy(v), np_12hw))
+                if isinstance(vecs, torch.Tensor):
+                    self.assertIsNotNone(v.grad_fn)
             for desired_shape in [[110, 200], [5, 100, 200]]:
                 with self.assertRaises(ValueError):
                     get_valid_vecs(vecs, desired_shape)
@@ -84,8 +89,9 @@ class TestValidityChecks(unittest.TestCase):
         pt_n2hw = torch.zeros((5, 2, 100, 200))
         pt_nhw2 = torch.zeros((5, 100, 200, 2))
         for vecs in [np_n2hw, np_nhw2, pt_n2hw, pt_nhw2]:
-            self.assertIsInstance(get_valid_vecs(vecs, [5, 100, 200]), torch.Tensor)
-            self.assertIsNone(np.testing.assert_equal(to_numpy(get_valid_vecs(vecs, [5, 100, 200])), np_n2hw))
+            v = get_valid_vecs(vecs, [5, 100, 200])
+            self.assertIsInstance(v, torch.Tensor)
+            self.assertIsNone(np.testing.assert_equal(to_numpy(v), np_n2hw))
             for desired_shape in [[110, 200], [100, 200], [1, 100, 200]]:
                 with self.assertRaises(ValueError):
                     get_valid_vecs(vecs, desired_shape)
@@ -145,8 +151,9 @@ class TestValidityChecks(unittest.TestCase):
         pt_hw = torch.zeros((100, 200))
         for mask in [np_hw, pt_hw]:
             for desired_shape in [[100, 200], [1, 100, 200]]:
-                self.assertIsInstance(get_valid_mask(mask, desired_shape), torch.Tensor)
-                self.assertIsNone(np.testing.assert_equal(to_numpy(get_valid_mask(mask, desired_shape)), np_1hw))
+                m = get_valid_mask(mask, desired_shape)
+                self.assertIsInstance(m, torch.Tensor)
+                self.assertIsNone(np.testing.assert_equal(to_numpy(m), np_1hw))
             for desired_shape in [[110, 200], [5, 100, 200]]:
                 with self.assertRaises(ValueError):
                     get_valid_mask(mask, desired_shape)
@@ -207,67 +214,77 @@ class TestFlowFromMatrix(unittest.TestCase):
     def test_identity(self):
         # No transformation, equals passing identity matrix, to 200 by 300 flow field
         shape = [5, 200, 300]
-        matrix = torch.eye(3).unsqueeze(0).repeat(5, 1, 1)
+        matrix = torch.eye(3, requires_grad=True).unsqueeze(0).repeat(5, 1, 1)
         flow = flow_from_matrix(matrix, shape)
         self.assertIsNone(np.testing.assert_equal(to_numpy(flow), 0))
         self.assertIsNone(np.testing.assert_equal(flow.shape[0], shape[0]))
         self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape[1:]))
+        self.assertIsNotNone(flow.grad_fn)
 
     def test_translation(self):
         # Translation of 10 horizontally, 20 vertically, to 200 by 300 flow field
         shape = [1, 200, 300]
-        matrix = torch.tensor([[1, 0, 10], [0, 1, 20], [0, 0, 1]]).unsqueeze(0)
+        matrix = torch.tensor([[1, 0, 10], [0, 1, 20], [0, 0, 1.]], requires_grad=True).unsqueeze(0)
         flow = flow_from_matrix(matrix, shape)
         self.assertIsNone(np.testing.assert_equal(to_numpy(flow[:, 0]), 10))
         self.assertIsNone(np.testing.assert_equal(to_numpy(flow[:, 1]), 20))
         self.assertIsNone(np.testing.assert_equal(flow.shape[0], shape[0]))
         self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape[1:]))
+        self.assertIsNotNone(flow.grad_fn)
 
     def test_rotation(self):
         # Rotation of 30 degrees counter-clockwise, to 200 by 300 flow field
         shape = [1, 200, 300]
-        matrix = torch.tensor([[math.sqrt(3) / 2, .5, 0], [-.5, math.sqrt(3) / 2, 0], [0, 0, 1]]).unsqueeze(0)
+        matrix = torch.tensor([
+            [math.sqrt(3) / 2, .5, 0], [-.5, math.sqrt(3) / 2, 0], [0, 0, 1]
+        ], requires_grad=True).unsqueeze(0)
         flow = flow_from_matrix(matrix, shape)
         self.assertIsNone(np.testing.assert_equal(to_numpy(flow[0, :, 0, 0]), [0, 0]))
         self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 0, 299]), [-40.0584042685, -149.5], rtol=1e-6))
         self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 199, 0]), [99.5, -26.6609446469], rtol=1e-6))
         self.assertIsNone(np.testing.assert_equal(flow.shape[0], shape[0]))
         self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape[1:]))
+        self.assertIsNotNone(flow.grad_fn)
 
     def test_rotation_with_shift(self):
         # Rotation of 30 degrees clockwise around point [10, 50] (hor, ver), to 200 by 300 flow field
         shape = [1, 200, 300]
         matrix = torch.tensor([[math.sqrt(3) / 2, -.5, 26.3397459622],
                                [.5, math.sqrt(3) / 2, 1.69872981078],
-                               [0, 0, 1]]).unsqueeze(0)
+                               [0, 0, 1]], requires_grad=True).unsqueeze(0)
         flow = flow_from_matrix(matrix, shape)
         self.assertIsNone(np.testing.assert_array_almost_equal(to_numpy(flow[0, :, 50, 10]), [0, 0]))
         self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 299]), [-38.7186583063, 144.5], rtol=1e-6))
         self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 199, 10]), [-74.5, -19.9622148361], rtol=1e-6))
         self.assertIsNone(np.testing.assert_equal(flow.shape[0], shape[0]))
         self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape[1:]))
+        self.assertIsNotNone(flow.grad_fn)
 
     def test_scaling(self):
         # Scaling factor 0.8, to 200 by 300 flow field
         shape = [1, 200, 300]
-        matrix = torch.tensor([[.8, 0, 0], [0, .8, 0], [0, 0, 1]]).unsqueeze(0)
+        matrix = torch.tensor([[.8, 0, 0], [0, .8, 0], [0, 0, 1]], requires_grad=True).unsqueeze(0)
         flow = flow_from_matrix(matrix, shape)
         self.assertIsNone(np.testing.assert_equal(to_numpy(flow[0, :, 0, 0]), [0, 0]))
         self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 0, 100]), [-20, 0]))
         self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 100, 0]), [0, -20]))
         self.assertIsNone(np.testing.assert_equal(flow.shape[0], shape[0]))
         self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape[1:]))
+        self.assertIsNotNone(flow.grad_fn)
 
     def test_scaling_with_shift(self):
         # Scaling factor 2 around point [20, 30] (hor, ver), to 200 by 300 flow field
         shape = [2, 200, 300]
-        matrix = torch.stack((torch.eye(3), torch.tensor([[2., 0, -20], [0, 2, -30], [0, 0, 1]])), dim=0)
+        matrix = torch.stack((
+            torch.eye(3, requires_grad=True), torch.tensor([[2., 0, -20], [0, 2, -30], [0, 0, 1]], requires_grad=True)
+        ), dim=0)
         flow = flow_from_matrix(matrix, shape)
         self.assertIsNone(np.testing.assert_array_almost_equal(to_numpy(flow[1, :, 30, 20]), [0, 0]))
         self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[1, :, 30, 70]), [50, 0]))
         self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[1, :, 80, 20]), [0, 50]))
         self.assertIsNone(np.testing.assert_equal(flow.shape[0], shape[0]))
         self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape[1:]))
+        self.assertIsNotNone(flow.grad_fn)
 
     def test_device(self):
         device = ['cpu', 'cuda']
@@ -276,10 +293,11 @@ class TestFlowFromMatrix(unittest.TestCase):
         else:
             expected_device = ['cpu', 'cpu']
         shape = [1, 200, 300]
-        matrix = torch.eye(3).unsqueeze(0)
+        matrix = torch.eye(3, requires_grad=True).unsqueeze(0)
         for dev, expected_dev in zip(device, expected_device):
             flow = flow_from_matrix(matrix.to(dev), shape)
             self.assertEqual(flow.device.type, expected_dev)
+            self.assertIsNotNone(flow.grad_fn)
 
 
 class TestMatrixFromTransforms(unittest.TestCase):
@@ -411,7 +429,7 @@ class TestNormaliseCoords(unittest.TestCase):
                                [-1, 11],
                                [10, 5],
                                [21, 11],
-                               [20, 10]])
+                               [20, 10.]], requires_grad=True)
         shape = (11, 21)
         exp_coords = torch.tensor([[-1, -1],
                                    [-1.1, 1.2],
@@ -421,9 +439,9 @@ class TestNormaliseCoords(unittest.TestCase):
         coord_list = [coords, coords.unsqueeze(0), coords.unsqueeze(0).unsqueeze(0).repeat(4, 3, 1, 1)]
         exp_coord_list = [exp_coords, exp_coords.unsqueeze(0), exp_coords.unsqueeze(0).unsqueeze(0).repeat(4, 3, 1, 1)]
         for c, e_c in zip(coord_list, exp_coord_list):
-            self.assertIsNone(np.testing.assert_allclose(to_numpy(normalise_coords(c, shape)),
-                                                         to_numpy(e_c),
-                                                         rtol=1e-6))
+            n_c = normalise_coords(c, shape)
+            self.assertIsNone(np.testing.assert_allclose(to_numpy(n_c), to_numpy(e_c), rtol=1e-6))
+            self.assertIsNotNone(n_c.grad_fn)
 
         with self.assertRaises(ValueError):
             normalise_coords(coord_list[0], [1, 2, 3])
@@ -432,55 +450,61 @@ class TestNormaliseCoords(unittest.TestCase):
 class TestApplyFlow(unittest.TestCase):
     def test_rotation(self):
         img = cv2.imread('smudge.png')[:, :480]
-        img = torch.tensor(np.moveaxis(img, -1, 0))
+        img = torch.tensor(np.moveaxis(img, -1, 0), dtype=torch.float, requires_grad=True)
         desired_img = img.transpose(1, 2).flip(1)
         for dev in ['cpu', 'cuda']:
             for ref in ['t', 's']:
                 flow = Flow.from_transforms([['rotation', 239.5, 239.5, 90]], img.shape[1:], ref).vecs
                 set_pure_pytorch()
                 warped_img = apply_flow(flow.to(dev), img, ref)
-                self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img), to_numpy(desired_img)))
+                self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img), to_numpy(desired_img), atol=5e-3))
+                self.assertIsNotNone(warped_img.grad_fn)
                 unset_pure_pytorch()
                 warped_img = apply_flow(flow.to(dev), img, ref)
-                self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img), to_numpy(desired_img)))
+                self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img), to_numpy(desired_img), atol=5e-3))
+                self.assertIsNotNone(warped_img.grad_fn) if ref == 't' else self.assertIsNone(warped_img.grad_fn)
 
     def test_translation(self):
         img = cv2.imread('smudge.png')
-        img = cv2.resize(img, None, fx=1, fy=.5)
-        img = torch.tensor(np.moveaxis(img, -1, 0))
+        img = cv2.resize(img, None, fx=0.125, fy=.125)
+        img = torch.tensor(np.moveaxis(img, -1, 0), dtype=torch.float, requires_grad=True)
         for dev in ['cpu', 'cuda']:
             for ref in ['s', 't']:
                 flow = Flow.from_transforms([['translation', 10, -20]], img.shape[1:], ref).vecs
                 set_pure_pytorch()
                 warped_img = apply_flow(flow.to(dev), img, ref)
-                self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img[:, :-20, 10:]),
-                                                          to_numpy(img[:, 20:, :-10])))
+                self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img[:, :-20, 10:]),
+                                                             to_numpy(img[:, 20:, :-10]), atol=5e-3))
+                self.assertIsNotNone(warped_img.grad_fn)
                 unset_pure_pytorch()
                 warped_img = apply_flow(flow.to(dev), img, ref)
-                self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img[:, :-20, 10:]),
-                                                          to_numpy(img[:, 20:, :-10])))
+                self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img[:, :-20, 10:]),
+                                                             to_numpy(img[:, 20:, :-10]), atol=5e-3))
+                self.assertIsNotNone(warped_img.grad_fn) if ref == 't' else self.assertIsNone(warped_img.grad_fn)
 
     def test_2d_target(self):
         img = cv2.imread('smudge.png', 0)
-        img = cv2.resize(img, None, fx=1, fy=.5)
-        img = torch.tensor(img)
+        img = cv2.resize(img, None, fx=0.125, fy=.125)
+        img = torch.tensor(img, dtype=torch.float, requires_grad=True)
         for dev in ['cpu', 'cuda']:
             for ref in ['s', 't']:
                 flow = Flow.from_transforms([['translation', 10, -20]], img.shape, ref).vecs
                 set_pure_pytorch()
                 warped_img = apply_flow(flow.to(dev), img, ref)
-                self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img[:-20, 10:]),
-                                                          to_numpy(img[20:, :-10])))
+                self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img[:-20, 10:]),
+                                                             to_numpy(img[20:, :-10]), atol=5e-3))
+                self.assertIsNotNone(warped_img.grad_fn)
                 unset_pure_pytorch()
                 warped_img = apply_flow(flow.to(dev), img, ref)
-                self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img[:-20, 10:]),
-                                                          to_numpy(img[20:, :-10])))
+                self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img[:-20, 10:]),
+                                                             to_numpy(img[20:, :-10]), atol=5e-3))
+                self.assertIsNotNone(warped_img.grad_fn) if ref == 't' else self.assertIsNone(warped_img.grad_fn)
 
     def test_batch_sizes(self):
         img = cv2.imread('smudge.png')
-        img = cv2.resize(img, None, fx=1, fy=.5)
-        i_chw = torch.tensor(np.moveaxis(img, -1, 0))
-        i_hw = torch.tensor(np.moveaxis(img, -1, 0))[0]
+        img = cv2.resize(img, None, fx=.125, fy=.125)
+        i_chw = torch.tensor(np.moveaxis(img, -1, 0), dtype=torch.float, requires_grad=True)
+        i_hw = i_chw[0]
         i_1chw = i_chw.unsqueeze(0)
         i_11hw = i_1chw[:, 0:1]
         i_nchw = i_1chw.repeat(4, 1, 1, 1)
@@ -493,26 +517,32 @@ class TestApplyFlow(unittest.TestCase):
                 for i in [i_1chw, i_11hw, i_nchw, i_n1hw]:
                     set_pure_pytorch()
                     warped_i = apply_flow(f, i, ref)
+                    self.assertIsNotNone(warped_i.grad_fn)
                     self.assertEqual(warped_i.shape[0], max(f.shape[0], i.shape[0]))
                     for w_ind, i_ind in zip(warped_i, i):
-                        self.assertIsNone(np.testing.assert_equal(to_numpy(w_ind[:-20, 10:]),
-                                                                  to_numpy(i_ind[20:, :-10])))
+                        self.assertIsNone(np.testing.assert_allclose(to_numpy(w_ind[:-20, 10:]),
+                                                                     to_numpy(i_ind[20:, :-10]), atol=5e-3))
                     unset_pure_pytorch()
                     warped_i = apply_flow(f, i, ref)
+                    self.assertIsNotNone(warped_i.grad_fn) if ref == 't' else self.assertIsNone(warped_i.grad_fn)
                     self.assertEqual(warped_i.shape[0], max(f.shape[0], i.shape[0]))
                     for w_ind, i_ind in zip(warped_i, i):
-                        self.assertIsNone(np.testing.assert_equal(to_numpy(w_ind[:-20, 10:]),
-                                                                  to_numpy(i_ind[20:, :-10])))
+                        self.assertIsNone(np.testing.assert_allclose(to_numpy(w_ind[:-20, 10:]),
+                                                                     to_numpy(i_ind[20:, :-10]), atol=5e-3))
         f = Flow.from_transforms([['translation', 10, -20]], img.shape[:2], 't').vecs.repeat(4, 1, 1, 1)
         set_pure_pytorch()
         warped_i = apply_flow(f, i_hw, 't')
+        self.assertIsNotNone(warped_i.grad_fn)
         self.assertEqual(warped_i.shape, (4, i_hw.shape[0], i_hw.shape[1]))
         warped_i = apply_flow(f, i_chw, 't')
+        self.assertIsNotNone(warped_i.grad_fn)
         self.assertEqual(warped_i.shape, (4, 3, i_hw.shape[0], i_hw.shape[1]))
         unset_pure_pytorch()
         warped_i = apply_flow(f, i_hw, 't')
+        self.assertIsNotNone(warped_i.grad_fn)
         self.assertEqual(warped_i.shape, (4, i_hw.shape[0], i_hw.shape[1]))
         warped_i = apply_flow(f, i_chw, 't')
+        self.assertIsNotNone(warped_i.grad_fn)
         self.assertEqual(warped_i.shape, (4, 3, i_hw.shape[0], i_hw.shape[1]))
 
     def test_apply_flow_failed(self):
@@ -535,19 +565,22 @@ class TestApplyFlow(unittest.TestCase):
 
 class TestThresholdVectors(unittest.TestCase):
     def test_threshold(self):
-        vecs = torch.zeros((5, 2, 10, 1))
+        vecs = torch.zeros((5, 2, 10, 1), requires_grad=True)
         vecs[2, 0, 0, 0] = -1e-5
         vecs[2, 0, 1, 0] = 1e-4
         vecs[2, 0, 2, 0] = -1e-3
         vecs[2, 0, 3, 0] = 1
         for use_mag in [True, False]:
             thresholded = threshold_vectors(vecs, threshold=1e-3, use_mag=use_mag)
+            self.assertIsNotNone(thresholded.grad_fn)
             thresholded = to_numpy(thresholded[2, 0, :4, 0])
             self.assertIsNone(np.testing.assert_allclose(thresholded, [0, 0, -1e-3, 1]))
             thresholded = threshold_vectors(vecs, threshold=1e-4, use_mag=use_mag)
+            self.assertIsNotNone(thresholded.grad_fn)
             thresholded = to_numpy(thresholded[2, 0, :4, 0])
             self.assertIsNone(np.testing.assert_allclose(thresholded, [0, 1e-4, -1e-3, 1]))
             thresholded = threshold_vectors(vecs, threshold=1e-5, use_mag=use_mag)
+            self.assertIsNotNone(thresholded.grad_fn)
             thresholded = to_numpy(thresholded[2, 0, :4, 0])
             self.assertIsNone(np.testing.assert_allclose(thresholded, [-1e-5, 1e-4, -1e-3, 1]))
 
@@ -561,7 +594,31 @@ class TestFromMatrix(unittest.TestCase):
                            [.5, math.sqrt(3) / 2, 1.69872981078],
                            [0, 0, 1]])
         shape = [200, 300]
+        set_pure_pytorch()
         flow = from_matrix(matrix, shape, 't')
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 10]), [0, 0], atol=1e-4))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 299]), [38.7186583063, 144.5], rtol=1e-4))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 199, 10]), [-74.5, 19.9622148361], rtol=1e-4))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[0], 1))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape))
+        matrix = torch.tensor(matrix, requires_grad=True)
+        flow = from_matrix(matrix, shape, 't')
+        self.assertIsNotNone(flow.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 10]), [0, 0], atol=1e-4))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 299]), [38.7186583063, 144.5], rtol=1e-4))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 199, 10]), [-74.5, 19.9622148361], rtol=1e-4))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[0], 1))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape))
+        unset_pure_pytorch()
+        flow = from_matrix(matrix, shape, 't')
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 10]), [0, 0], atol=1e-4))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 299]), [38.7186583063, 144.5], rtol=1e-4))
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 199, 10]), [-74.5, 19.9622148361], rtol=1e-4))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[0], 1))
+        self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape))
+        matrix = torch.tensor(matrix, requires_grad=True)
+        flow = from_matrix(matrix, shape, 't')
+        self.assertIsNotNone(flow.grad_fn)
         self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 10]), [0, 0], atol=1e-4))
         self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 299]), [38.7186583063, 144.5], rtol=1e-4))
         self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 199, 10]), [-74.5, 19.9622148361], rtol=1e-4))
@@ -569,10 +626,14 @@ class TestFromMatrix(unittest.TestCase):
         self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape))
 
         # With and without inverse matrix for ref 't'
-        matrix = np.array([[1, 0, 10], [0, 1, 20], [0, 0, 1]])
-        inv_matrix = np.array([[1, 0, -10], [0, 1, -20], [0, 0, 1]])
-        vecs = to_numpy(from_matrix(matrix, shape, ref='t', matrix_is_inverse=False), switch_channels=True)
-        inv_vecs = to_numpy(from_matrix(inv_matrix, shape, ref='t', matrix_is_inverse=True), switch_channels=True)
+        matrix = torch.tensor([[1., 0, 10], [0, 1, 20], [0, 0, 1]], requires_grad=True)
+        inv_matrix = torch.tensor([[1., 0, -10], [0, 1, -20], [0, 0, 1]], requires_grad=True)
+        v = from_matrix(matrix, shape, ref='t', matrix_is_inverse=False)
+        self.assertIsNotNone(v.grad_fn)
+        vecs = to_numpy(v, switch_channels=True)
+        v = from_matrix(inv_matrix, shape, ref='t', matrix_is_inverse=True)
+        self.assertIsNotNone(v.grad_fn)
+        inv_vecs = to_numpy(v, switch_channels=True)
         self.assertIsNone(np.testing.assert_allclose(vecs, inv_vecs, rtol=1e-3))
 
     def test_failed_from_matrix(self):
@@ -707,12 +768,13 @@ class TestResizeFlow(unittest.TestCase):
     def test_resize(self):
         shape = [20, 10]
         ref = 's'
-        flow = Flow.from_transforms([['rotation', 30, 50, 30]], shape, ref).vecs
+        flow = Flow.from_transforms([['rotation', 30, 50, 30]], shape, ref).vecs.requires_grad_()
         for f in [flow, flow.squeeze(0)]:
             # Different scales
             scales = [.2, .5, 1, 1.5, 2, 10]
             for scale in scales:
                 resized_flow = resize_flow(f, scale)
+                self.assertIsNotNone(resized_flow.grad_fn)
                 resized_shape = scale * np.array(f.shape[-2:])
                 self.assertIsNone(np.testing.assert_equal(resized_flow.shape[-2:], resized_shape))
                 self.assertIsNone(np.testing.assert_allclose(to_numpy(resized_flow[..., 0, 0]),
@@ -722,6 +784,7 @@ class TestResizeFlow(unittest.TestCase):
             # Scale list
             scale = [.5, 2]
             resized_flow = resize_flow(f, scale)
+            self.assertIsNotNone(resized_flow.grad_fn)
             resized_shape = np.array(scale) * np.array(f.shape[-2:])
             self.assertIsNone(np.testing.assert_equal(resized_flow.shape[-2:], resized_shape))
             self.assertIsNone(np.testing.assert_allclose(to_numpy(resized_flow[..., 0, 0]),
@@ -731,6 +794,7 @@ class TestResizeFlow(unittest.TestCase):
             # Scale tuple
             scale = (2, .5)
             resized_flow = resize_flow(f, scale)
+            self.assertIsNotNone(resized_flow.grad_fn)
             resized_shape = np.array(scale) * np.array(f.shape[-2:])
             self.assertIsNone(np.testing.assert_equal(resized_flow.shape[-2:], resized_shape))
             self.assertIsNone(np.testing.assert_allclose(to_numpy(resized_flow[..., 0, 0]),
@@ -741,9 +805,11 @@ class TestResizeFlow(unittest.TestCase):
         # Check scaling is performed correctly based on the actual flow field
         ref = 't'
         flow_small = Flow.from_transforms([['rotation', 0, 0, 30]], (50, 80), ref).vecs_numpy
-        flow_large = Flow.from_transforms([['rotation', 0, 0, 30]], (150, 240), ref).vecs
-        flow_resized = to_numpy(resize_flow(flow_large, 1 / 3), switch_channels=True)
-        self.assertIsNone(np.testing.assert_allclose(flow_resized, flow_small, atol=1, rtol=.1))
+        flow_large = Flow.from_transforms([['rotation', 0, 0, 30]], (150, 240), ref).vecs.requires_grad_()
+        flow_resized = resize_flow(flow_large, 1 / 3)
+        self.assertIsNotNone(flow_resized.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow_resized, switch_channels=True),
+                                                     flow_small, atol=1, rtol=.1))
 
     def test_failed_resize(self):
         flow = Flow.from_transforms([['rotation', 30, 50, 30]], [20, 10], 's').vecs
@@ -795,15 +861,28 @@ class TestTrackPts(unittest.TestCase):
             [20.5, 10.5],
             [8.3, 7.2],
             [120.4, 160.2]
-        ])
+        ], requires_grad=True)
         desired_pts = [
             [12.5035207776, 19.343266740],
             [3.58801085141, 10.385382907],
             [24.1694586156, 198.93726969]
         ]
+        # Gradient propagation when flow / points / both require grad
+        p = torch.tensor([[20.5, 10.5]])
+        tracked_list = [
+            track_pts(f_s, 's', p.requires_grad_()),
+            track_pts(f_s.requires_grad_(), 's', p),
+            track_pts(f_s.requires_grad_(), 's', p.requires_grad_()),
+            track_pts(f_t, 't', p.requires_grad_()),
+            track_pts(f_t.requires_grad_(), 't', p),
+            track_pts(f_t.requires_grad_(), 't', p.requires_grad_()),
+        ]
+        for tracked in tracked_list:
+            self.assertIsNotNone(tracked.grad_fn)
 
         # Reference 's'
         pts_tracked_s = track_pts(f_s, 's', pts)
+        self.assertIsNotNone(pts_tracked_s.grad_fn)
         self.assertIsInstance(pts_tracked_s, torch.Tensor)
         self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s), desired_pts, rtol=1e-6))
         pts_tracked_s = track_pts(f_s, 's', pts.unsqueeze(0))
@@ -813,11 +892,13 @@ class TestTrackPts(unittest.TestCase):
         set_pure_pytorch()
         # Reference 't'
         pts_tracked_t = track_pts(f_t, 't', pts)
+        self.assertIsNotNone(pts_tracked_s.grad_fn)
         self.assertIsInstance(pts_tracked_t, torch.Tensor)
         self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_t), desired_pts, rtol=5e-3))
 
         # Reference 't', integer output
         pts_tracked_t = track_pts(f_t, 't', pts, int_out=True)
+        self.assertIsNotNone(pts_tracked_s.grad_fn)
         self.assertIsInstance(pts_tracked_t, torch.Tensor)
         self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_t), np.round(desired_pts), atol=1))
         self.assertEqual(pts_tracked_t.dtype, torch.long)
@@ -835,6 +916,7 @@ class TestTrackPts(unittest.TestCase):
         self.assertEqual(pts_tracked_t.dtype, torch.long)
 
         # Test tracking for 's' flow and int pts, also batched points on batched flows
+        set_pure_pytorch()
         f_trans = Flow.from_transforms([['translation', 10, 20]], (200, 210), 's')
         f_rot = Flow.from_transforms([['rotation', 0, 0, 30]], (200, 210), 's')
         f_s = batch_flows((f_trans, f_rot, f_rot))
@@ -854,31 +936,37 @@ class TestTrackPts(unittest.TestCase):
                 [11.088456153869629, 16.794227600097656]
             ]
         ]
-        pts_tracked_s = track_pts(f_s.vecs, 's', torch.tensor(pts))
+        pts_tracked_s = track_pts(f_s.vecs.requires_grad_(), 's', torch.tensor(pts))
+        self.assertIsNotNone(pts_tracked_s.grad_fn)
         for i in range(pts_tracked_s.shape[0]):
             self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s[i]), desired_pts[i], rtol=1e-6))
-        pts_tracked_s = track_pts(f_s.vecs, 's', torch.tensor(pts)[0:1])
+        pts_tracked_s = track_pts(f_s.vecs.requires_grad_(), 's', torch.tensor(pts)[0:1])
+        self.assertIsNotNone(pts_tracked_s.grad_fn)
         self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s[0]), desired_pts[0], rtol=1e-6))
-        pts_tracked_s = track_pts(f_s.vecs, 's', torch.tensor(pts).to(torch.float))
+        pts_tracked_s = track_pts(f_s.vecs.requires_grad_(), 's', torch.tensor(pts).to(torch.float))
+        self.assertIsNotNone(pts_tracked_s.grad_fn)
         for i in range(pts_tracked_s.shape[0]):
             self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s[i]), desired_pts[i], rtol=1e-6))
         f_trans = Flow.from_transforms([['translation', 10, 20]], (200, 210), 't')
         f_rot = Flow.from_transforms([['rotation', 0, 0, 30]], (200, 210), 't')
         f_t = batch_flows((f_trans, f_rot, f_rot))
-        pts_tracked_t = track_pts(f_t.vecs, 't', torch.tensor(pts).to(torch.float))
+        pts_tracked_t = track_pts(f_t.vecs.requires_grad_(), 't', torch.tensor(pts).to(torch.float))
+        self.assertIsNotNone(pts_tracked_t.grad_fn)
         for i in range(pts_tracked_t.shape[0]):
             self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_s[i]), desired_pts[i], rtol=1e-6))
 
     def test_device_track_pts(self):
         for d1 in ['cpu', 'cuda']:
             for d2 in ['cpu', 'cuda']:
-                f = Flow.from_transforms([['translation', 10, 20]], (512, 512), 's', device=d1).vecs
+                f = Flow.from_transforms([['translation', 10, 20]], (512, 512), 's', device=d1).vecs.requires_grad_()
                 pts = torch.tensor([[20, 10], [8, 7]]).to(d2)
                 set_pure_pytorch()
                 pts_tracked = track_pts(f, 's', pts)
+                self.assertIsNotNone(pts_tracked.grad_fn)
                 self.assertEqual(pts_tracked.device, f.device)
                 unset_pure_pytorch()
                 pts_tracked = track_pts(f, 's', pts)
+                self.assertIsNotNone(pts_tracked.grad_fn)
                 self.assertEqual(pts_tracked.device, f.device)
 
     def test_failed_track_pts(self):
@@ -900,14 +988,18 @@ class TestGetFlowEndpoints(unittest.TestCase):
     def test_get_flow_endpoints(self):
         # ref 's'
         flow = Flow.from_transforms([['translation', -2, 2]], (6, 6), 's')
-        x, y = get_flow_endpoints(flow.vecs, 's')
+        x, y = get_flow_endpoints(flow.vecs.requires_grad_(), 's')
+        self.assertIsNotNone(x.grad_fn)
+        self.assertIsNotNone(y.grad_fn)
         self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, 0]), [-2, -1, 0, 1, 2, 3]))
         self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, :, 0]), [-2, -2, -2, -2, -2, -2]))
         self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, 0]), [2, 2, 2, 2, 2, 2]))
         self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, :, 0]), [2, 3, 4, 5, 6, 7]))
         # ref 't'
         flow = Flow.from_transforms([['translation', -2, 2]], (6, 6), 't')
-        x, y = get_flow_endpoints(flow.vecs, 't')
+        x, y = get_flow_endpoints(flow.vecs.requires_grad_(), 't')
+        self.assertIsNotNone(x.grad_fn)
+        self.assertIsNotNone(y.grad_fn)
         self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, 0]), [2, 3, 4, 5, 6, 7]))
         self.assertIsNone(np.testing.assert_equal(to_numpy(x[0, :, 0]), [2, 2, 2, 2, 2, 2]))
         self.assertIsNone(np.testing.assert_equal(to_numpy(y[0, 0]), [-2, -2, -2, -2, -2, -2]))
@@ -918,16 +1010,29 @@ class TestGridFromUnstructuredData(unittest.TestCase):
     def test_grid_from_unstructured_data(self):
         flow = Flow.from_transforms([['rotation', 50, 75, -20]], (100, 150), ref='s')
         flow = batch_flows((flow, flow))
+        vecs = flow.vecs.requires_grad_()
         flow_rev = Flow.from_transforms([['rotation', 50, 75, 20]], (100, 150), ref='s')
         flow_rev = batch_flows((flow_rev, flow_rev))
-        x, y = get_flow_endpoints(flow.vecs, flow.ref)
-        data, mask = grid_from_unstructured_data(x, y, flow.vecs)
+        x, y = get_flow_endpoints(vecs, flow.ref)
+        data, mask = grid_from_unstructured_data(x, y, vecs)
+        self.assertIsNotNone(data.grad_fn)
+        self.assertIsNotNone(mask.grad_fn)
         flow_approx = Flow(-data, flow.ref)
         mask = to_numpy(mask.squeeze(1) > 0.95)
         self.assertIsNone(np.testing.assert_allclose(flow_rev.vecs_numpy[mask],
                                                      flow_approx.vecs_numpy[mask],
                                                      atol=5e-2))
         self.assertEqual(np.count_nonzero(mask), 24664)
+
+        # Check differentiability
+        vecs = flow.vecs
+        vecs_list = [vecs, vecs.requires_grad_(), vecs.requires_grad_()]
+        data_list = [vecs.requires_grad_(), vecs, vecs.requires_grad_()]
+        for v, d in zip(vecs_list, data_list):
+            x, y = get_flow_endpoints(v, 's')
+            data, mask = grid_from_unstructured_data(x, y, d)
+            self.assertIsNotNone(data.grad_fn)
+            self.assertIsNotNone(mask.grad_fn)
 
 
 class TestApplySFlow(unittest.TestCase):
@@ -946,69 +1051,78 @@ class TestApplySFlow(unittest.TestCase):
         mask[:, 300:, :250] = False
         mask[:, :300, 250:] = False
         flow_base = Flow.from_transforms([['scaling', 256, 240, 1.3]], shape, 't')
-        img_base = flow_base.apply(img)
+        img_base = to_numpy(flow_base.apply(img))
         flow = Flow.from_transforms([['scaling', 256, 240, 1.3]], shape, 's', mask)
         flow._vecs[:, :, 300:] = 0
         flow._vecs[:, :, :, :100] = 0
         flow._vecs[:, :, :, -100:] = 0
+        flow_list = [flow._vecs.requires_grad_(), flow._vecs.requires_grad_(), flow._vecs]
+        img_list = [img, img.requires_grad_(), img.requires_grad_()]
+        for f, i in zip(flow_list, img_list):
+            # masked, not occluding zero flow: output should match baseline within mask
+            img_w_true, dens_true = apply_s_flow(f, i, flow._mask)
+            self.assertIsNotNone(img_w_true.grad_fn)
+            mask = np.zeros(shape, np.bool)
+            mask[100-42:300+18, 100-47:250-2] = True
+            mask[300:-100, 250:-100] = True
+            # Check the mask from density matches what it should be
+            self.assertEqual(np.count_nonzero(dens_true*255 - mask*255), 0)
+            mask[300:] = False
+            n = np.count_nonzero(mask) * 3
+            # Check the warped area matches approximately
+            img_w_true = to_numpy(img_w_true)
+            self.assertGreater(np.count_nonzero(np.abs(img_w_true[0, :, mask] - img_base[0, :, mask]) < 1) / n, 0.55)
+            self.assertGreater(np.count_nonzero(np.abs(img_w_true[0, :, mask] - img_base[0, :, mask]) < 5) / n, 0.9)
+            self.assertGreater(np.count_nonzero(np.abs(img_w_true[0, :, mask] - img_base[0, :, mask]) < 10) / n, 0.98)
+            # Means: >55% of image pixels (and channel elements) within 1, >90% within 5, >98% within 10
+            # Check the non-warped area matches exactly
+            mask2 = np.zeros(shape, np.bool)
+            mask2[300:-100, 250:-100] = True
+            self.assertIsNone(np.testing.assert_equal(img_w_true[0, :, mask2], to_numpy(img)[0, :, mask2]))
 
-        # masked, not occluding zero flow: output should match baseline within mask
-        img_w_true, dens_true = apply_s_flow(flow._vecs, img, flow._mask)
-        mask = np.zeros(shape, np.bool)
-        mask[100-42:300+18, 100-47:250-2] = True
-        mask[300:-100, 250:-100] = True
-        # Check the mask from density matches what it should be
-        self.assertEqual(np.count_nonzero(dens_true*255 - mask*255), 0)
-        mask[300:] = False
-        n = np.count_nonzero(mask) * 3
-        # Check the warped area matches approximately
-        self.assertGreater(np.count_nonzero(np.abs(img_w_true[0, :, mask] - img_base[0, :, mask]) < 1) / n, 0.55)
-        self.assertGreater(np.count_nonzero(np.abs(img_w_true[0, :, mask] - img_base[0, :, mask]) < 5) / n, 0.9)
-        self.assertGreater(np.count_nonzero(np.abs(img_w_true[0, :, mask] - img_base[0, :, mask]) < 10) / n, 0.98)
-        # Means: >55% of image pixels (and channel elements) within 1, >90% within 5, >98% within 10
-        # Check the non-warped area matches exactly
-        mask2 = np.zeros(shape, np.bool)
-        mask2[300:-100, 250:-100] = True
-        self.assertIsNone(np.testing.assert_equal(to_numpy(img_w_true[0, :, mask2]), to_numpy(img[0, :, mask2])))
+            # masked, occluding zero flow: output should be the same as before
+            img_w_true2, dens_true2 = apply_s_flow(f, i, flow._mask, occlude_zero_flow=True)
+            self.assertIsNotNone(img_w_true2.grad_fn)
+            self.assertIsNone(np.testing.assert_equal(img_w_true, to_numpy(img_w_true2)))
+            dens_true[0, 300:-100, 250:-100] = False
+            self.assertIsNone(np.testing.assert_equal(dens_true, to_numpy(dens_true2)))
 
-        # masked, occluding zero flow: output should be the same as before
-        img_w_true2, dens_true2 = apply_s_flow(flow._vecs, img, flow._mask, occlude_zero_flow=True)
-        self.assertIsNone(np.testing.assert_equal(to_numpy(img_w_true), to_numpy(img_w_true2)))
-        dens_true[0, 300:-100, 250:-100] = False
-        self.assertIsNone(np.testing.assert_equal(to_numpy(dens_true), to_numpy(dens_true2)))
+            # not masked, not occluding zero flow: output should match baseline within mask
+            img_w_false, dens_false = apply_s_flow(f, i)
+            self.assertIsNotNone(img_w_false.grad_fn)
+            # Check the mask from density matches what it should be
+            self.assertEqual(np.count_nonzero(dens_false*255 - 255), 0)
+            mask = np.zeros(shape, np.bool)
+            mask[100:300, 100:-100] = True
+            n = np.count_nonzero(mask) * 3
+            # Check the warped area matches approximately
+            img_w_false = to_numpy(img_w_false)
+            self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 1) / n, 0.65)
+            self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 5) / n, 0.94)
+            self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 10) / n, 0.98)
+            # Means: >65% of image pixels (and channel elements) within 1, >94% within 5, >98% within 10
+            # Check the non-warped area matches exactly
+            mask2 = np.ones(shape, np.bool)
+            mask2[:300+18, 100-47:-100+47] = False
+            self.assertIsNone(np.testing.assert_equal(img_w_false[0, :, mask2], to_numpy(img)[0, :, mask2]))
 
-        # not masked, not occluding zero flow: output should match baseline within mask
-        img_w_false, dens_false = apply_s_flow(flow._vecs, img)
-        # Check the mask from density matches what it should be
-        self.assertEqual(np.count_nonzero(dens_false*255 - 255), 0)
-        mask = np.zeros(shape, np.bool)
-        mask[100:300, 100:-100] = True
-        n = np.count_nonzero(mask) * 3
-        # Check the warped area matches approximately
-        self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 1) / n, 0.65)
-        self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 5) / n, 0.94)
-        self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 10) / n, 0.98)
-        # Means: >65% of image pixels (and channel elements) within 1, >94% within 5, >98% within 10
-        # Check the non-warped area matches exactly
-        mask2 = np.ones(shape, np.bool)
-        mask2[:300+18, 100-47:-100+47] = False
-        self.assertIsNone(np.testing.assert_equal(to_numpy(img_w_false[0, :, mask2]), to_numpy(img[0, :, mask2])))
-
-        # not masked, occluding zero flow: output should match baseline within mask
-        img_w_false, dens_false = apply_s_flow(flow._vecs, img, occlude_zero_flow=True)
-        mask = np.zeros(shape, np.bool)
-        mask[:300+18, 100-47:-100+47] = True
-        mask[240, 256] = False
-        # Check the mask from density matches what it should be
-        self.assertEqual(np.count_nonzero(dens_false*255 - mask*255), 0)
-        n = np.count_nonzero(mask) * 3
-        # Check the warped area matches approximately
-        self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 1) / n, 0.65)
-        self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 5) / n, 0.95)
-        self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 10) / n, 0.99)
-        # Means: >65% of image pixels (and channel elements) within 1, >95% within 5, >99% within 10
-        # Check the non-warped area matches exactly
-        self.assertIsNone(np.testing.assert_equal(to_numpy(img_w_false[0, :, ~mask]), to_numpy(img[0, :, ~mask])))
+            # not masked, occluding zero flow: output should match baseline within mask
+            img_w_false, dens_false = apply_s_flow(f, i, occlude_zero_flow=True)
+            self.assertIsNotNone(img_w_false.grad_fn)
+            mask = np.zeros(shape, np.bool)
+            mask[:300+18, 100-47:-100+47] = True
+            mask[240, 256] = False
+            # Check the mask from density matches what it should be
+            self.assertEqual(np.count_nonzero(dens_false*255 - mask*255), 0)
+            n = np.count_nonzero(mask) * 3
+            # Check the warped area matches approximately
+            img_w_false = to_numpy(img_w_false)
+            self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 1) / n, 0.65)
+            self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 5) / n, 0.95)
+            self.assertGreater(np.count_nonzero(np.abs(img_w_false[0, :, mask] - img_base[0, :, mask]) < 10) / n, 0.99)
+            # Means: >65% of image pixels (and channel elements) within 1, >95% within 5, >99% within 10
+            # Check the non-warped area matches exactly
+            self.assertIsNone(np.testing.assert_equal(img_w_false[0, :, ~mask], to_numpy(img)[0, :, ~mask]))
 
 
 if __name__ == '__main__':

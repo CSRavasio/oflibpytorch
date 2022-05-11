@@ -61,7 +61,8 @@ def unset_pure_pytorch(warn: bool = None):
 
 
 def get_valid_vecs(vecs: Any, desired_shape: Union[tuple, list] = None, error_string: str = None) -> torch.Tensor:
-    """Checks array or tensor input for validity and returns N-2-H-W tensor of dtype float for use as flow vectors
+    """Checks array or tensor input for validity and returns N-2-H-W tensor of dtype float for use as flow vectors.
+    Output vectors fully differentiable wrt input vectors
 
     :param vecs: Valid if numpy array or torch tensor, either shape (N-)2-H-W (assumed first) or (N-)H-W-2
     :param desired_shape: List or tuple of ((N, )H, W) the input vecs should be compared about. If no batch dimension
@@ -222,7 +223,7 @@ def get_valid_padding(padding: Any, error_string: str = None) -> list:
 
 
 def move_axis(input_tensor: torch.Tensor, source: int, destination: int) -> torch.Tensor:
-    """Helper function to imitate np.moveaxis
+    """Helper function to imitate np.moveaxis. Output fully differentiable wrt input tensor
 
     :param input_tensor: Input torch tensor, e.g. N-H-W-C
     :param source: Source position of the dimension to be moved, e.g. -1
@@ -321,7 +322,7 @@ def show_masked_image(img: Union[torch.Tensor, np.ndarray], mask: Union[torch.Te
 
 
 def flow_from_matrix(matrix: torch.Tensor, shape: list) -> torch.Tensor:
-    """Flow calculated from a transformation matrix
+    """Flow calculated from a transformation matrix. Output flow fully differentiable wrt input matrix
 
     NOTE: This corresponds to a flow with reference 's': based on meshgrid in image 1, warped to image 2, flow vectors
       at each meshgrid point in image 1 corresponding to (warped end points in image 2 - start points in image 1)
@@ -426,7 +427,7 @@ def reverse_transform_values(transform_list: list) -> list:
 
 
 def normalise_coords(coords: torch.Tensor, shape: Union[tuple, list]) -> torch.Tensor:
-    """Normalise actual coordinates to [-1, 1]
+    """Normalise actual coordinates to [-1, 1]. Output coordinates fully differentiable wrt input coordinates
 
     Coordinate locations start "mid-pixel" and end "mid-pixel" (pixel box model):
         Pixels | 0 | 1 | 2 |
@@ -456,6 +457,12 @@ def apply_flow(
 ) -> torch.Tensor:
     """Uses a given flow to warp a target. The flow reference, if not given, is assumed to be ``t``. Optionally, a mask
     can be passed which (only for flows in ``s`` reference) masks undesired (e.g. undefined or invalid) flow vectors.
+
+    If `PURE_PYTORCH` is set to `True` (default, see also :meth:`~oflibpytorch.set_pure_pytorch`), the output is fully
+    differentiable with respect to the input :attr:`flow` and :attr:`target`. If `PURE_PYTORCH` is `False` (see also
+    :meth:`~oflibpytorch.unset_pure_pytorch`) and :attr:`ref` is ``s``, the more accurate function
+    :func:`scipy.interpolate.griddata` is used. This is not only significantly slower, but also means the output does
+    not have a `grad_fn` and is therefore not differentiable in the PyTorch context.
 
     :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)`, :math:`(H, W, 2)`,
         :math:`(N, 2, H, W)`, or :math:`(N, H, W, 2)`
@@ -597,7 +604,8 @@ def apply_flow(
 
 
 def threshold_vectors(vecs: torch.Tensor, threshold: Union[float, int] = None, use_mag: bool = None) -> torch.Tensor:
-    """Sets all flow vectors with a magnitude below threshold to zero
+    """Sets all flow vectors with a magnitude below threshold to zero. Output flow vectors are fully differentiable
+    wrt input flow vectors
 
     :param vecs: Input flow torch tensor, shape N-2-H-W
     :param threshold: Threshold value as float or int, defaults to DEFAULT_THRESHOLD (top of file)
@@ -623,7 +631,8 @@ def from_matrix(
     ref: str = None,
     matrix_is_inverse: bool = None
 ) -> torch.Tensor:
-    """Flow vectors calculated from a transformation matrix input
+    """Flow vectors calculated from a transformation matrix input. The output flow vectors are fully differentiable
+    with respect to the input matrix, if given as a torch tensor
 
     :param matrix: Transformation matrix to be turned into a flow field, as numpy array or torch tensor of
         shape :math:`(3, 3)` or :math:`(N, 3, 3)`
@@ -836,7 +845,8 @@ def load_sintel_mask(path: str) -> torch.Tensor:
 
 
 def resize_flow(flow: Union[np.ndarray, torch.Tensor], scale: Union[float, int, list, tuple]) -> torch.Tensor:
-    """Resize a flow field numpy array or torch tensor, scaling the flow vectors values accordingly
+    """Resize a flow field numpy array or torch tensor, scaling the flow vectors values accordingly. The output flow
+    field is fully differentiable with respect to the input flow field, if given as a torch tensor
 
     :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)`, :math:`(H, W, 2)`,
         :math:`(N, 2, H, W)`, or :math:`(N, H, W, 2)`
@@ -902,11 +912,13 @@ def track_pts(
     pts: torch.Tensor,
     int_out: bool = None
 ) -> torch.Tensor:
-    """Warp input points with a flow field, returning the warped point coordinates as integers if required
+    """Warp input points with a flow field, returning the warped point coordinates as integers if required.
 
-    .. tip::
-        Calling :meth:`~oflibpytorch.track_pts` on a flow field with reference ``s`` ("source") is
-        significantly faster, as this does not require a call to :func:`scipy.interpolate.griddata`.
+    If `PURE_PYTORCH` is set to `True` (default, see also :meth:`~oflibpytorch.set_pure_pytorch`), the output is fully
+    differentiable with respect to the input :attr:`flow` and :attr:`pts`. If `PURE_PYTORCH` is `False` (see also
+    :meth:`~oflibpytorch.unset_pure_pytorch`) and :attr:`ref` is ``t``, the more accurate function
+    :func:`scipy.interpolate.griddata` is used. This is not only significantly slower, but also means the output does
+    not have a `grad_fn` and is therefore not differentiable in the PyTorch context.
 
     :param flow: Flow field as a numpy array or torch tensor, shape :math:`(2, H, W)`, :math:`(H, W, 2)`,
         :math:`(N, 2, H, W)`, or :math:`(N, H, W, 2)`
@@ -1000,7 +1012,7 @@ def track_pts(
 
 def get_flow_endpoints(flow: torch.Tensor, ref: str) -> tuple:
     """Calculates the endpoint (or strictly speaking start points if ref 't') coordinate grids x, y for a given
-    flow field
+    flow field. The output coordinate grids are fully differentiable wrt the input flow field
 
     :param flow: Flow field of shape N2HW
     :param ref: Flow reference, 's' or 't'
@@ -1026,9 +1038,12 @@ def grid_from_unstructured_data(
         - The code implementation is a heavily reworked version of code suggested by Markus Hofinger in private
         correspondence, a version of which he first used in: Hofinger, M., Bulò, S. R., Porzi, L., Knapitsch, A.,
         Pock, T., & Kontschieder, P., "Improving optical flow on a pyramid level". ECCV 2020
-        - Markus Hofinger in turn credits the function _flow2distribution from the HD3 code base, used in: Yin, Z.,
-        Darrell, T., & Yu, F., "Hierarchical discrete distribution decomposition for match density estimation",
-        CAPER 2019
+        - Markus Hofinger in turn credits the function _flow2distribution from the HD3 code base as inspiration,
+        used in: Yin, Z., Darrell, T., & Yu, F., "Hierarchical discrete distribution decomposition for match density
+        estimation", CAPER 2019
+
+    The interpolated data as well as the interpolation density outputs are fully differentiable with respect to the
+    input data position grids and the data itself.
 
     :param x: Horizontal data position grid, shape N1HW
     :param y: Vertical data position grid, shape N1HW
@@ -1110,7 +1125,7 @@ def apply_s_flow(
     mask: torch.Tensor = None,
     occlude_zero_flow: bool = None
 ) -> torch.Tensor:
-    """Warp data with 's' reference flow
+    """Warp data with 's' reference flow. The warped data output is fully differentiable wrt input flow and input data
 
     :param flow: Float tensor of shape N2HW, the input flow with reference 's'
     :param data: Float tensor of shape NCHW, the data to be warped
