@@ -26,11 +26,11 @@ from src.oflibpytorch.utils import to_numpy, matrix_from_transforms, \
 
 class TestFlowOperations(unittest.TestCase):
     def test_combine_flows(self):
-        img = cv2.imread('smudge.png')
+        img = cv2.resize(cv2.imread('smudge.png'), None, fx=.125, fy=.125)
         shape = img.shape[:2]
         transforms = [
-            ['rotation', 255.5, 255.5, -30],
-            ['scaling', 100, 100, 0.8],
+            ['rotation', 30, 40, -30],
+            ['scaling', 10, 10, 0.8],
         ]
         for f in [set_pure_pytorch, unset_pure_pytorch]:
             f()
@@ -39,9 +39,15 @@ class TestFlowOperations(unittest.TestCase):
                 f1 = Flow.from_transforms(transforms[0:1], shape, ref)
                 f2 = Flow.from_transforms(transforms[1:2], shape, ref)
                 f3 = Flow.from_transforms(transforms, shape, ref)
+                f1.vecs.requires_grad_()
+                f2.vecs.requires_grad_()
+                f3.vecs.requires_grad_()
 
                 # Mode 1
                 f1_actual_f = combine_flows(f2, f3, 1)
+                if get_pure_pytorch():
+                    f1_g = combine_flows(f2.vecs, f3.vecs, 1, ref)
+                    self.assertIsNotNone(f1_g.grad_fn)
                 f1_actual = combine_flows(f2.vecs_numpy, f3.vecs, 1, ref)
                 # Uncomment the following two lines to see / check the flow fields
                 # f1.show(500, show_mask=True, show_mask_borders=True)
@@ -57,6 +63,9 @@ class TestFlowOperations(unittest.TestCase):
 
                 # Mode 2
                 f2_actual_f = combine_flows(f1, f3, 2)
+                if get_pure_pytorch():
+                    f2_g = combine_flows(f1.vecs, f3.vecs, 2, ref)
+                    self.assertIsNotNone(f2_g.grad_fn)
                 f2_actual = combine_flows(f1.vecs, f3.vecs_numpy, 2, ref)
                 # Uncomment the following two lines to see / check the flow fields
                 # f2.show(500, show_mask=True, show_mask_borders=True)
@@ -72,6 +81,9 @@ class TestFlowOperations(unittest.TestCase):
 
                 # Mode 3
                 f3_actual_f = combine_flows(f1, f2, 3)
+                if get_pure_pytorch():
+                    f3_g = combine_flows(f1.vecs, f2.vecs, 3, ref)
+                    self.assertIsNotNone(f3_g.grad_fn)
                 f3_actual = combine_flows(torch.tensor(f1.vecs_numpy), to_numpy(f2.vecs), 3, ref)
                 # Uncomment the following two lines to see / check the flow fields
                 # f3.show(500, show_mask=True, show_mask_borders=True)
@@ -92,9 +104,15 @@ class TestFlowOperations(unittest.TestCase):
         transforms = [['rotation', 5, 10, 30]]
         flow_s = Flow.from_transforms(transforms, shape, 's')
         flow_t = Flow.from_transforms(transforms, shape, 't')
+        flow_s.vecs.requires_grad_()
+        flow_t.vecs.requires_grad_()
         set_pure_pytorch()
-        fl_op_switched_s = to_numpy(switch_flow_ref(flow_s.vecs, 's'), switch_channels=True)
-        fl_op_switched_t = to_numpy(switch_flow_ref(flow_t.vecs_numpy, 't'), switch_channels=True)
+        sfr_ss = switch_flow_ref(flow_s.vecs, 's')
+        sfr_tt = switch_flow_ref(flow_t.vecs, 't')
+        fl_op_switched_s = to_numpy(sfr_ss, switch_channels=True)
+        fl_op_switched_t = to_numpy(sfr_tt, switch_channels=True)
+        self.assertIsNotNone(sfr_ss.grad_fn)
+        self.assertIsNotNone(sfr_tt.grad_fn)
         self.assertIsNone(np.testing.assert_equal(flow_s.switch_ref().vecs_numpy, fl_op_switched_s))
         self.assertIsNone(np.testing.assert_equal(flow_t.switch_ref().vecs_numpy, fl_op_switched_t))
         fl_op_switched_s_3dim = to_numpy(switch_flow_ref(flow_s.vecs.squeeze(0), 's'), switch_channels=True)
@@ -112,11 +130,21 @@ class TestFlowOperations(unittest.TestCase):
         transforms = [['rotation', 5, 10, 30]]
         flow_s = Flow.from_transforms(transforms, shape, 's')
         flow_t = Flow.from_transforms(transforms, shape, 't')
+        flow_s.vecs.requires_grad_()
+        flow_t.vecs.requires_grad_()
         set_pure_pytorch()
-        s_invert = to_numpy(invert_flow(flow_s.vecs, 's'), switch_channels=True)
-        s_invert_t = to_numpy(invert_flow(flow_s.vecs_numpy, 's', 't'), switch_channels=True)
-        t_invert = to_numpy(invert_flow(flow_t.vecs_numpy, 't'), switch_channels=True)
-        t_invert_s = to_numpy(invert_flow(flow_t.vecs, 't', 's'), switch_channels=True)
+        if_ss = invert_flow(flow_s.vecs, 's')
+        if_st = invert_flow(flow_s.vecs, 's', 't')
+        if_tt = invert_flow(flow_t.vecs, 't')
+        if_ts = invert_flow(flow_t.vecs, 't', 's')
+        s_invert = to_numpy(if_ss, switch_channels=True)
+        s_invert_t = to_numpy(if_st, switch_channels=True)
+        t_invert = to_numpy(if_tt, switch_channels=True)
+        t_invert_s = to_numpy(if_ts, switch_channels=True)
+        self.assertIsNotNone(if_ss.grad_fn)
+        self.assertIsNotNone(if_st.grad_fn)
+        self.assertIsNotNone(if_tt.grad_fn)
+        self.assertIsNotNone(if_ts.grad_fn)
         self.assertIsNone(np.testing.assert_equal(flow_s.invert().vecs_numpy, s_invert))
         self.assertIsNone(np.testing.assert_equal(flow_s.invert('t').vecs_numpy, s_invert_t))
         self.assertIsNone(np.testing.assert_equal(flow_t.invert().vecs_numpy, t_invert))
@@ -233,8 +261,12 @@ class TestFlowOperations(unittest.TestCase):
         f1 = Flow.from_transforms(transforms[0:1], shape1, 's')
         f2 = Flow.from_transforms(transforms[1:2], shape1, 's')
         f3 = Flow.from_transforms(transforms[1:2], shape1, 's')
+        f1.vecs.requires_grad_()
+        f2.vecs.requires_grad_()
         f_batched1 = batch_flows((f1, f2))
+        self.assertIsNotNone(f_batched1.vecs.grad_fn)
         f_batched2 = batch_flows((f_batched1, f3))
+        self.assertIsNotNone(f_batched2.vecs.grad_fn)
         # Check the batched dimensions fit
         self.assertEqual(f_batched1.shape[0], f1.shape[0] + f2.shape[0])
         self.assertEqual(f_batched2.shape[0], f_batched1.shape[0] + f3.shape[0])
