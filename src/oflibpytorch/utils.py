@@ -981,8 +981,10 @@ def track_pts(
             grid = np.swapaxes(np.vstack([x.ravel(), y.ravel()]), 0, 1)         # 2-H*W to H*W-2
             origin_points = grid - flow_flat                                    # N-H*W-2
             warped_pts = pts.clone()                                            # N-M-2
+            np_pts = to_numpy(pts)
             for i in range(warped_pts.shape[0]):  # Perform griddata for each batch member
-                flow_vecs = griddata(origin_points[i], flow_flat[i], (pts[i, :, 0], pts[i, :, 1]), method='linear')
+                flow_vecs = griddata(origin_points[i], flow_flat[i],
+                                     (np_pts[i, :, 0], np_pts[i, :, 1]), method='linear')
                 warped_pts[i] += torch.tensor(flow_vecs, device=pts.device)
         nan_vals = torch.isnan(warped_pts)
         nan_vals = nan_vals[:, :, 0] | nan_vals[:, :, 1]
