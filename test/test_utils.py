@@ -565,11 +565,12 @@ class TestApplyFlow(unittest.TestCase):
 
 class TestThresholdVectors(unittest.TestCase):
     def test_threshold(self):
-        vecs = torch.zeros((5, 2, 10, 1), requires_grad=True)
+        vecs = torch.zeros((5, 2, 10, 1))
         vecs[2, 0, 0, 0] = -1e-5
         vecs[2, 0, 1, 0] = 1e-4
         vecs[2, 0, 2, 0] = -1e-3
         vecs[2, 0, 3, 0] = 1
+        vecs.requires_grad_()
         for use_mag in [True, False]:
             thresholded = threshold_vectors(vecs, threshold=1e-3, use_mag=use_mag)
             self.assertIsNotNone(thresholded.grad_fn)
