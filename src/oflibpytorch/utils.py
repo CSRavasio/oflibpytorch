@@ -235,12 +235,12 @@ def get_valid_padding(padding: Any, error_string: str = None) -> list:
 def move_axis(input_tensor: torch.Tensor, source: int, destination: int) -> torch.Tensor:
     """Helper function to imitate np.moveaxis.
 
-    Output differentiable wrt input tensor.
+    Output tensor differentiable with respect to input tensor.
 
-    :param input_tensor: Input torch tensor, e.g. N-H-W-C
-    :param source: Source position of the dimension to be moved, e.g. -1
-    :param destination: Target position of the dimension to be moved, e.g. 1
-    :return: Output torch tensor, e.g. N-C-H-W
+    :param input_tensor: Input torch tensor, e.g. :math:`(N, H, W, C)`
+    :param source: Source position of the dimension to be moved, e.g. ``-1``
+    :param destination: Target position of the dimension to be moved, e.g. ``1``
+    :return: Output torch tensor, e.g. :math:`(N, C, H, W)`
     """
 
     source %= input_tensor.dim()
@@ -255,7 +255,7 @@ def move_axis(input_tensor: torch.Tensor, source: int, destination: int) -> torc
 def to_numpy(tensor: torch.Tensor, switch_channels: bool = None) -> np.ndarray:
     """Tensor to numpy, calls .cpu() if necessary
 
-    :param tensor: Input tensor
+    :param tensor: Input tensor, may have gradient, may be on GPU
     :param switch_channels: Boolean determining whether the channels are moved from the second to the last dimension,
         assuming the input is of shape :math:`(N, C, H, W)`, changing it to :math:`(N, H, W, C)`. defaults to ``False``
     :return: Numpy array, with channels switched if required
@@ -278,7 +278,7 @@ def to_tensor(
     switch_channels: str = None,
     device: Union[torch.device, int, str] = None
 ) -> torch.Tensor:
-    """Numpy to tensor
+    """Moves a NumPy array to a tensor on the desired device, swapping axis positions if required
 
     :param array: Input array
     :param switch_channels: String determining whether the channels are moved from the last to the first dimension
@@ -300,7 +300,9 @@ def to_tensor(
 
 
 def show_masked_image(img: Union[torch.Tensor, np.ndarray], mask: Union[torch.Tensor, np.ndarray] = None) -> np.ndarray:
-    """Mimics flow.show(), for an input image and a mask
+    """Mimics flow.show() for an input image and a mask, i.e. uses the OpenCV :func:`imshow` method to show the image
+    in a window. Useful for debugging purposes or to quickly visualise an image, even when no mask is involved, as it
+    is easier than typing out all the OpenCV commands every time
 
     :param img: Torch tensor of shape :math:`(3, H, W)` or numpy array of shape :math:`(H, W, 3)`, BGR input image
     :param mask: Torch tensor or numpy array of shape :math:`(H, W)`, boolean mask showing the valid area
@@ -1050,24 +1052,27 @@ def grid_from_unstructured_data(
     data: torch.Tensor,
     mask: torch.Tensor = None,
 ) -> tuple:
-    """Returns unstructured input data on a (sparse) regular grid. Credit:
-        - This is based on the algorithm suggested in: Sánchez, J., Salgado de la Nuez, A. J., & Monzón, N., "Direct
-        estimation of the backward flow", 2013
-        - The code implementation is a heavily reworked version of code suggested by Markus Hofinger in private
-        correspondence, a version of which he first used in: Hofinger, M., Bulò, S. R., Porzi, L., Knapitsch, A.,
-        Pock, T., & Kontschieder, P., "Improving optical flow on a pyramid level". ECCV 2020
-        - Markus Hofinger in turn credits the function _flow2distribution from the HD3 code base as inspiration,
-        used in: Yin, Z., Darrell, T., & Yu, F., "Hierarchical discrete distribution decomposition for match density
-        estimation", CAPER 2019
+    """Returns unstructured input data interpolated (likely sparsely) on to a regular grid. Replacement for the
+    SciPy ``griddata`` function, but less accurate. Credit:
+
+    - This is based on the algorithm suggested in: Sánchez, J., Salgado de la Nuez, A. J., & Monzón, N., "Direct
+      estimation of the backward flow", 2013
+    - The code implementation is a heavily reworked version of code suggested by Markus Hofinger in private
+      correspondence, a version of which he first used in: Hofinger, M., Bulò, S. R., Porzi, L., Knapitsch, A.,
+      Pock, T., & Kontschieder, P., "Improving optical flow on a pyramid level". ECCV 2020
+    - Markus Hofinger in turn credits the function _flow2distribution from the HD3 code base as inspiration,
+      used in: Yin, Z., Darrell, T., & Yu, F., "Hierarchical discrete distribution decomposition for match density
+      estimation", CAPER 2019
 
     The interpolated data as well as the interpolation density outputs are differentiable with respect to the
     input data position grids and the data itself.
 
-    :param x: Horizontal data position grid, shape N1HW
-    :param y: Vertical data position grid, shape N1HW
-    :param data: Data value grid, shape NCHW
-    :param mask: Tensor masking data points, shape NHW
-    :return: NCHW tensor of data interpolated on regular grid, NHW tensor of interpolation density
+    :param x: Horizontal data position grid, shape :math:`(N, H, W)`
+    :param y: Vertical data position grid, shape :math:`(N, H, W)`
+    :param data: Data value grid, shape :math:`(N, C, H, W)`
+    :param mask: Tensor masking data points, shape :math:`(N, H, W)`
+    :return: Tensor of data interpolated on regular grid of shape :math:`(N, C, H, W)`, Tensor of interpolation
+        density of shape :math:`(N, H, W)`
     """
 
     # Input grids:          [N, H, W]

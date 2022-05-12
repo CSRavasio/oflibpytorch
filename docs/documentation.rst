@@ -104,3 +104,13 @@ Flow Visualisation
 .. autofunction:: oflibpytorch.visualise_flow_arrows
 .. autofunction:: oflibpytorch.show_flow
 .. autofunction:: oflibpytorch.show_flow_arrows
+
+Utility methods
+~~~~~~~~~~~~~~~
+Additionally, some utility methods used in this module are made available here, as they may prove useful to others.
+
+.. autofunction:: oflibpytorch.to_numpy
+.. autofunction:: oflibpytorch.to_tensor
+.. autofunction:: oflibpytorch.move_axis
+.. autofunction:: oflibpytorch.show_masked_image
+.. autofunction:: oflibpytorch.grid_from_unstructured_data

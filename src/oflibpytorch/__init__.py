@@ -14,4 +14,5 @@
 from .flow_class import Flow
 from .flow_operations import *
 from .utils import from_matrix, from_transforms, load_kitti, load_sintel, load_sintel_mask, \
-    resize_flow, apply_flow, is_zero_flow, track_pts, get_pure_pytorch, set_pure_pytorch, unset_pure_pytorch
+    resize_flow, apply_flow, is_zero_flow, track_pts, get_pure_pytorch, set_pure_pytorch, unset_pure_pytorch, \
+    to_numpy, to_tensor, move_axis, show_masked_image, grid_from_unstructured_data
