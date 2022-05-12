@@ -120,17 +120,16 @@ class Flow(object):
         is termed "backward" or "reverse" warping.
 
         .. caution::
+            If ``PURE_PYTORCH`` is set to ``False``, calling :meth:`~oflibpytorch.Flow.apply` on a flow field with
+            reference :attr:`ref` ``s`` ("source") requires a call to :func:`scipy.interpolate.griddata`, which is
+            quite slow. Using a flow field with reference :attr:`ref` ``t`` avoids this and will therefore be
+            significantly faster. Similarly, calling :meth:`~oflibpytorch.Flow.track` on a flow field with
+            reference :attr:`ref` ``t`` ("source") also requires a call to :func:`scipy.interpolate.griddata`, in
+            which case using a flow field with reference :attr:`ref` ``s`` instead is faster.
 
-            The :meth:`~oflibpytorch.Flow.apply` method for warping an image is significantly faster with a flow in
-            ``t`` reference. The reason is that this requires interpolating unstructured points from a regular grid,
-            while reference ``s`` requires interpolating a regular grid from unstructured points. The former uses the
-            fast PyTorch :func:`nn.functional.grid_sample` function, the latter is much more operationally complex and
-            relies on the SciPy :func:`griddata` function.
-
-        .. caution::
-
-            The :meth:`~oflibpytorch.Flow.track` method for tracking points is significantly faster with a flow in ``s``
-            reference, again due to not requiring a call to SciPy's :func:`griddata` function.
+            If ``PURE_PYTORCH`` is ``True``, the call to :func:`scipy.interpolate.griddata` is replaced with a
+            PyTorch-only interpolation function which will yield slightly less accurate result, but avoids any speed
+            penalty and, most notably, is differentiable.
 
         .. tip::
 
