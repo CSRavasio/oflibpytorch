@@ -1070,7 +1070,7 @@ def grid_from_unstructured_data(
     :param x: Horizontal data position grid, shape :math:`(N, H, W)`
     :param y: Vertical data position grid, shape :math:`(N, H, W)`
     :param data: Data value grid, shape :math:`(N, C, H, W)`
-    :param mask: Tensor masking data points, shape :math:`(N, H, W)`
+    :param mask: Tensor masking data positions that should be ignored for the interpolation, shape :math:`(N, H, W)`
     :return: Tensor of data interpolated on regular grid of shape :math:`(N, C, H, W)`, Tensor of interpolation
         density of shape :math:`(N, H, W)`
     """
@@ -1148,16 +1148,19 @@ def apply_s_flow(
     mask: torch.Tensor = None,
     occlude_zero_flow: bool = None
 ) -> torch.Tensor:
-    """Warp data with 's' reference flow. The warped data output is differentiable wrt input flow and input data
+    """Warp data with a given flow of :attr:`ref` ``s`` ("forward flow"), making use of
+    :meth:`~oflibpytorch.grid_from_unstructured_data` as a replacement for :func:`scipy.interpolate.griddata`.
 
-    :param flow: Float tensor of shape N2HW, the input flow with reference 's'
-    :param data: Float tensor of shape NCHW, the data to be warped
-    :param mask: Boolean tensor of shape NHW, the mask belonging to the flow (optional)
+    The warped data output is differentiable wrt input flow and input data
+
+    :param flow: Float tensor of shape :math:`(N, 2, H, W)`, the input flow with reference ``s``
+    :param data: Float tensor of shape :math:`(N, C, H, W)`, the data to be warped
+    :param mask: Boolean tensor of shape :math:`(N, H, W)`, the mask belonging to the flow (optional)
     :param occlude_zero_flow: Boolean determining whether data locations with corresponding flow of zero are occluded
         (overwritten) by other data moved to the same location. Rationale: if the order of objects were reversed, i.e.
         the zero flow points occlude the non-zero flow points, the latter wouldn't be known in the first place. This
         logic breaks down when the flow points concerned have been inferred, e.g. from surrounding non-occluded known
-        points. Defaults to False
+        points. Setting it to False will likely lead to unusual artefacts in the output. Defaults to True
     :return: Warped data as float tensor of shape NCHW, mask of where data points where warped to as bool tensor of
         shape NHW (if occlude_zero_flow is True, this mask does not include zero flow points)
     """

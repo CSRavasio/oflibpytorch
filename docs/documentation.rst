@@ -113,4 +113,5 @@ Additionally, some utility methods used in this module are made available here, 
 .. autofunction:: oflibpytorch.to_tensor
 .. autofunction:: oflibpytorch.move_axis
 .. autofunction:: oflibpytorch.show_masked_image
+.. autofunction:: oflibpytorch.apply_s_flow
 .. autofunction:: oflibpytorch.grid_from_unstructured_data
