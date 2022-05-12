@@ -904,7 +904,6 @@ class TestTrackPts(unittest.TestCase):
 
         # Reference 't', integer output
         pts_tracked_t = track_pts(f_t, 't', pts, int_out=True)
-        self.assertIsNotNone(pts_tracked_s.grad_fn)
         self.assertIsInstance(pts_tracked_t, torch.Tensor)
         self.assertIsNone(np.testing.assert_allclose(to_numpy(pts_tracked_t), np.round(desired_pts), atol=1))
         self.assertEqual(pts_tracked_t.dtype, torch.long)
