@@ -335,3 +335,42 @@ from src.oflibpytorch.utils import to_numpy, to_tensor, show_masked_image, unset
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/flow.png', flow.visualise('bgr', return_tensor=False))
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/arrows.png',
 #             flow.visualise_arrows(50, None, .5, thickness=6, return_tensor=False))
+
+
+# # # # LOGO
+# shape = (400, 300)
+# mask = np.mgrid[-shape[0]//2:shape[0]//2, -shape[1]//2:shape[1]//2]
+# radius = shape[1] // 2 - 30
+# mask = np.linalg.norm(mask, axis=0)
+# v_scale = 1.35
+# mask = cv2.resize(mask, None, fx=1, fy=v_scale)
+# cut = int((400 * (v_scale - 1))//2)
+# mask = mask[cut:-cut]
+# mask = mask < radius
+#
+# mask2 = np.mgrid[-shape[0]//2:shape[0]//2, -shape[1]//2:shape[1]//2]
+# radius = shape[1] // 2 - 75
+# mask2 = np.linalg.norm(mask2, axis=0)
+# v_scale = 1.35
+# mask2 = cv2.resize(mask2, None, fx=1, fy=v_scale)
+# cut = int((400 * (v_scale - 1))//2)
+# mask2 = mask2[cut:-cut]
+# mask2 = mask2 < radius
+#
+# mask[mask2] = False
+#
+# f1 = of.Flow.from_transforms([['translation', -30, -10]], shape, 's')
+# f1.vecs[:, :, ~mask] = 0
+#
+# shape = (400, 300)
+# mask = np.zeros(shape, bool)
+# mask[40:80, 30:-70] = True
+# mask[180:220, 30:-70] = True
+# mask[40:-40, 30:80] = True
+# f2 = of.Flow.from_transforms([['translation', 30, -10]], shape, 's')
+# f2.vecs[:, :, ~mask] = 0
+#
+# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/letter_o.png',
+#             f1.visualise_arrows(6, scaling=.5, thickness=1, return_tensor=False)[0])
+# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/letter_f.png',
+#             f2.visualise_arrows(6, scaling=.5, thickness=1, return_tensor=False)[0])
