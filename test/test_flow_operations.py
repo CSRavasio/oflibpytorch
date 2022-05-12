@@ -55,7 +55,8 @@ class TestFlowOperations(unittest.TestCase):
                 self.assertIsInstance(f1_actual_f, Flow)
                 self.assertEqual(f1_actual_f.ref, ref)
                 comb_mask = f1_actual_f.mask_numpy & f1.mask_numpy
-                self.assertIsNone(np.testing.assert_allclose(f1_actual_f.vecs_numpy[comb_mask], f1.vecs_numpy[comb_mask],
+                self.assertIsNone(np.testing.assert_allclose(f1_actual_f.vecs_numpy[comb_mask],
+                                                             f1.vecs_numpy[comb_mask],
                                                              atol=atol))
                 self.assertIsInstance(f1_actual, torch.Tensor)
                 self.assertIsNone(np.testing.assert_equal(f1_actual_f.vecs_numpy,
@@ -73,7 +74,8 @@ class TestFlowOperations(unittest.TestCase):
                 self.assertIsInstance(f2_actual_f, Flow)
                 self.assertEqual(f2_actual_f.ref, ref)
                 comb_mask = f2_actual_f.mask_numpy & f2.mask_numpy
-                self.assertIsNone(np.testing.assert_allclose(f2_actual_f.vecs_numpy[comb_mask], f2.vecs_numpy[comb_mask],
+                self.assertIsNone(np.testing.assert_allclose(f2_actual_f.vecs_numpy[comb_mask],
+                                                             f2.vecs_numpy[comb_mask],
                                                              atol=atol))
                 self.assertIsInstance(f2_actual, torch.Tensor)
                 self.assertIsNone(np.testing.assert_equal(f2_actual_f.vecs_numpy,
@@ -91,7 +93,8 @@ class TestFlowOperations(unittest.TestCase):
                 self.assertIsInstance(f3_actual_f, Flow)
                 self.assertEqual(f3_actual_f.ref, ref)
                 comb_mask = f3_actual_f.mask_numpy & f3.mask_numpy
-                self.assertIsNone(np.testing.assert_allclose(f3_actual_f.vecs_numpy[comb_mask], f3.vecs_numpy[comb_mask],
+                self.assertIsNone(np.testing.assert_allclose(f3_actual_f.vecs_numpy[comb_mask],
+                                                             f3.vecs_numpy[comb_mask],
                                                              atol=atol))
                 self.assertIsInstance(f3_actual, torch.Tensor)
                 self.assertIsNone(np.testing.assert_equal(f3_actual_f.vecs_numpy,

@@ -1914,7 +1914,8 @@ class FlowTest(unittest.TestCase):
                 self.assertIsInstance(f1_actual, Flow)
                 self.assertEqual(f1_actual.ref, ref)
                 comb_mask = f1_actual.mask_numpy & f1.mask_numpy
-                self.assertIsNone(np.testing.assert_allclose(f1_actual.vecs_numpy[comb_mask], f1.vecs_numpy[comb_mask],
+                self.assertIsNone(np.testing.assert_allclose(f1_actual.vecs_numpy[comb_mask],
+                                                             f1.vecs_numpy[comb_mask],
                                                              atol=atol))
                 bf3_g = bf3.copy()
                 bf3_g.vecs.requires_grad_()
@@ -1927,7 +1928,8 @@ class FlowTest(unittest.TestCase):
                 self.assertIsInstance(bf1_actual, Flow)
                 self.assertEqual(bf1_actual.ref, ref)
                 comb_mask = bf1_actual.mask_numpy & bf1.mask_numpy
-                self.assertIsNone(np.testing.assert_allclose(bf1_actual.vecs_numpy[comb_mask], bf1.vecs_numpy[comb_mask],
+                self.assertIsNone(np.testing.assert_allclose(bf1_actual.vecs_numpy[comb_mask],
+                                                             bf1.vecs_numpy[comb_mask],
                                                              atol=atol))
 
                 # Mode 2
@@ -1942,7 +1944,8 @@ class FlowTest(unittest.TestCase):
                 self.assertIsInstance(f2_actual, Flow)
                 self.assertEqual(f2_actual.ref, ref)
                 comb_mask = f2_actual.mask_numpy & f2.mask_numpy
-                self.assertIsNone(np.testing.assert_allclose(f2_actual.vecs_numpy[comb_mask], f2.vecs_numpy[comb_mask],
+                self.assertIsNone(np.testing.assert_allclose(f2_actual.vecs_numpy[comb_mask],
+                                                             f2.vecs_numpy[comb_mask],
                                                              atol=atol))
                 bf3_g = bf3.copy()
                 bf3_g.vecs.requires_grad_()
@@ -1955,7 +1958,8 @@ class FlowTest(unittest.TestCase):
                 self.assertIsInstance(bf2_actual, Flow)
                 self.assertEqual(bf2_actual.ref, ref)
                 comb_mask = bf2_actual.mask_numpy & bf2.mask_numpy
-                self.assertIsNone(np.testing.assert_allclose(bf2_actual.vecs_numpy[comb_mask], bf2.vecs_numpy[comb_mask],
+                self.assertIsNone(np.testing.assert_allclose(bf2_actual.vecs_numpy[comb_mask],
+                                                             bf2.vecs_numpy[comb_mask],
                                                              atol=atol))
 
                 # Mode 3
@@ -1969,7 +1973,8 @@ class FlowTest(unittest.TestCase):
                 self.assertIsInstance(f3_actual, Flow)
                 self.assertEqual(f3_actual.ref, ref)
                 comb_mask = f3_actual.mask_numpy & f3.mask_numpy
-                self.assertIsNone(np.testing.assert_allclose(f3_actual.vecs_numpy[comb_mask], f3.vecs_numpy[comb_mask],
+                self.assertIsNone(np.testing.assert_allclose(f3_actual.vecs_numpy[comb_mask],
+                                                             f3.vecs_numpy[comb_mask],
                                                              atol=5e-2))
                 bf2_g = bf2.copy()
                 bf2_g.vecs.requires_grad_()
@@ -1981,7 +1986,8 @@ class FlowTest(unittest.TestCase):
                 self.assertIsInstance(bf3_actual, Flow)
                 self.assertEqual(bf3_actual.ref, ref)
                 comb_mask = bf3_actual.mask_numpy & bf3.mask_numpy
-                self.assertIsNone(np.testing.assert_allclose(bf3_actual.vecs_numpy[comb_mask], bf3.vecs_numpy[comb_mask],
+                self.assertIsNone(np.testing.assert_allclose(bf3_actual.vecs_numpy[comb_mask],
+                                                             bf3.vecs_numpy[comb_mask],
                                                              atol=5e-2))
 
         # Invalid inputs
