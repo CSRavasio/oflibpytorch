@@ -1,6 +1,26 @@
 Changelog
 =========
 
+2.0.0 [2022-05-13]
+------------------
+
+Major update, enhancing usability for deep learning applications.
+
+- Flow vectors and masks are now batched, meaning the shape is :math:`(N, H, W)` instead of :math:`(H, W)`. This
+  enables easy integration with any deep learning application or network, harnessing the efficiencies of batch-wise
+  processing.
+- A differentiable PyTorch function to approximately replace :func:`scipy.interpolate.griddata` was implemented
+- A toolbox-wide boolean setting called ``PURE_PYTORCH`` has been introduced. If it is set to ``True``, non-Torch
+  operations are avoided as far as possible. Specifically, this means avoiding the slow Scipy-based function
+  :func:`scipy.interpolate.griddata` in favour of a more approximate, but significantly faster PyTorch-only method
+  that interpolates unstructured data on a defined regular grid.
+- If ``PURE_PYTORCH`` is set to ``True``, all oflibpytorch methods that output a float torch tensor are
+  differentiable, again allowing for easy integration with deep learning algorithms.
+- Some utility functions made available
+- Documentation and unit test updates
+- Minor bugfixes
+
+
 1.1.1 [2022-01-28]
 ------------------
 
