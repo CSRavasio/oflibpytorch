@@ -1161,8 +1161,9 @@ def apply_s_flow(
         the zero flow points occlude the non-zero flow points, the latter wouldn't be known in the first place. This
         logic breaks down when the flow points concerned have been inferred, e.g. from surrounding non-occluded known
         points. Setting it to False will likely lead to unusual artefacts in the output. Defaults to True
-    :return: Warped data as float tensor of shape NCHW, mask of where data points where warped to as bool tensor of
-        shape NHW (if occlude_zero_flow is True, this mask does not include zero flow points)
+    :return: Warped data as float tensor of shape :math:`(N, C, H, W)`, mask of where data points where warped to as
+        bool tensor of shape :math:`(N, H, W)`. If occlude_zero_flow is ``True``, this mask does not include zero
+        flow points as they have not been used in the interpolation to avoid artefacts.
     """
 
     occlude_zero_flow = True if occlude_zero_flow is None else occlude_zero_flow
