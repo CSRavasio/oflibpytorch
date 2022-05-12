@@ -28,7 +28,7 @@ print(setup_message)
 
 setup(
     name='oflibpytorch',
-    version='1.1.1',
+    version='2.0.0',
     description='Optical flow library using a custom flow class based on PyTorch tensors',
     long_description=long_description,
     long_description_content_type='text/x-rst',
