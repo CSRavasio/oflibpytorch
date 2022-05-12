@@ -1162,7 +1162,7 @@ def apply_s_flow(
         shape NHW (if occlude_zero_flow is True, this mask does not include zero flow points)
     """
 
-    occlude_zero_flow = False if occlude_zero_flow is None else occlude_zero_flow
+    occlude_zero_flow = True if occlude_zero_flow is None else occlude_zero_flow
 
     n, c, h, w = data.shape
     x, y = get_flow_endpoints(flow, 's')                                                # NHW, NHW

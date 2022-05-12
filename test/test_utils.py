@@ -1070,7 +1070,7 @@ class TestApplySFlow(unittest.TestCase):
         img_list = [img, img_g, img_g]
         for f, i in zip(flow_list, img_list):
             # masked, not occluding zero flow: output should match baseline within mask
-            img_w_true, dens_true = apply_s_flow(f, i, flow._mask)
+            img_w_true, dens_true = apply_s_flow(f, i, flow._mask, occlude_zero_flow=False)
             self.assertIsNotNone(img_w_true.grad_fn)
             mask = np.zeros(shape, np.bool)
             mask[100-42:300+18, 100-47:250-2] = True
@@ -1098,7 +1098,7 @@ class TestApplySFlow(unittest.TestCase):
             self.assertIsNone(np.testing.assert_equal(dens_true, to_numpy(dens_true2)))
 
             # not masked, not occluding zero flow: output should match baseline within mask
-            img_w_false, dens_false = apply_s_flow(f, i)
+            img_w_false, dens_false = apply_s_flow(f, i, occlude_zero_flow=False)
             self.assertIsNotNone(img_w_false.grad_fn)
             # Check the mask from density matches what it should be
             self.assertEqual(np.count_nonzero(dens_false*255 - 255), 0)
