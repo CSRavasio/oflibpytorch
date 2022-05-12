@@ -315,20 +315,21 @@ def show_masked_image(img: Union[torch.Tensor, np.ndarray], mask: Union[torch.Te
             img = np.moveaxis(img, 0, -1)
     if img.shape[-1] == 1:
         img = img[..., 0]
-    if mask is None:
-        mask = np.ones(img.shape[:2], 'bool')
-    elif isinstance(mask, torch.Tensor):
-        mask = to_numpy(mask)
     img = np.clip(np.round(img), 0, 255).astype('uint8')
-    if len(img.shape) == 2:
+    if len(img.shape) == 2:  # technically not supposed to be, but if grayscale numpy array passed
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    hsv[np.invert(mask), 2] = hsv[np.invert(mask), 2] / 2
-    contours, hierarchy = cv2.findContours((255 * mask).astype('uint8'),
-                                           cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    cv2.drawContours(hsv, contours, -1, (0, 0, 0), 1)
-    bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
-    cv2.imshow("Image masked by valid area", bgr)
+    if mask is None:
+        bgr = img
+    else:
+        if isinstance(mask, torch.Tensor):
+            mask = to_numpy(mask)
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        hsv[np.invert(mask), 2] = hsv[np.invert(mask), 2] / 2
+        contours, hierarchy = cv2.findContours((255 * mask).astype('uint8'),
+                                               cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        cv2.drawContours(hsv, contours, -1, (0, 0, 0), 1)
+        bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    cv2.imshow("Masked image", bgr)
     cv2.waitKey()
     return bgr
 
