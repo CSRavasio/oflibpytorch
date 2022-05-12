@@ -90,12 +90,19 @@ def combine_flows(
 ) -> Union[FlowAlias, torch.Tensor]:
     """Returns the result of the combination of two flow fields of the same shape and reference
 
+    If the toolbox-wide variable ``PURE_PYTORCH`` is set to ``True`` (default, see also
+    :meth:`~oflibpytorch.set_pure_pytorch`), the output flow field tensor is differentiable with respect to the
+    input flow fields, if given as tensors.
+
     .. tip::
        All of the flow field combinations in this function rely on some combination of the
        :meth:`~oflibnumpy.Flow.apply`, :meth:`~oflibnumpy.Flow.invert`, and :func:`~oflibnumpy.Flow.combine_with`
-       methods, and can be very slow (several seconds) due to calling :func:`scipy.interpolate.griddata` multiple
-       times. The table below aids decision-making with regards to which reference a flow field should be provided
-       in to obtain the fastest result.
+       methods.
+
+       If ``PURE_PYTORCH`` is set to ``False``, some of these methods will call :func:`scipy.interpolate.griddata`,
+       possibly multiple times, which can be very slow (several seconds) - but the result will be more accurate
+       compared to using the PyTorch-only setting. The table below aids decision-making with regards to which
+       reference a flow field should be provided in to obtain the fastest result.
 
         .. list-table:: Calls to :func:`scipy.interpolate.griddata`
            :header-rows: 1
@@ -185,6 +192,8 @@ def switch_flow_ref(flow: Union[np.ndarray, torch.Tensor], input_ref: str) -> to
     """Recalculate flow vectors to correspond to a switched flow reference (see Flow reference
     :attr:`~oflibnumpy.Flow.ref`)
 
+    The output flow field tensor is differentiable with respect to the input flow field, if given as a tensor.
+
     :param flow: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as :math:`(2, H, W)`
         or :math:`(N, 2, H, W)` if possible, otherwise as :math:`(H, W, 2)` or :math:`(N, H, W, 2)`, throwing a
         ``ValueError`` if this isn't possible either. The dimension that is 2 (the channel dimension) contains the
@@ -201,6 +210,8 @@ def switch_flow_ref(flow: Union[np.ndarray, torch.Tensor], input_ref: str) -> to
 def invert_flow(flow: Union[np.ndarray, torch.Tensor], input_ref: str, output_ref: str = None) -> torch.Tensor:
     """Inverting a flow: `img`\\ :sub:`1` -- `f` --> `img`\\ :sub:`2` becomes `img`\\ :sub:`1` <-- `f` --
     `img`\\ :sub:`2`. The smaller the input flow, the closer the inverse is to simply multiplying the flow by -1.
+
+    The output flow field tensor is differentiable with respect to the input flow field, if given as a tensor.
 
     :param flow: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as :math:`(2, H, W)`
         or :math:`(N, 2, H, W)` if possible, otherwise as :math:`(H, W, 2)` or :math:`(N, H, W, 2)`, throwing a
@@ -435,10 +446,13 @@ def show_flow_arrows(
 
 
 def batch_flows(flows: Union[list, tuple]) -> FlowAlias:
-    """
+    """Returns a batched flow object from a list of input flows of the same size and flow reference :attr:`ref`.
+
+    The output flow vectors are differentiable with respect to the input flow vectors.
 
     :param flows: Tuple or list of flow objects. Flow objects to have the same flow reference
-        :attr:`~oflibnumpy.Flow.ref`, as well as the same flow field heights and widths. They can have any batch size.
+        :attr:`~oflibnumpy.Flow.ref`, as well as the same flow field heights and widths :math:`(H, W)`. They can have
+        any batch size.
     :return: Single batched flow object, with a batch size equal to the sum of all individual input batch sizes
     """
 

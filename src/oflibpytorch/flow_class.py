@@ -272,6 +272,8 @@ class Flow(object):
     ) -> FlowAlias:
         """Flow object constructor, based on transformation matrix input
 
+        The output flow vectors are differentiable with respect to the input matrix, if given as a tensor.
+
         :param matrix: Transformation matrix to be turned into a flow field, as numpy array or torch tensor of
             shape :math:`(3, 3)` or  :math:`(N, 3, 3)`
         :param shape: List or tuple of the shape :math:`(H, W)` of the flow field
@@ -373,6 +375,8 @@ class Flow(object):
         """Copy a flow object by constructing a new one with the same vectors :attr:`vecs`, reference :attr:`ref`,
         mask :attr:`mask`, and device :attr:`device`
 
+        The output flow vectors are differentiable with respect to the input flow vectors.
+
         :return: Copy of the flow object
         """
 
@@ -380,6 +384,8 @@ class Flow(object):
 
     def to_device(self, device) -> FlowAlias:
         """Returns a new flow object on the desired torch device
+
+        The output flow vectors are differentiable with respect to the input flow vectors.
 
         :param device: Tensor device, either a :class:`torch.device` or a valid input to ``torch.device()``, such as
             a string (``cpu`` or ``cuda``). For a device of type ``cuda``, the device index defaults to
@@ -403,9 +409,11 @@ class Flow(object):
         return info_string
 
     def select(self, item: int) -> FlowAlias:
-        """Returns a single-item flow object from a batched flow object, e.g. for iterating through and visualising
+        """Returns a single-item flow object from a batched flow object, e.g. for iterating through or visualising
 
-        :param item: Element in batch to be selected
+        The output flow vectors are differentiable with respect to the input flow vectors.
+
+        :param item: Element in batch to be selected, as an integer
         :return: New flow object with batch size :math:`N` of 1
         """
 
@@ -419,6 +427,8 @@ class Flow(object):
 
     def __getitem__(self, item: Union[int, list, slice]) -> FlowAlias:
         """Mimics ``__getitem__`` of a torch tensor, returning a new flow object cut accordingly
+
+        The output flow vectors are differentiable with respect to the input flow vectors.
 
         Will throw an error if ``mask.__getitem__(item)`` or ``vecs.__getitem__(item)`` (corresponding to
         ``mask[item]`` and ``vecs[item]``) throw an error. Also throws an error if sliced :attr:`vecs` or :attr:`mask`
@@ -435,6 +445,8 @@ class Flow(object):
 
     def __add__(self, other: Union[np.ndarray, torch.Tensor, FlowAlias]) -> FlowAlias:
         """Adds a flow object, a numpy array, or a torch tensor to a flow object
+
+        The output flow vectors are differentiable with respect to the input flow vectors.
 
         .. caution::
             This is **not** equal to applying the two flows sequentially. For that, use
@@ -473,6 +485,8 @@ class Flow(object):
 
     def __sub__(self, other: Union[np.ndarray, torch.Tensor, FlowAlias]) -> FlowAlias:
         """Subtracts a flow object, a numpy array, or a torch tensor from a flow object
+
+        The output flow vectors are differentiable with respect to the input flow vectors.
 
         .. caution::
             This is **not** equal to subtracting the effects of applying flow fields to an image. For that, use
@@ -514,6 +528,8 @@ class Flow(object):
 
     def __mul__(self, other: Union[float, int, bool, list, np.ndarray, torch.Tensor]) -> FlowAlias:
         """Multiplies a flow object with a single number, a list, a numpy array, or a torch tensor
+
+        The output flow vectors are differentiable with respect to the input flow vectors.
 
         :param other: Multiplier, options:
 
@@ -562,6 +578,8 @@ class Flow(object):
     def __truediv__(self, other: Union[float, int, bool, list, np.ndarray, torch.Tensor]) -> FlowAlias:
         """Divides a flow object by a single number, a list, a numpy array, or a torch tensor
 
+        The output flow vectors are differentiable with respect to the input flow vectors.
+
         :param other: Divisor, options:
 
             - can be converted to a float
@@ -608,6 +626,8 @@ class Flow(object):
 
     def __pow__(self, other: Union[float, int, bool, list, np.ndarray, torch.Tensor]) -> FlowAlias:
         """Exponentiates a flow object by a single number, a list, a numpy array, or a torch tensor
+
+        The output flow vectors are differentiable with respect to the input flow vectors.
 
         :param other: Exponent, options:
 
@@ -656,6 +676,8 @@ class Flow(object):
     def __neg__(self) -> FlowAlias:
         """Returns a new flow object with all the flow vectors inverted
 
+        The output flow vectors are differentiable with respect to the input flow vectors.
+
         .. caution::
             This is **not** equal to inverting the transformation a flow field corresponds to! For that, use
             :meth:`~oflibpytorch.Flow.invert`.
@@ -667,6 +689,8 @@ class Flow(object):
 
     def resize(self, scale: Union[float, int, list, tuple]) -> FlowAlias:
         """Resize a flow field, scaling the flow vectors values :attr:`vecs` accordingly.
+
+        The output flow vectors are differentiable with respect to the input flow vectors.
 
         :param scale: Scale used for resizing, options:
 
@@ -685,8 +709,10 @@ class Flow(object):
 
     def pad(self, padding: list = None, mode: str = None) -> FlowAlias:
         """Pad the flow with the given padding. Padded flow :attr:`vecs` values are either constant (set to ``0``),
-        reflect the existing flow values along the edges, or replicate those edge values.
-        Padded :attr:`mask` values are set to ``False``.
+        reflect the existing flow values along the edges, or replicate those edge values. Padded :attr:`mask` values
+        are set to ``False``.
+
+        The output flow vectors are differentiable with respect to the input flow vectors.
 
         :param padding: List or tuple of shape :math:`(4)` with padding values ``[top, bot, left, right]``
         :param mode: String of the numpy padding mode for the flow vectors, with options ``constant`` (fill value
@@ -713,9 +739,21 @@ class Flow(object):
         padding: list = None,
         cut: bool = None
     ) -> Union[Union[torch.Tensor, FlowAlias], Tuple[Union[torch.Tensor, FlowAlias], torch.Tensor]]:
-        """Apply the flow to a target, which can be a torch tensor or a Flow object itself. If the flow shape
-        :math:`(H_{flow}, W_{flow})` is smaller than the target shape :math:`(H_{target}, W_{target})`, a list of
-        padding values needs to be passed to localise the flow in the larger :math:`H_{target} \\times W_{target}` area.
+        """Apply the flow to a target, which can be a torch tensor or a Flow object itself
+
+        If ``PURE_PYTORCH`` is set to ``True`` (default, see also :meth:`~oflibpytorch.set_pure_pytorch`), the output
+        is differentiable with respect to the flow vectors and the input target, if given as a tensor.
+
+        .. tip::
+            If ``PURE_PYTORCH`` is set to ``False``, calling :meth:`~oflibpytorch.Flow.apply` on a flow field with
+            reference :attr:`ref` ``s`` ("source") requires a call to :func:`scipy.interpolate.griddata`, which is
+            quite slow. Using a flow field with reference :attr:`ref` ``t`` avoids this and will therefore be
+            significantly faster. If ``PURE_PYTORCH`` is ``True``, a flow field with reference :attr:`ref` ``s``
+            will yield less accurate results, but there is no speed penalty - and the output is differentiable.
+
+        If the flow shape :math:`(H_{flow}, W_{flow})` is smaller than the target shape
+        :math:`(H_{target}, W_{target})`, a list of padding values needs to be passed to localise the flow in the
+        larger :math:`H_{target} \\times W_{target}` area.
 
         The valid image area that can optionally be returned is ``True`` where the image values in the function output:
 
@@ -906,9 +944,16 @@ class Flow(object):
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """Warp input points with the flow field, returning the warped point coordinates as integers if required
 
+        If ``PURE_PYTORCH`` is set to ``True`` (default, see also :meth:`~oflibpytorch.set_pure_pytorch`), the output
+        is differentiable with respect to the flow vectors and the input point coordinates.
+
         .. tip::
-            Calling :meth:`~oflibpytorch.Flow.track` on a flow field with reference :attr:`ref` ``s`` ("source") is
-            significantly faster, as this does not require a call to :func:`scipy.interpolate.griddata`.
+            If ``PURE_PYTORCH`` is set to ``False``, calling :meth:`~oflibpytorch.Flow.track` on a flow field with
+            reference :attr:`ref` ``t`` ("target") requires a call to :func:`scipy.interpolate.griddata`, which is
+            quite slow. Using a flow field with reference :attr:`ref` ``s`` avoids this and will therefore be
+            significantly faster. If ``PURE_PYTORCH`` is ``True``, a flow field with reference :attr:`ref` ``t``
+            will yield less accurate results (by fractions of pixels), but there is no speed penalty - and the output
+            is differentiable.
 
         :param pts: Torch tensor of shape :math:`(M, 2)` or :math:`(N, M, 2)` containing the point coordinates. If a
             batch dimension is given, it must correspond to the flow batch dimension. If the flow is batched but the
@@ -955,6 +1000,10 @@ class Flow(object):
     def switch_ref(self, mode: str = None) -> FlowAlias:
         """Switch the reference :attr:`ref` between ``s`` ("source") and ``t`` ("target")
 
+        If the toolbox-wide variable ``PURE_PYTORCH`` is set to ``True`` (default, see also
+        :meth:`~oflibpytorch.set_pure_pytorch`), the output flow field vectors are differentiable with respect to the
+        input flow field vectors.
+
         .. caution::
 
             Do not use ``mode=invalid`` if avoidable: it does not actually change any flow values, and the resulting
@@ -993,6 +1042,10 @@ class Flow(object):
     def invert(self, ref: str = None) -> FlowAlias:
         """Inverting a flow: `img`\\ :sub:`1` -- `f` --> `img`\\ :sub:`2` becomes `img`\\ :sub:`1` <-- `f` --
         `img`\\ :sub:`2`. The smaller the input flow, the closer the inverse is to simply multiplying the flow by -1.
+
+        If the toolbox-wide variable ``PURE_PYTORCH`` is set to ``True`` (default, see also
+        :meth:`~oflibpytorch.set_pure_pytorch`), the output flow field vectors are differentiable with respect to the
+        input flow field vectors.
 
         :param ref: Desired reference of the output field, defaults to the reference of original flow field
         :return: New flow object, inverse of the original
@@ -1560,12 +1613,19 @@ class Flow(object):
         """Function that returns the result of the combination of two flow objects of the same shape :attr:`shape` and
         reference :attr:`ref`
 
+        If the toolbox-wide variable ``PURE_PYTORCH`` is set to ``True`` (default, see also
+        :meth:`~oflibpytorch.set_pure_pytorch`), the output flow field vectors are differentiable with respect to the
+        input flow fields.
+
         .. tip::
            All of the flow field combinations in this function rely on some combination of the
-           :meth:`~oflibnumpy.Flow.apply`, :meth:`~oflibnumpy.Flow.invert`, and :meth:`~oflibnumpy.Flow.combine_with`
-           methods, and can be very slow (several seconds) due to calling :func:`scipy.interpolate.griddata` multiple
-           times. The table below aids decision-making with regards to which reference a flow field should be provided
-           in to obtain the fastest result.
+           :meth:`~oflibnumpy.Flow.apply`, :meth:`~oflibnumpy.Flow.invert`, and :func:`~oflibnumpy.Flow.combine_with`
+           methods.
+
+           If ``PURE_PYTORCH`` is set to ``False``, some of these methods will call :func:`scipy.interpolate.griddata`,
+           possibly multiple times, which can be very slow (several seconds) - but the result will be more accurate
+           compared to using the PyTorch-only setting. The table below aids decision-making with regards to which
+           reference a flow field should be provided in to obtain the fastest result.
 
             .. list-table:: Calls to :func:`scipy.interpolate.griddata`
                :header-rows: 1

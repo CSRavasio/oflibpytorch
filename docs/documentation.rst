@@ -4,6 +4,17 @@ While this documentation aims to go beyond a simple listing of parameters and in
 principles behind the functions, please see the section ":ref:`Usage`" for more details and usage examples including
 code and flow field visualisations.
 
+"Pure PyTorch" Setting
+~~~~~~~~~~~~~~~~~~~~~~
+``PURE_PYTORCH`` is a toolbox-wide boolean variable which can be set. It enables the user to choose whether
+``oflibpytorch`` makes use of a more accurate, but much slower and non-differentiable SciPy-based function, or a
+less precise, but significantly faster and fully differentiable PyTorch-only function. By default, ``PURE_PYTORCH``
+is set to ``True``.
+
+.. autofunction:: oflibpytorch.get_pure_pytorch
+.. autofunction:: oflibpytorch.set_pure_pytorch
+.. autofunction:: oflibpytorch.unset_pure_pytorch
+
 Using the Flow Class
 ~~~~~~~~~~~~~~~~~~~~
 This section documents the custom flow class and all its class methods. It is the recommended way of using
@@ -13,7 +24,7 @@ Flow Constructors and Operators
 -------------------------------
 .. autoclass:: oflibpytorch.Flow
     :members: zero, from_matrix, from_transforms, from_kitti, from_sintel, vecs, vecs_numpy, ref, mask, mask_numpy,
-        device, shape, copy, to_device
+        device, shape, select, copy, to_device
     :special-members: __str__, __getitem__, __add__, __sub__, __mul__, __truediv__, __pow__, __neg__
 
     .. automethod:: __init__
@@ -26,6 +37,7 @@ Manipulating the Flow
 .. automethod:: Flow.invert
 .. automethod:: Flow.switch_ref
 .. automethod:: Flow.combine_with
+.. autofunction:: oflibpytorch.batch_flows
 
 Applying the Flow
 -----------------
@@ -51,15 +63,15 @@ Visualising the Flow
 .. automethod:: Flow.show_arrows
 .. autofunction:: oflibpytorch.visualise_definition
 
-Using NumPy Arrays
-~~~~~~~~~~~~~~~~~~
+Using Torch tensors & NumPy arrays
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 This section contains functions that take Torch tensors as well as NumPy arrays as inputs, instead of making use of
 the custom flow class. On the one hand, this avoids having to define flow objects. On the other hand, it requires
 keeping track of flow attributes manually, and it does not avail itself of the full scope of functionality
 ``oflibpytorch`` has to offer: most importantly, flow masks are not considered or tracked.
 
-Flow Loading
-------------
+Flow Creation & Loading
+-----------------------
 .. autofunction:: oflibpytorch.from_matrix
 .. autofunction:: oflibpytorch.from_transforms
 .. autofunction:: oflibpytorch.load_kitti
