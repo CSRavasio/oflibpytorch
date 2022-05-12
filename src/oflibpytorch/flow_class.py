@@ -1225,8 +1225,9 @@ class Flow(object):
         as a black line, and the invalid areas greyed out.
 
         .. note::
-           This currently runs internally based on NumPy & OpenCV, due to a lack of easily accessible equivalent
-            functions for coordinate and colour space conversions
+            This currently runs internally based on NumPy & OpenCV, due to a lack of easily accessible equivalent
+            functions for coordinate and colour space conversions. Therefore, even if the output is a tensor, it
+            will not be differentiable with respect to the flow vector tensor.
 
         :param mode: Output mode, options: ``rgb``, ``bgr``, ``hsv``
         :param show_mask: Boolean determining whether the flow mask is visualised, defaults to ``False``
@@ -1336,6 +1337,11 @@ class Flow(object):
     ) -> Union[np.ndarray, torch.Tensor]:
         """Visualises the flow as arrowed lines, optionally showing the outline of the flow mask :attr:`mask` as a black
         line, and the invalid areas greyed out.
+
+        .. note::
+            This currently runs internally based on NumPy & OpenCV, due to a lack of easily accessible equivalent
+            functions for coordinate and colour space conversions. Therefore, even if the output is a tensor, it
+            will not be differentiable with respect to the flow vector tensor.
 
         :param grid_dist: Integer of the distance of the flow points to be used for the visualisation, defaults to
             ``20``

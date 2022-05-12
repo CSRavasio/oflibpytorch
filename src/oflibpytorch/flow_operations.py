@@ -344,6 +344,11 @@ def visualise_flow(
 ) -> Union[np.ndarray, torch.Tensor]:
     """Visualises the flow as an rgb / bgr / hsv image
 
+    .. note::
+        This currently runs internally based on NumPy & OpenCV, due to a lack of easily accessible equivalent
+        functions for coordinate and colour space conversions. Therefore, even if the output is a tensor, it
+        will not be differentiable with respect to the input flow tensor.
+
     :param flow: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as :math:`(2, H, W)`
         or :math:`(N, 2, H, W)` if possible, otherwise as :math:`(H, W, 2)` or :math:`(N, H, W, 2)`, throwing a
         ``ValueError`` if this isn't possible either. The dimension that is 2 (the channel dimension) contains the
@@ -373,6 +378,11 @@ def visualise_flow_arrows(
     return_tensor: bool = None
 ) -> Union[np.ndarray, torch.Tensor]:
     """Visualises the flow as arrowed lines
+
+    .. note::
+        This currently runs internally based on NumPy & OpenCV, due to a lack of easily accessible equivalent
+        functions for coordinate and colour space conversions. Therefore, even if the output is a tensor, it
+        will not be differentiable with respect to the input flow tensor.
 
     :param flow: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as :math:`(2, H, W)`
         or :math:`(N, 2, H, W)` if possible, otherwise as :math:`(H, W, 2)` or :math:`(N, H, W, 2)`, throwing a
