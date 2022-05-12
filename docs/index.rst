@@ -7,8 +7,11 @@ Introduction
 **Oflibpytorch:** a handy python **o**\ ptical **f**\ low **lib**\ rary, based on **PyTorch** tensors, that enables
 the manipulation and combination of flow fields while keeping track of valid areas (see "Usage"). It is mostly code
 written from scratch, but also contains useful wrappers for specific functions from libraries such as PyTorch's
-``grid_sample``, to integrate them with the custom flow field class introduced by oflibpytorch. If you use this code,
-please acknowledge us with the following citation:
+``grid_sample``, to integrate them with the custom flow field class introduced by oflibpytorch. Importantly, the
+**main methods are differentiable** with respect to their flow field tensor inputs, allowing for a seamless
+integration with machine learning algorithms.
+
+If you use this code, please acknowledge us with the following citation:
 
 .. code-block:: text
 
@@ -23,21 +26,23 @@ please acknowledge us with the following citation:
     }
 
 An equivalent flow library based on NumPy arrays exists. Its code is on GitHub_, and the documentation can be found on
-`ReadTheDocs`_. Oflibpytorch is aimed at allowing the same operations to be performed with torch tensors instead of
-numpy arrays as far as currently feasible, and on the GPU if required.
+`ReadTheDocs`_.
 
 .. _GitHub: https://github.com/RViMLab/oflibnumpy
 .. _ReadTheDocs: https://oflibnumpy.readthedocs.io
 
 **Features:**
 
-- Provides a custom flow field :class:`~oflibpytorch.Flow` class for both forwards and backwards ('source' / 'target'
-  based) flow fields
-- Provides a number of class methods to create flow fields from lists of affine transforms, or a transformation matrix
-- Provides a number of functions to resize the flow field, visualise it, warp images, find necessary image padding
-- Provides a class method to process three different types of flow field combination operations
+- All main methods that return a float tensor are differentiable with respect to tensor inputs
+- Custom flow field class :class:`~oflibpytorch.Flow` for both backwards and forwards ('source' / 'target' based)
+  flow fields
+- Flow field vectors handled as tensors with a batch dimension, allowing for efficient batch-wise processing
+- All tensor operations can be performed on GPU if desired
+- A number of class methods to create flow fields from lists of affine transforms, or a transformation matrix
+- A number of functions to resize the flow field, visualise it, warp images, find necessary image padding
+- A class method to process three different types of flow field combination operations
 - Keeps track of valid flow field areas through said operations
-- Provides alternative functions to avoid the explicit use of the custom flow class, with slightly limited functionality
+- Alternative methods avoiding use of the custom flow class if desired, with slightly limited functionality
 
 **Installation:**
 
