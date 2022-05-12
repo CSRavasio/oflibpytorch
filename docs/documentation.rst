@@ -7,7 +7,7 @@ code and flow field visualisations.
 "Pure PyTorch" Setting
 ~~~~~~~~~~~~~~~~~~~~~~
 ``PURE_PYTORCH`` is a toolbox-wide boolean variable which can be set. It enables the user to choose whether
-``oflibpytorch`` makes use of a more accurate, but much slower and non-differentiable SciPy-based function, or a
+:mod:`oflibpytorch` makes use of a more accurate, but much slower and non-differentiable SciPy-based function, or a
 less precise, but significantly faster and fully differentiable PyTorch-only function. By default, ``PURE_PYTORCH``
 is set to ``True``.
 
@@ -18,7 +18,7 @@ is set to ``True``.
 Using the Flow Class
 ~~~~~~~~~~~~~~~~~~~~
 This section documents the custom flow class and all its class methods. It is the recommended way of using
-``oflibpytorch`` and makes the full range of functionality available to the user.
+:mod:`oflibpytorch` and makes the full range of functionality available to the user.
 
 Flow Constructors and Operators
 -------------------------------
@@ -68,7 +68,7 @@ Using Torch tensors & NumPy arrays
 This section contains functions that take Torch tensors as well as NumPy arrays as inputs, instead of making use of
 the custom flow class. On the one hand, this avoids having to define flow objects. On the other hand, it requires
 keeping track of flow attributes manually, and it does not avail itself of the full scope of functionality
-``oflibpytorch`` has to offer: most importantly, flow masks are not considered or tracked.
+:mod:`oflibpytorch` has to offer: most importantly, flow masks are not considered or tracked.
 
 Flow Creation & Loading
 -----------------------

@@ -1,22 +1,36 @@
 Usage
 =====
-This section aims to illustrate the benefits of ``oflibpytorch`` with examples. In all sample code, it is assumed that the
-library was imported using the command ``import oflibpytorch as of``, and therefore the flow class can be accessed using
-``of.Flow`` and the functions using ``of.<function>``. All the main examples use class methods instead of the
-alternative array-based functions. These work much the same way, but are more limited in their capabilities and
-therefore do not illustrate the full scope of ``oflibpytorch``. For some examples, see the section ":ref:`Tensor-Based
-Functions`".
+This section aims to illustrate the benefits of :mod:`oflibpytorch` with examples. In all sample code, it is assumed
+that the library was imported using the command ``import oflibpytorch as of``, and therefore the flow class can be
+accessed using ``of.Flow`` and the functions using ``of.<function>``. All the main examples use class methods instead
+of the alternative tensor-based functions. These work much the same way, but are more limited in their capabilities and
+therefore do not illustrate the full scope of :mod:`oflibpytorch`. For some examples, see the section
+":ref:`Tensor-Based Functions`".
 
 Note that :mod:`oflibpytorch` is an adaption of :mod:`oflibnumpy` (see `code`_ and `documentation`_) to the use of
 torch tensors instead of numpy arrays as far as currently feasible, functionally largely equivalent. Using torch
-tensors is advantageous e.g. for work with deep learning models, where image data, points tracked, as well as the
-flow fields themselves might be available as a torch tensor, possibly on GPU. However, due to the current lack of
-a PyTorch function that interpolates from unstructured data, some :mod:`oflibpytorch` still need to fall back on
-the slower and CPU-only SciPy :func:`griddata` function (see the section ":ref:`The Flow Reference`" and
-:meth:`~oflibpytorch.Flow.apply`).
+tensors is advantageous e.g. for work with deep learning models for multiple reasons. Operations can be performed
+batched and on GPU, both affording significant speedups. Most importantly, the main functions that output a float
+tensor are differentiable with respect to their tensor inputs (see the section ":ref:`Pure PyTorch Setting`").
+This allows for a direct integration in machine learning algorithms requiring the option of back-propagation through
+all operations.
 
 .. _code:  https://github.com/RViMLab/oflibnumpy
 .. _documentation: https://oflibnumpy.rtfd.io
+
+Pure PyTorch Setting
+--------------------
+PyTorch currently does not offer a built-in function for the interpolation of unstructured data on to a grid, which
+is necessary for a number of this module's functions. Therefore, an approximate solution was implemented (see
+:meth:`~oflibpytorch.grid_from_unstructured_data`). As a fallback option, the slower and CPU-only SciPy method
+:func:`griddata` can be used.
+
+The module-wide variable ``PURE_PYTORCH``, retrieved by calling :meth:`~oflibpytorch.get_pure_pytorch`, determines
+whether the former, PyTorch-only, differentiable method is used (:meth:`~oflibpytorch.set_pure_pytorch`), or the
+latter, slower, but more accurate SciPy method is called (:meth:`~oflibpytorch.unset_pure_pytorch`).
+
+By default, the ``PURE_PYTORCH`` variable is set to ``True``, to facilitate the out-of-the-box use of
+:mod:`oflibpytorch` in the context of machine learning algorithms.
 
 The Flow Object
 ---------------
@@ -25,12 +39,12 @@ The custom flow object introduced here has four attributes: vectors :attr:`~ofli
 (see the section ":ref:`The Flow Mask`"), and device :attr:`~oflibpytorch.Flow.device`. It can be initialised using
 just a torch tensor or a numpy array containing the flow vectors, or with one of several special constructors:
 
-- :meth:`~oflibpytorch.Flow.zero` requires a desired shape :math:`(H, W)`, and optionally the flow reference, a mask,
-  or the desired torch device. As the name indicates, the vectors are zero everywhere.
+- :meth:`~oflibpytorch.Flow.zero` requires a desired shape :math:`((N, )H, W)`, and optionally the flow reference,
+  a mask, or the desired torch device. As the name indicates, the vectors are zero everywhere.
 - :meth:`~oflibpytorch.Flow.from_matrix` requires a :math:`3 \times 3` transformation matrix, a desired shape
-  :math:`(H, W)`, and optionally the flow reference, a mask, or the desired torch device. The flow vectors at each
-  location in :math:`H \times W` are calculated to correspond to the given matrix.
-- :meth:`~oflibpytorch.Flow.from_transforms` requires a list of transforms, a desired shape :math:`(H, W)`, and
+  :math:`((N, )H, W)`, and optionally the flow reference, a mask, or the desired torch device. The flow vectors at
+  each location in :math:`H \times W` are calculated to correspond to the given matrix.
+- :meth:`~oflibpytorch.Flow.from_transforms` requires a list of transforms, a desired shape :math:`((N, )H, W)`, and
   optionally the flow reference, a mask, or the desired torch device. The given transforms are converted into a
   transformation matrix, from which a flow field is constructed as in :meth:`~oflibpytorch.Flow.from_matrix`.
 - :meth:`~oflibpytorch.Flow.from_kitti` loads the flow field (and optionally the valid pixels) from ``uint16`` ``png``
@@ -41,29 +55,35 @@ just a torch tensor or a numpy array containing the flow vectors, or with one of
 .. _KITTI optical flow dataset: http://www.cvlibs.net/datasets/kitti/eval_scene_flow.php?benchmark=flow
 .. _Sintel optical flow dataset: http://sintel.is.tue.mpg.de/
 
-Tensors are generally expected to follow the channel-first PyTorch convention (shape :math:`(C, H, W)`), and are the
-standard input the functions are meant to interact with. If NumPy arrays are a valid input, they are generally expected
-to follow the channel-last OpenCV convention (shape :math:`(H, W, C)`). All tensors belonging to a flow object are kept
-on the same torch device, and inputs from a different device are automatically moved to the flow device if necessary.
-Outputs are on the same device as the flow object as a standard. The attributes :attr:`vecs` and :attr:`mask` can be
-accessed in PyTorch tensor form by calling ``flow.vecs`` (shape :math:`(2, H, W)`) or ``flow.mask``, or in NumPy array
-form by calling ``flow.vecs_numpy`` (shape :math:`(H, W, 2)`) or ``flow.mask_numpy``.
+Tensors are generally expected to follow the channel-first PyTorch convention (shape :math:`((N, )C, H, W)`), and
+are the standard input the functions are meant to interact with. If NumPy arrays are a valid input, they are
+generally expected to follow the channel-last OpenCV convention (shape :math:`((N, )H, W, C)`). All tensors
+belonging to a flow object are kept on the same torch device, and inputs from a different device are automatically
+moved to the flow device if necessary. Outputs are on the same device as the flow object as a standard. The
+attributes :attr:`~oflibpytorch.Flow.vecs` and :attr:`~oflibpytorch.Flow.mask` can be accessed in PyTorch tensor
+form by calling ``flow.vecs`` (shape :math:`(N, 2, H, W)`) or ``flow.mask``, or in NumPy array form by calling
+``flow.vecs_numpy`` (shape :math:`(N, H, W, 2)`) or ``flow.mask_numpy``.
 
 Flow objects can be copied with :meth:`~oflibpytorch.Flow.copy`, resized with :meth:`~oflibpytorch.Flow.resize`, padded
 with :meth:`~oflibpytorch.Flow.pad`, and sliced using square brackets ``[]`` analogous to numpy slicing, which calls
-:meth:`~oflibpytorch.Flow.__get_item__` internally. They can also be added with ``+``, subtracted with ``-``, multiplied
-with ``*``, divided with ``/``, exponentiated with ``**``, and negated by prepending ``-``. However, note that using
-the standard operator ``+`` is **not** the same as sequentially combining flow fields, and the same goes for a
-subtraction or a negation with ``-``. To do this correctly, use :meth:`~oflibpytorch.Flow.combine_with` (see the
-section ":ref:`Combining Flows`").
+:meth:`~oflibpytorch.Flow.__get_item__` internally. They can also be added with ``+``, subtracted with ``-``,
+multiplied with ``*``, divided with ``/``, exponentiated with ``**``, and negated by prepending ``-``. However, note
+that using the standard operator ``+`` is **not** the same as sequentially combining flow fields, and the same goes
+for a subtraction or a negation with ``-``. To do this correctly, use :meth:`~oflibpytorch.Flow.combine_with`
+(see the section ":ref:`Combining Flows`").
+
+Additionally, single elements from the batch contained in a Flow object can be extracted as a new Flow object using
+:meth:`~oflibpytorch.Flow.select`. Similarly, different Flow objects of the same shape
+:attr:`~oflibpytorch.Flow.shape` and flow reference :attr:`~oflibpytorch.Flow.ref` can be batched using
+:meth:`~oflibpytorch.batch_flows`.
 
 Visualisation
 -------------
-The method :meth:`~oflibpytorch.Flow.visualise` returns a common visualisation mode for flow fields: the hue encodes the
-flow vector direction, while the saturation encodes the magnitude. Unless a different value is passed, the maximum
+The method :meth:`~oflibpytorch.Flow.visualise` returns a common visualisation mode for flow fields: the hue encodes
+the flow vector direction, while the saturation encodes the magnitude. Unless a different value is passed, the maximum
 saturation will correspond to the maximum magnitude present in the flow field. :meth:`~oflibpytorch.Flow.show` is a
-convenience function that will display this visualisation in an OpenCV window using :func:`cv2.imshow`, useful e.g. for
-debugging purposes. Note that the flow vectors, i.e. the attribute :attr:`~oflibpytorch.Flow.vecs`, are encoded in
+convenience function that will display this visualisation in an OpenCV window using :func:`cv2.imshow`, useful e.g.
+for debugging purposes. Note that the flow vectors, i.e. the attribute :attr:`~oflibpytorch.Flow.vecs`, are encoded in
 "OpenCV convention": ``vecs[0]`` is the horizontal component of the flow, ``vecs[1]`` the vertical.
 
 .. code-block:: python
@@ -105,9 +125,10 @@ areas, respectively. For an explanation of the usefulness of this mask, see the 
     :width: 49%
     :alt: Sample flow visualisation with mask and border
 
-**Above:** The same clockwise rotation as before, but with a mask that defines the upper left quarter of the flow field
-as "invalid". When ``show_mask = True``, this area has a reduced intensity. ``show_mask_borders = True`` adds a black
-border around the valid area, i.e. the area where the :attr:`~oflibpytorch.Flow.mask` attribute of the flow is ``True``.
+**Above:** The same clockwise rotation as before, but with a mask that defines the upper left quarter of the flow
+field as "invalid". When ``show_mask = True``, this area has a reduced intensity. ``show_mask_borders = True`` adds
+a black border around the valid area, i.e. the area where the :attr:`~oflibpytorch.Flow.mask` attribute of the flow
+is ``True``.
 
 A second, more intuitive visualisation mode is offered in the :meth:`~oflibpytorch.Flow.visualise_arrows` method. Here,
 the flow is drawn out as arrows with either their start or end points on a regular grid (see the documentation for the
@@ -145,10 +166,10 @@ is drawn in black
 
 The Flow Reference
 ------------------
-The :attr:`~oflibpytorch.Flow.ref` attribute determines whether the regular grid of shape H-W associated with the flow
-vectors should be understood as the source of the vectors, or the target. So given `img`\ :sub:`1` in the "source"
-domain, `img`\ :sub:`2` in the "target" domain, and an associated flow field between the two, there are two possible
-definitions or frames of reference for flow vectors:
+The :attr:`~oflibpytorch.Flow.ref` attribute determines whether the regular grid of shape :math:`(H, W)` associated
+with the flow vectors should be understood as the source of the vectors, or the target. So given `img`\ :sub:`1` in
+the "source" domain, `img`\ :sub:`2` in the "target" domain, and an associated flow field between the two, there are
+two possible definitions or frames of reference for flow vectors:
 
 - "Source" reference: The flow vectors originate from a regular grid corresponding to pixels in the area
   :math:`H \times W` in `img`\ :sub:`1`, the source domain. They therefore encode the motion that moves image
@@ -157,18 +178,25 @@ definitions or frames of reference for flow vectors:
   :math:`H \times W` in `img`\ :sub:`2`, the target domain. They therefore encode the motion that moves image
   values from any location in `img`\ :sub:`1`, the source domain, to this regular grid in `img`\ :sub:`2`.
 
-The flow reference ``t`` is the default, and it is significantly faster to warp an image with a flow in that
+The flow reference ``t`` is the default, and it is easier and more accurate to warp an image with a flow in that
 reference. The reason is that reference ``t`` requires interpolating unstructured points from a regular
 grid (also known as "backward" or "reverse" warping), while reference ``s`` requires interpolating a regular grid
-from unstructured points ("forward" warping). The former uses the fast PyTorch :func:`grid_sample` function, the
-latter is much more operationally complex and relies on the SciPy :func:`griddata` function. On the other hand, the
-:meth:`~oflibpytorch.Flow.track` method for tracking points (see the section ":ref:`Tracking Points`") is significantly
-faster with a flow in ``s`` reference, again due to not requiring a call to SciPy's :func:`griddata` function.
+from unstructured points ("forward" warping). Conversely, the :meth:`~oflibpytorch.Flow.track` method for tracking
+points (see the section ":ref:`Tracking Points`") is more accurate for a flow in ``s`` reference, as a flow in ``t``
+reference would again require interpolating from unstructured points.
 
-As the images below show, the same rotation will lead to slightly different flow vectors depending on which reference
-is chosen. This illustrates that the reference attribute :attr:`~oflibpytorch.Flow.ref` cannot simply be set to a
-different value if it needs to be changed. For this purpose, the method :meth:`~oflibpytorch.Flow.switch_ref` should be
-used. However, this is slow, as it also calls :func:`scipy.interpolate.griddata`.
+In both cases, this is due to being forced to use an approximate interpolation function (see
+:meth:`~oflibpytorch.grid_from_unstructured_data`) in PyTorch. Alternatively, it is possible to call the
+more accurate, but at least an order of magnitude slower SciPy function :func:`griddata`. The user of
+:mod:`oflibpytorch: can make this choice via a module-wide variable called ``PURE_PYTORCH``. For more details, see
+the section :ref:`Pure PyTorch Setting`.
+
+The images below show how the same motion, in this case a rotation, will result in slightly different flow vectors
+values, depending on the reference chosen. This illustrates that the reference attribute :attr:`~oflibpytorch.Flow.ref`
+cannot simply be set to a different value if it needs to be changed. For this purpose, the method
+:meth:`~oflibpytorch.Flow.switch_ref` should be called. Again, this requires an interpolation from unstructured data,
+once more giving the user the choice between a fast, differentiable, but less accurate PyTorch-only method and the
+much slower, non-differentiable, but more accurate SciPy method :func:`scipy.interpolate.griddata`.
 
 .. image:: ../docs/_static/ref_s_vectors_gridded.png
    :width: 49%
@@ -186,15 +214,16 @@ to return a flow field in one reference, but the flow field in the other referen
 solution than using the method :meth:`~oflibpytorch.Flow.switch_ref`. Instead of calling
 ``flow_one_ref = get_flow(img1, img2)``, simply call the algorithm with the images in the reversed order, and multiply
 the resulting flow vectors by -1: ``flow_other_ref = -1 * get_flow(img2, img1)``. If the flow is needed in both
-references, it can even be faster to call :func:`get_flow` twice in the way explained above, rather than once and then
-using the method :meth:`~oflibpytorch.Flow.switch_ref` once. However, this of course depends on the size of the flow
-field, and the operational complexity of the algorithm used to calculate it.
+references with the best-possible accuracy, meaning ``PURE_PYTORCH`` will be set to ``False``, it may even be faster
+to use the flow estimation twice in the way explained above, rather than once followed by a use of
+:meth:`~oflibpytorch.Flow.switch_ref`. However, this of course depends on the size of the flow field, as well as
+the operational complexity of the algorithm used to estimate the flow.
 
 From the previous observations, it also follows that inverting a flow is not a matter of simply inverting the flow
 vectors. In flows with reference ``t``, this would mean the target location remains the same while the source switches
 to the opposite side, while in flows with reference ``s``, this would mean the source location remains the same while
-the target switches to the opposite side. Neither is correct: in actual fact, inverting the flow switches the source and
-the target around. This means inverting the flow vectors *and* changing the reference:
+the target switches to the opposite side. Neither is correct: in actual fact, inverting the flow switches the
+source and the target around. This means inverting the flow vectors *and* changing the reference:
 :math:`F(vecs, t)^{-1} = F(-vecs, s)` and :math:`F(vecs, s)^{-1} = F(-vecs, t)`. If the flow is needed with the
 original reference, :meth:`~oflibpytorch.Flow.switch_ref` would have to be called. The method
 :meth:`~oflibpytorch.Flow.invert` does all this internally, and returns the mathematically correct inverse flow in
@@ -297,11 +326,11 @@ image is valid, i.e. contains actual content. For an illustration, see the examp
     :width: 49%
     :alt: Warped image with mask
 
-**Above:** The result of applying a rotation and scaling motion to an image, with the black border showing the outline of
-the returned ``valid_area``. As can be seen, the valid area matches the true image content exactly. *Left:* the flow
-field used was the one from the code example above, valid everywhere. *Right:* the flow field used was the one from the
-section ":ref:`The Flow Mask`", where the valid area is further reduced by the flow field itself having a reduced valid
-area.
+**Above:** The result of applying a rotation and scaling motion to an image, with the black border showing the
+outline of the returned ``valid_area``. As can be seen, the valid area matches the true image content exactly.
+*Left:* the flow field used was the one from the code example above, valid everywhere. *Right:* the flow field used
+was the one from the section ":ref:`The Flow Mask`", where the valid area is further reduced by the flow field itself
+having a reduced valid area.
 
 It is also possible to pass an image mask, e.g. a segmentation mask, into the :meth:`~oflibpytorch.Flow.apply` method,
 which will be combined with the flow mask to eventually result in the ``valid_area``. This can be useful as in the
@@ -358,21 +387,24 @@ segmentation into the function, and using ``return_valid_area = True`` to obtain
 
 The examples above use a flow field with reference ``t``. This is the recommended standard for various reasons:
 
-- Using :meth:`~oflibpytorch.Flow.apply` with flow fields of reference ``s`` is comparatively slow, as it needs to call
-  SciPy's :func:`griddata` function.
+- Using :meth:`~oflibpytorch.Flow.apply` with flow fields of reference ``s`` is either less accurate if
+  ``PURE_PYTORCH`` is set to ``True``, or else comparatively slow as it will call SciPy's :func:`griddata` function.
 - Flow fields of reference ``s`` can contain ambiguities, as vectors from two different locations can point to the same
   target location. This could happen if there are several independently moving objects in a scene which end up
-  occluding each other. The only way of resolving this is to assign priorities to the flow vectors, which is left to a
-  possible future version of :mod:`oflibpytorch`.
-- Furthermore, flow fields of reference ``s`` do not deal well with undefined / invalid flow areas, as the example
-  below shows. One option (the default) considers the flow mask, i.e. ignoring invalid flow vectors, which leads to a
-  smoother result inside the convex hull of the flow target area but risks artefacts appearing. The other option,
-  accessible by setting ``consider_mask = False``, is to use the invalid vectors anyway, which in this example inserts
-  a lot of black image values in-between the desired image values which are to be interpolated onto the regular grid of
-  the new image: this gets rid of the large artefact visible in the concave area, but does not allow the flow field to
-  expand the image properly. In a future version of :mod:`oflibpytorch`, this could be at least partially solved by
-  using the default option, but then calculating which image pixels are not in the concave hull, and setting those to
-  zero. However, determining the convex hull of unstructured point clouds brings its own difficulties.
+  occluding each other. The only way of resolving this is to assign priorities to the flow vectors. With the exception
+  of pixels containing zero flow, which are already de-prioritised with respect to all other flows present when using
+  the PyTorch-only interpolation method instead of SciPy's :func:`griddata`, this is left to a possible future
+  version of :mod:`oflibpytorch`.
+- Furthermore, flow fields of reference ``s`` do not deal well with undefined / invalid flow areas when using SciPy's
+  :func:`griddata` function, as the example below shows. One option (the default) considers the flow mask, i.e.
+  ignores invalid flow vectors, which leads to a smoother result inside the convex hull of the flow target area but
+  risks artefacts appearing. The other option, accessible by setting ``consider_mask = False``, is to use the
+  invalid vectors anyway. In this example it inserts a lot of black image values in-between the desired image
+  values which are to be interpolated onto the regular grid of the new image: this gets rid of the large artefact
+  visible in the concave area, but does not allow the flow field to expand the image properly. In a future version
+  of :mod:`oflibpytorch`, this could be at least partially solved by implementing a second step in which the image
+  pixels not belonging to the concave hull are set to zero. However, determining the convex hull of unstructured point
+  clouds brings its own difficulties.
 
 .. code-block:: python
 
@@ -382,18 +414,24 @@ The examples above use a flow field with reference ``t``. This is the recommende
     radius = shape[0] // 2 - 20
     mask = np.linalg.norm(mask, axis=0)
     mask = mask < radius
-    mask[150:, :200] = False
 
-    # Load image, make a flow field, mask both
-    img = cv2.imread('thames.jpg')  # 300x400 pixels
-    flow = of.Flow.from_transforms([['scaling', 200, 150, 1.3]], shape, 's', mask)
+    # Load image, make a flow field, apply masks
+    img = cv2.imread('_static/thames_300x400.jpg')
     img[~mask] = 0
-    flow.vecs[:, ~mask] = 0
+    flow_mask = mask.copy()
+    mask[150:, :200] = False
+    flow_mask[150:, :200] = False
+    flow_mask[150:, 260:] = False
+    flow = of.Flow.from_transforms([['scaling', 200, 150, 1.3]], shape, 's', flow_mask)
+    flow.vecs[:, :, ~mask] = 0
 
     # Apply the flow to the image, setting consider_mask to True and False
-    img = torch.tensor(np.moveaxis(img, -1, 0))
-    img_true = flow.apply(img, consider_mask=True)
-    img_false = flow.apply(img, consider_mask=False)
+    unset_pure_pytorch()
+    img_true = flow.apply(to_tensor(img, 'single'), consider_mask=True)
+    img_false = flow.apply(to_tensor(img, 'single'), consider_mask=False)
+    set_pure_pytorch()
+    img_true_pt = flow.apply(to_tensor(img, 'single'), consider_mask=True)
+    img_false_pt = flow.apply(to_tensor(img, 'single'), consider_mask=False)
 
 .. image:: ../docs/_static/usage_apply_consider_mask_img.png
     :width: 49%
@@ -403,14 +441,27 @@ The examples above use a flow field with reference ``t``. This is the recommende
     :alt: Masked flow
 .. image:: ../docs/_static/usage_apply_consider_mask_true.png
     :width: 49%
-    :alt: Flow applied to the image considering the flow mask (default option)
+    :alt: Flow applied to the image considering the flow mask (default option), using scipy.interpolate.griddata
 .. image:: ../docs/_static/usage_apply_consider_mask_false.png
     :width: 49%
-    :alt: Flow applied to the image not considering the flow mask
+    :alt: Flow applied to the image not considering the flow mask, using scipy.interpolate.griddata
+.. image:: ../docs/_static/usage_apply_consider_mask_true_pytorch.png
+    :width: 49%
+    :alt: Flow applied to the image considering the flow mask (default option), using the PyTorch-only alternative
+.. image:: ../docs/_static/usage_apply_consider_mask_false_pytorch.png
+    :width: 49%
+    :alt: Flow applied to the image not considering the flow mask, using the PyTorch-only alternative
 
-**Above:** *Top:* The masked image and the equally masked flow with reference ``s``, corresponding to a scaling motion
-from the image centre. *Bottom:* The result of applying the flow to the image, with / without considering the mask,
-i.e. not using / using all flow vector values.
+**Above:** *Top:* The image (imagine a monocular) and a masked flow (mask shown as white area) with reference ``s``,
+corresponding to a partial scaling motion from the image centre.
+*Middle:* The result of using SciPy's :func:`griddata` to apply the flow to the image, with / without considering
+the mask, i.e. not using / using all flow vector values. In the former case, large artefacts become visible in
+concave areas. In the latter case, the image content that should be superimposed on the black outside areas is
+only visible as single pixels here and there, while the black area that has not moved dominates.
+*Bottom:* Same as the middle row, but using the faster and differentiable PyTorch-only method
+:meth:`~oflibpytorch.grid_from_unstructured_data`. It becomes apparent that this implementation suffers much less
+from artefacts, though a comparison of the resulting image values would show it to be less accurate than the result
+of :func:`scipy.interpolate.griddata`.
 
 
 Flow Padding
@@ -421,10 +472,10 @@ respect to the given flow field in order for no undefined areas to show up anymo
 would be the creation of synthetic data for a deep learning optical flow estimation algorithm, with the goal of
 obtaining two images and an associated flow field that corresponds to the motion visible between the two images.
 
-The padding can be determined using the :meth:`~oflibpytorch.Flow.get_padding` method, and will be returned as a list of
-values ``[top, bottom, left, right]``. If an image padded accordingly is passed to the :meth:`~oflibpytorch.Flow.apply`
-method along with the padding values, the image will be warped according to the flow field and automatically cut down
-to the size of the flow field, unless the parameter `cut` is set to ``False``.
+The padding can be determined using the :meth:`~oflibpytorch.Flow.get_padding` method, and will be returned as a
+list of values ``[top, bottom, left, right]``. If an image padded accordingly is passed to the
+:meth:`~oflibpytorch.Flow.apply` method along with the padding values, the image will be warped according to the
+flow field and automatically cut down to the size of the flow field, unless the parameter `cut` is set to ``False``.
 
 .. code-block:: python
 
@@ -461,10 +512,11 @@ to the size of the flow field, unless the parameter `cut` is set to ``False``.
     :width: 32%
     :alt: Padded patch warped with the flow, cut back to size
 
-**Above:** *Left:* The original unpadded image patch. *Middle:* The unpadded image patch when warped with the same flow
-field as the one used in the section ":ref:`Applying a Flow`". Note the similar amount of undefined areas visible in the
-result. *Right:* The result of applying the flow to the image patch padded with the necessary amount of padding, and
-then cut back to size. The padding was just large enough to avoid any undefined areas becoming visible.
+**Above:** *Left:* The original unpadded image patch. *Middle:* The unpadded image patch when warped with the same
+flow field as the one used in the section ":ref:`Applying a Flow`". Note the similar amount of undefined areas
+visible in the result. *Right:* The result of applying the flow to the image patch padded with the necessary amount
+of padding, and then cut back to size. The padding was just large enough to avoid any undefined areas becoming
+visible.
 
 For flows with reference ``s``, the above calculation of padding is not possible: after all, the flow vectors express
 where pixels in the original image are "pushed" to, rather than where pixels in the warped image are "pulled" from.
@@ -495,21 +547,21 @@ is being pushed outside of the image.
     :width: 49%
     :alt: Padded image warped with the flow
 
-**Above:** *Left:* The original image warped with the flow - note the corners that have been moved outside of the image,
-leading to loss of information. *Right:* The padded image warped with the flow: the image has been padded the exact
-amount needed not to lose any image content.
+**Above:** *Left:* The original image warped with the flow - note the corners that have been moved outside of
+the image, leading to loss of information. *Right:* The padded image warped with the flow: the image has been
+padded the exact amount needed not to lose any image content.
 
 
 Source and Target Areas
 -----------------------
-The :meth:`~oflibpytorch.Flow.valid_source` and :meth:`~oflibpytorch.Flow.valid_target` methods both serve to investigate
-the flow field. Given an image with the area :math:`H \times W` in the source domain and a flow field of the same
-shape, applying this flow to the image will give us a warped image in the target domain. Some of the original image
-content will no longer be visible after applying the flow: :meth:`~oflibpytorch.Flow.valid_source` returns a boolean
-tensor of shape :math:`(H, W)` which is ``False`` where content "disappears" after warping. The warped image, in turn,
-will contain some areas which are undefined, i.e. not filled by any content from the original image:
-:meth:`~oflibpytorch.Flow.valid_target` returns a boolean tensor of shape :math:`(H, W)` which is ``False`` where the
-warped image does not contain valid content.
+The :meth:`~oflibpytorch.Flow.valid_source` and :meth:`~oflibpytorch.Flow.valid_target` methods both serve to
+investigate the flow field. Given an image with the area :math:`H \times W` in the source domain and a flow field
+of the same shape, applying this flow to the image will give us a warped image in the target domain. Some of the
+original image content will no longer be visible after applying the flow: :meth:`~oflibpytorch.Flow.valid_source`
+returns a boolean tensor of shape :math:`(N, H, W)` which is ``False`` where content "disappears" after warping.
+The warped image, in turn, will contain some areas which are undefined, i.e. not filled by any content from the
+original image: :meth:`~oflibpytorch.Flow.valid_target` returns a boolean tensor of shape :math:`(N, H, W)` which
+is ``False`` where the warped image does not contain valid content.
 
 .. code-block:: python
 
@@ -551,10 +603,12 @@ Tracking Points
 The :meth:`~oflibpytorch.Flow.track` method is useful to apply the flow field to a number of points rather than an
 entire image. In the following example, the `int_out` parameter is set to ``True`` so the new point locations are
 returned as (rounded) integers - this is a useful convenience feature if these points should then be plotted on an
-image. By default, the method will return accurate float values.
+image. By default, the method will return accurate float values. Note that integer outputs are not differentiable.
 
-An important point to be aware of is that the :meth:`~oflibpytorch.Flow.track` method is significantly faster for flows
-with a "source" reference (``ref = 's'``).
+If ``PURE_PYTORCH`` is ``False`` (see the section ":ref:`Pure PyTorch Setting`"), using
+:meth:`~oflibpytorch.Flow.track` for flows with a "target" reference (``ref = 't'``) requires a call to
+:func:`scipy.interpolate.griddata`. This is avoided with the PyTorch-only interpolation function, but at the cost
+of decreased accuracy.
 
 .. code-block:: python
 
@@ -607,9 +661,9 @@ section ":ref:`The Flow Mask`") *and* remains inside the image area.
 
 **Above:** Flow field, and point positions: original points in white, points after applying the flow in red. Note the
 upper left and lower right points are missing, as they both have a `valid_status` of ``False``. For the upper left
-point, this is due to the flow vector at that location having been defined as invalid (see the black border in the flow
-field visualisation), as the mask used when creating the flow was set to ``False`` there. For the lower right point,
-this is due to the new location of the point being outside of the image area.
+point, this is due to the flow vector at that location having been defined as invalid (see the black border in the
+flow field visualisation), as the mask used when creating the flow was set to ``False`` there. For the lower right
+point, this is due to the new location of the point being outside of the image area.
 
 Combining Flows
 ---------------
@@ -653,8 +707,8 @@ to the example in the section ":ref:`The Flow Mask`".
     :alt: Calculated flow 3
 
 **Above:** *Top:* Flows 1 through 3. *Bottom:* Flows 1 through 3, as calculated using
-:func:`~oflibpytorch.Flow.combine_with`, matching the original flow fields. Note that the first flow field
-has some invalid areas.
+:func:`~oflibpytorch.Flow.combine_with`, matching the original flow fields. Note that some results may show some
+invalid areas.
 
 Tensor-Based Functions
 ----------------------

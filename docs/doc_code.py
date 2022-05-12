@@ -4,7 +4,7 @@ import torch
 import sys
 sys.path.append('..')
 import src.oflibpytorch as of
-from src.oflibpytorch.utils import to_numpy, to_tensor, show_masked_image
+from src.oflibpytorch.utils import to_numpy, to_tensor, show_masked_image, unset_pure_pytorch, set_pure_pytorch
 
 
 # # # # Usage / Visualisation
@@ -108,25 +108,38 @@ from src.oflibpytorch.utils import to_numpy, to_tensor, show_masked_image
 # radius = shape[0] // 2 - 20
 # mask = np.linalg.norm(mask, axis=0)
 # mask = mask < radius
-# mask[150:, :200] = False
 #
-# # Load image, make a flow field, mask both
+# # Load image, make a flow field, apply masks
 # img = cv2.imread('_static/thames_300x400.jpg')
-# flow = of.Flow.from_transforms([['scaling', 200, 150, 1.3]], shape, 's', mask)
 # img[~mask] = 0
-# flow.vecs[:, ~mask] = 0
+# flow_mask = mask.copy()
+# mask[150:, :200] = False
+# flow_mask[150:, :200] = False
+# flow_mask[150:, 260:] = False
+# flow = of.Flow.from_transforms([['scaling', 200, 150, 1.3]], shape, 's', flow_mask)
+# flow.vecs[:, :, ~mask] = 0
 #
 # # Apply the flow to the image, setting consider_mask to True and False
-# img_true = flow.apply(to_tensor(img, True), consider_mask=True)
-# img_false = flow.apply(to_tensor(img, True), consider_mask=False)
+# unset_pure_pytorch()
+# img_true = flow.apply(to_tensor(img, 'single'), consider_mask=True)
+# img_false = flow.apply(to_tensor(img, 'single'), consider_mask=False)
+# set_pure_pytorch()
+# img_true_pt = flow.apply(to_tensor(img, 'single'), consider_mask=True)
+# img_false_pt = flow.apply(to_tensor(img, 'single'), consider_mask=False)
 #
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_apply_consider_mask_img.png', img)
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_apply_consider_mask_flow.png',
-#             flow.visualise('bgr', True, True, return_tensor=False))
+#             flow.visualise('bgr', True, True, return_tensor=False)[0])
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_apply_consider_mask_flow_arrows.png',
-#             flow.visualise_arrows(50, show_mask=True, show_mask_borders=True, return_tensor=False))
-# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_apply_consider_mask_true.png', to_numpy(img_true, True))
-# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_apply_consider_mask_false.png', to_numpy(img_false, True))
+#             flow.visualise_arrows(50, show_mask=True, show_mask_borders=True, return_tensor=False)[0])
+# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_apply_consider_mask_true.png',
+#             np.moveaxis(to_numpy(img_true), 0, -1))
+# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_apply_consider_mask_false.png',
+#             np.moveaxis(to_numpy(img_false), 0, -1))
+# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_apply_consider_mask_true_pytorch.png',
+#             np.moveaxis(to_numpy(img_true_pt), 0, -1))
+# cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_apply_consider_mask_false_pytorch.png',
+#             np.moveaxis(to_numpy(img_false_pt), 0, -1))
 #
 # # Load image and pad with a black border
 # img = cv2.imread('_static/thames_300x400.jpg')
@@ -253,17 +266,17 @@ from src.oflibpytorch.utils import to_numpy, to_tensor, show_masked_image
 # flow_2_result = flow_1.combine_with(flow_3, mode=2)
 # flow_3_result = flow_1.combine_with(flow_2, mode=3)
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_combining_1.png',
-#             flow_1.visualise('bgr', True, True, return_tensor=False))
+#             flow_1.visualise('bgr', True, True, return_tensor=False)[0])
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_combining_2.png',
-#             flow_2.visualise('bgr', True, True, return_tensor=False))
+#             flow_2.visualise('bgr', True, True, return_tensor=False)[0])
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_combining_3.png',
-#             flow_3.visualise('bgr', True, True, return_tensor=False))
+#             flow_3.visualise('bgr', True, True, return_tensor=False)[0])
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_combining_1_result.png',
-#             flow_1_result.visualise('bgr', True, True, return_tensor=False))
+#             flow_1_result.visualise('bgr', True, True, return_tensor=False)[0])
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_combining_2_result.png',
-#             flow_2_result.visualise('bgr', True, True, return_tensor=False))
+#             flow_2_result.visualise('bgr', True, True, return_tensor=False)[0])
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_combining_3_result.png',
-#             flow_3_result.visualise('bgr', True, True, return_tensor=False))
+#             flow_3_result.visualise('bgr', True, True, return_tensor=False)[0])
 
 
 # # # # Flow field for flow doc
