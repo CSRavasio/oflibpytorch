@@ -1881,8 +1881,7 @@ class FlowTest(unittest.TestCase):
             flow_s.matrix(dof=4, method='lms', masked='test')
 
     def test_combine_with(self):
-        img = cv2.resize(cv2.imread('smudge.png'), None, fx=.125, fy=.125)
-        shape = img.shape[:2]
+        shape = [60, 64]
         transforms = [
             ['rotation', 60, 80, -30],
             ['scaling', 40, 30, 0.8],
@@ -1894,7 +1893,7 @@ class FlowTest(unittest.TestCase):
         for f in [set_pure_pytorch, unset_pure_pytorch]:
             f()
             for ref in ['s', 't']:
-                atol = 8e-1 if get_pure_pytorch() else 5e-2
+                atol = 2e-1 if get_pure_pytorch() else 5e-5
                 f1 = Flow.from_transforms(transforms[0:1], shape, ref)
                 f2 = Flow.from_transforms(transforms[1:2], shape, ref)
                 f3 = Flow.from_transforms(transforms, shape, ref)
