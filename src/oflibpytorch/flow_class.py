@@ -1748,31 +1748,21 @@ class Flow(object):
                 flow_inv_t = flow.invert('t')
                 result = flow - (flow_inv_t + flow_inv_t.apply(self.switch_ref())).apply(self)
             elif self._ref == flow._ref == 't':
-                # Explanation: currently no native implementation to ref 't', so just "translated" from ref 's'
-                # F1_t = (F3_t-as-s - F2_t.combine_with(F3_t^-1_t, 3){F2_t-as-s})_as-t
-                # result = flow.switch_ref() - self.combine_with(flow.invert(), mode=3).apply(self.switch_ref())
-                # result = result.switch_ref()
-                #
-                # Alternative: saves one call to griddata. However, test shows barely a difference - not sure why
-                # F1_t = (F3_t-as-s - F2_t-as-s.combine_with(F3_t^-1_s, 3){F2_t-as-s})_as-t
-                # self_s = self.switch_ref()
-                # result = flow.switch_ref() - self_s.combine_with(flow.invert('s'), mode=3).apply(self_s)
-                # result = result.switch_ref()
-                # To avoid call to combine_with and associated overhead, do the corresponding operations directly:
-                self_s = self.switch_ref()
-                result = flow.switch_ref() - (self_s + self_s.invert(ref='t').apply(flow.invert('s'))).apply(self_s)
-                result = result.switch_ref()
+                # Explanation: f1 is (f3 minus f2), after which E2 = E3 is moved to E1 by applying the inverse of f2
+                result = self.invert().apply(flow - self)
         elif mode == 2:  # Flows are in order (self, desired_result, flow)
             if self._ref == flow._ref == 's':
                 # Explanation: f2 is (f3 minus f1), when S1 = S3 is moved to S2, achieved by applying f1
                 # F2_s = F1_s{F3_s - F1_s}
                 result = self.apply(flow - self)
             elif self._ref == flow._ref == 't':
-                # Strictly "translated" version from the ref 's' case:
-                # F2_t = F1_t{F3_t-as-s - F1_t-as-s}_as-t)
                 if get_pure_pytorch():
-                    result = (self.apply(flow.switch_ref() - self.switch_ref())).switch_ref()
+                    # f2 is (f3 minus f1), where E1 is moved to S1 (applying the inverse of f1) and then on to E3
+                    # (applying f3)
+                    result = flow - flow.apply(self.invert().apply(self))
                 else:
+                    # Strictly "translated" version from the ref 's' case:
+                    # F2_t = F1_t{F3_t-as-s - F1_t-as-s}_as-t)
                     # result = (self.apply(flow.switch_ref() - self.switch_ref())).switch_ref()
                     # Improved version cutting down on operational complexity
                     # F3 - F1, where F1 has been resampled to the source positions of F3.
