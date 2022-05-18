@@ -1616,7 +1616,8 @@ class Flow(object):
 
     def combine_with(self, flow: FlowAlias, mode: int, thresholded: bool = None) -> FlowAlias:
         """Function that returns the result of the combination of two flow objects of the same shape :attr:`shape` and
-        reference :attr:`ref`
+        reference :attr:`ref`. This method will in future be deprecated in favour of :meth:`~oflibnumpy.Flow.combine`,
+        using a more general algorithm that can both combine and output flow objects in any reference frame.
 
         If the toolbox-wide variable ``PURE_PYTORCH`` is set to ``True`` (default, see also
         :meth:`~oflibpytorch.set_pure_pytorch`), the output flow field vectors are differentiable with respect to the
@@ -1625,31 +1626,9 @@ class Flow(object):
         .. tip::
            All of the flow field combinations in this function rely on some combination of the
            :meth:`~oflibnumpy.Flow.apply`, :meth:`~oflibnumpy.Flow.invert`, and :func:`~oflibnumpy.Flow.combine_with`
-           methods.
-
-           If ``PURE_PYTORCH`` is set to ``False``, some of these methods will call :func:`scipy.interpolate.griddata`,
-           possibly multiple times, which can be very slow (several seconds) - but the result will be more accurate
-           compared to using the PyTorch-only setting. The table below aids decision-making with regards to which
-           reference a flow field should be provided in to obtain the fastest result.
-
-            .. list-table:: Calls to :func:`scipy.interpolate.griddata`
-               :header-rows: 1
-               :stub-columns: 1
-               :widths: 10, 15, 15
-               :align: center
-
-               * - `mode`
-                 - ``ref = 's'``
-                 - ``ref = 't'``
-               * - 1
-                 - 1
-                 - 3
-               * - 2
-                 - 1
-                 - 1
-               * - 3
-                 - 0
-                 - 0
+           methods. If ``PURE_PYTORCH`` is set to ``False``, and ``mode`` is ``1`` or ``2``, these methods will call
+           :func:`scipy.interpolate.griddata`, which can be very slow (several seconds) - but the result will be more
+           accurate compared to using the PyTorch-only setting.
 
         All formulas used in this function have been derived from first principles. The base formula is
         :math:`flow_1 ⊕ flow_2 = flow_3`, where :math:`⊕` is a non-commutative flow composition operation.
