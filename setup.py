@@ -29,7 +29,7 @@ print(setup_message)
 setup(
     name='oflibpytorch',
     version='2.0.0',
-    description='Optical flow library using a custom flow class based on PyTorch tensors',
+    description='Differentiable optical flow library using a custom flow class based on PyTorch tensors',
     long_description=long_description,
     long_description_content_type='text/x-rst',
     url='https://github.com/RViMLab/oflibpytorch',
