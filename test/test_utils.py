@@ -22,7 +22,7 @@ from src.oflibpytorch.utils import get_valid_vecs, get_valid_shape, get_valid_re
     get_valid_device, to_numpy, move_axis, flow_from_matrix, matrix_from_transform, matrix_from_transforms, \
     reverse_transform_values, normalise_coords, apply_flow, threshold_vectors, from_matrix, from_transforms,  \
     load_kitti, load_sintel, load_sintel_mask, resize_flow, is_zero_flow, track_pts, get_flow_endpoints, \
-    grid_from_unstructured_data, apply_s_flow, get_pure_pytorch, set_pure_pytorch, unset_pure_pytorch
+    grid_from_unstructured_data, apply_s_flow, get_pure_pytorch, set_pure_pytorch, unset_pure_pytorch, to_tensor
 from src.oflibpytorch.flow_class import Flow
 from src.oflibpytorch.flow_operations import batch_flows
 
@@ -30,13 +30,41 @@ from src.oflibpytorch.flow_operations import batch_flows
 class TestPurePytorch(unittest.TestCase):
     def test_set_pure_pytorch(self):
         unset_pure_pytorch()
-        set_pure_pytorch()
+        set_pure_pytorch(warn=True)
         self.assertEqual(get_pure_pytorch(), True)
 
     def test_unset_pure_pytorch(self):
         set_pure_pytorch()
-        unset_pure_pytorch()
+        unset_pure_pytorch(warn=True)
         self.assertEqual(get_pure_pytorch(), False)
+
+
+class TestTensorNumpy(unittest.TestCase):
+    def test_to_numpy(self):
+        pt = torch.zeros((3, 2, 20, 20), requires_grad=True)
+        arr = to_numpy(pt, switch_channels=True)
+        self.assertIsInstance(arr, np.ndarray)
+        self.assertEqual(arr.shape, (3, 20, 20, 2))
+        if torch.cuda.is_available():
+            pt = pt.to('cuda')
+            arr = to_numpy(pt, switch_channels=True)
+            self.assertIsInstance(arr, np.ndarray)
+            self.assertEqual(arr.shape, (3, 20, 20, 2))
+
+    def test_to_tensor(self):
+        arr = np.zeros((3, 20, 20, 2))
+        pt = to_tensor(arr)
+        self.assertIsInstance(pt, torch.Tensor)
+        self.assertEqual(pt.shape, (3, 20, 20, 2))
+        pt = to_tensor(arr, switch_channels='batched')
+        self.assertIsInstance(pt, torch.Tensor)
+        self.assertEqual(pt.shape, (3, 2, 20, 20))
+        pt = to_tensor(arr[0], switch_channels='single')
+        self.assertIsInstance(pt, torch.Tensor)
+        self.assertEqual(pt.shape, (2, 20, 20))
+        if torch.cuda.is_available():
+            pt = to_tensor(arr, device='cuda')
+            self.assertEqual(pt.device.type, 'cuda')
 
 
 class TestMoveAxis(unittest.TestCase):
@@ -108,6 +136,8 @@ class TestValidityChecks(unittest.TestCase):
 
         # Invalid vector values
         vectors = np.random.rand(100, 200, 2)
+        with self.assertRaises(ValueError):
+            get_valid_vecs(vectors[..., 0])
         vectors[10, 10] = np.NaN
         vectors[20, 20] = np.Inf
         vectors[30, 30] = -np.Inf
@@ -449,6 +479,14 @@ class TestNormaliseCoords(unittest.TestCase):
 
 
 class TestApplyFlow(unittest.TestCase):
+    def test_zero_flow(self):
+        img = cv2.imread('smudge.png')
+        img = cv2.resize(img, None, fx=0.125, fy=.125)
+        img = torch.tensor(np.moveaxis(img, -1, 0), dtype=torch.float, requires_grad=True)
+        flow = Flow.zero(img.shape[1:])
+        img_warped = flow.apply(img)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(img), to_numpy(img_warped)))
+
     def test_rotation(self):
         img = cv2.imread('smudge.png')[:, :480]
         img = torch.tensor(np.moveaxis(img, -1, 0), dtype=torch.float, requires_grad=True)
@@ -561,7 +599,7 @@ class TestApplyFlow(unittest.TestCase):
         with self.assertRaises(ValueError):  # target torch tensor shape does not match flow shape
             apply_flow(flow, target=torch.zeros((1, 1, 11, 10)), ref='t')
         with self.assertRaises(ValueError):  # target torch tensor batch size does not match flow batch size
-            apply_flow(flow=torch.zeros((3, 1, 11, 10)), target=torch.zeros((2, 1, 11, 10)), ref='t')
+            apply_flow(flow=torch.ones((3, 2, 11, 10)), target=torch.zeros((2, 1, 11, 10)), ref='t')
 
 
 class TestThresholdVectors(unittest.TestCase):
@@ -612,6 +650,9 @@ class TestFromMatrix(unittest.TestCase):
         self.assertIsNone(np.testing.assert_equal(flow.shape[0], 1))
         self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape))
         unset_pure_pytorch()
+        matrix = np.array([[math.sqrt(3) / 2, -.5, 26.3397459622],
+                           [.5, math.sqrt(3) / 2, 1.69872981078],
+                           [0, 0, 1]])
         flow = from_matrix(matrix, shape, 't')
         self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 10]), [0, 0], atol=1e-4))
         self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0, :, 50, 299]), [38.7186583063, 144.5], rtol=1e-4))
@@ -645,6 +686,8 @@ class TestFromMatrix(unittest.TestCase):
             from_matrix('test', [10, 10], 't')
         with self.assertRaises(ValueError):  # Invalid matrix shape
             from_matrix(np.eye(4), [10, 10], 't')
+        with self.assertRaises(ValueError):  # Invalid matrix ndim
+            from_matrix(np.ones((1, 1, 3, 3)), [10, 10], 't')
         with self.assertRaises(TypeError):  # Invalid matrix_is_inverse type
             from_matrix(torch.eye(3), [10, 10], matrix_is_inverse='test')
         with self.assertRaises(ValueError):  # matrix_is_inverse True despite ref = 's'
@@ -708,14 +751,32 @@ class TestFromTransforms(unittest.TestCase):
         transforms = ['test']
         with self.assertRaises(TypeError):  # transform not a list
             from_transforms(transforms, shape, 't')
-        transforms = [['translation', 20, 10], ['rotation']]
-        with self.assertRaises(ValueError):  # transform missing information
+        with self.assertRaises(ValueError):  # rotation missing information
+            transforms = [['translation', 20, 10], ['rotation']]
             from_transforms(transforms, shape, 't')
-        transforms = [['translation', 20, 10], ['rotation', 1]]
-        with self.assertRaises(ValueError):  # transform with incomplete information
+        with self.assertRaises(ValueError):  # rotation with incomplete information
+            transforms = [['translation', 20, 10], ['rotation', 1]]
             from_transforms(transforms, shape, 't')
-        transforms = [['translation', 20, 10], ['rotation', 1, 'test', 10]]
-        with self.assertRaises(ValueError):  # transform with invalid information
+        with self.assertRaises(ValueError):  # rotation with invalid information
+            transforms = [['translation', 20, 10], ['rotation', 1, 'test', 10]]
+            from_transforms(transforms, shape, 't')
+        with self.assertRaises(ValueError):  # translation missing information
+            transforms = [['translation', 20, 10], ['translation']]
+            from_transforms(transforms, shape, 't')
+        with self.assertRaises(ValueError):  # translation with incomplete information
+            transforms = [['translation', 20, 10], ['translation', 1]]
+            from_transforms(transforms, shape, 't')
+        with self.assertRaises(ValueError):  # translation with invalid information
+            transforms = [['translation', 20, 10], ['translation', 1, 'test']]
+            from_transforms(transforms, shape, 't')
+        with self.assertRaises(ValueError):  # scaling missing information
+            transforms = [['translation', 20, 10], ['scaling']]
+            from_transforms(transforms, shape, 't')
+        with self.assertRaises(ValueError):  # scaling with incomplete information
+            transforms = [['translation', 20, 10], ['scaling', 1]]
+            from_transforms(transforms, shape, 't')
+        with self.assertRaises(ValueError):  # scaling with invalid information
+            transforms = [['translation', 20, 10], ['scaling', 1, 'test', 2]]
             from_transforms(transforms, shape, 't')
         transforms = [['translation', 20, 10], ['test', 1, 1, 10]]
         with self.assertRaises(ValueError):  # transform type invalid
@@ -885,6 +946,10 @@ class TestTrackPts(unittest.TestCase):
         ]
         for tracked in tracked_list:
             self.assertIsNotNone(tracked.grad_fn)
+
+        # Zero flow
+        p_zero = track_pts(torch.zeros_like(f_s), 's', pts)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(pts), to_numpy(p_zero)))
 
         # Reference 's'
         pts_tracked_s = track_pts(f_s, 's', pts)

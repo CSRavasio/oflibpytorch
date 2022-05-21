@@ -19,12 +19,25 @@ import sys
 sys.path.append('..')
 from src.oflibpytorch.flow_class import Flow
 from src.oflibpytorch.flow_operations import combine_flows, switch_flow_ref, invert_flow, valid_target, valid_source, \
-    get_flow_padding, get_flow_matrix, visualise_flow, visualise_flow_arrows, batch_flows
+    get_flow_padding, get_flow_matrix, visualise_definition, visualise_flow, visualise_flow_arrows, batch_flows
 from src.oflibpytorch.utils import to_numpy, matrix_from_transforms, \
     set_pure_pytorch, unset_pure_pytorch, get_pure_pytorch
 
 
 class TestFlowOperations(unittest.TestCase):
+    def test_visualise_definition(self):
+        shape = (100, 100)
+        img = visualise_definition('bgr', shape=shape, insert_text=False, return_tensor=True)
+        self.assertEqual(img.shape[1:], shape)
+        self.assertIsInstance(img, torch.Tensor)
+        img = visualise_definition('bgr', shape=shape, insert_text=True, return_tensor=False)
+        self.assertIsInstance(img, np.ndarray)
+
+        with self.assertRaises(TypeError):  # insert_text not boolean
+            visualise_definition('bgr', insert_text='test')
+        with self.assertRaises(TypeError):  # return_tensor not boolean
+            visualise_definition('bgr', return_tensor='test')
+
     def test_combine_flows(self):
         img = cv2.resize(cv2.imread('smudge.png'), None, fx=.125, fy=.125)
         shape = img.shape[:2]

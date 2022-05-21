@@ -561,6 +561,10 @@ class FlowTest(unittest.TestCase):
         v1 = np.random.rand(1, 100, 200, 2)
         v2 = np.random.rand(3, 100, 200, 2)
         v3 = np.random.rand(5, 100, 200, 2)
+        f1 = Flow(torch.tensor(v1, requires_grad=True))
+        m = f1 * np.moveaxis(v1, -1, 1)
+        self.assertIsNotNone(m.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(m.vecs_numpy, v1 * v1, rtol=1e-6, atol=1e-6))
         f2 = Flow(torch.tensor(v2, requires_grad=True))
         m = f2 * np.moveaxis(v1, -1, 1)
         self.assertIsNotNone(m.vecs.grad_fn)
@@ -569,6 +573,9 @@ class FlowTest(unittest.TestCase):
         self.assertIsNotNone(m.vecs.grad_fn)
         self.assertIsNone(np.testing.assert_allclose(m.vecs_numpy, vecs1 * v3, rtol=1e-6, atol=1e-6))
 
+        # ... using the wrong type
+        with self.assertRaises(TypeError):
+            flow1 * 'test'
         # ... using a list of the wrong length
         with self.assertRaises(ValueError):
             flow1 * [0, 1, 2]
@@ -677,6 +684,10 @@ class FlowTest(unittest.TestCase):
         v1 = np.random.rand(1, 100, 200, 2)
         v2 = np.random.rand(3, 100, 200, 2)
         v3 = np.random.rand(5, 100, 200, 2)
+        f1 = Flow(torch.tensor(v1, requires_grad=True))
+        m = f1 / np.moveaxis(v1, -1, 1)
+        self.assertIsNotNone(m.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(m.vecs_numpy, v1 / v1, rtol=1e-6, atol=1e-6))
         f2 = Flow(torch.tensor(v2, requires_grad=True))
         d = f2 / np.moveaxis(v1, -1, 1)
         self.assertIsNotNone(d.vecs.grad_fn)
@@ -685,6 +696,9 @@ class FlowTest(unittest.TestCase):
         self.assertIsNotNone(d.vecs.grad_fn)
         self.assertIsNone(np.testing.assert_allclose(d.vecs_numpy, vecs1 / v3, rtol=1e-6, atol=1e-6))
 
+        # ... using the wrong type
+        with self.assertRaises(TypeError):
+            flow1 / 'test'
         # ... using a list of the wrong length
         with self.assertRaises(ValueError):
             flow1 / [1, 2, 3]
@@ -789,6 +803,10 @@ class FlowTest(unittest.TestCase):
         v1 = np.random.rand(1, 100, 200, 2)
         v2 = np.random.rand(3, 100, 200, 2)
         v3 = np.random.rand(5, 100, 200, 2)
+        f1 = Flow(torch.tensor(v1, requires_grad=True))
+        m = f1 ** np.moveaxis(v1, -1, 1)
+        self.assertIsNotNone(m.vecs.grad_fn)
+        self.assertIsNone(np.testing.assert_allclose(m.vecs_numpy, v1 ** v1, rtol=1e-6, atol=1e-6))
         f2 = Flow(torch.tensor(v2, requires_grad=True))
         p = f2 ** np.moveaxis(v1, -1, 1)
         self.assertIsNotNone(p.vecs.grad_fn)
@@ -797,6 +815,9 @@ class FlowTest(unittest.TestCase):
         self.assertIsNotNone(p.vecs.grad_fn)
         self.assertIsNone(np.testing.assert_allclose(p.vecs_numpy, vecs1 ** v3, rtol=1e-6, atol=1e-6))
 
+        # ... using the wrong type
+        with self.assertRaises(TypeError):
+            flow1 ** 'test'
         # ... using a list of the wrong length
         with self.assertRaises(ValueError):
             flow1 ** [0, 1, 2]
@@ -931,6 +952,11 @@ class FlowTest(unittest.TestCase):
                                 self.assertIsNotNone(warped_img_actual.grad_fn)
                             self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
                                                                       to_numpy(warped_img_desired)))
+                            warped_img_actual, _ = flow.apply(img[0], mask, True, consider_mask=consider_mask)
+                            if ref != 's' or get_pure_pytorch():
+                                self.assertIsNotNone(warped_img_actual.grad_fn)
+                            self.assertIsNone(np.testing.assert_equal(to_numpy(warped_img_actual),
+                                                                      to_numpy(warped_img_desired)))
                         for f_device in ['cpu', 'cuda']:
                             f = flow.to_device(f_device)
                             f.vecs.requires_grad_()
@@ -942,50 +968,69 @@ class FlowTest(unittest.TestCase):
                             self.assertEqual(flow.device, warped_flow_actual.device)
                             self.assertIsNone(np.testing.assert_equal(to_numpy(warped_flow_actual.vecs),
                                                                       to_numpy(warped_flow_desired)))
-            # Check using a smaller flow field on a larger target works the same as a full flow field on the same target
-            img = img_pt.to(torch.float).requires_grad_()
-            ref = 't'
-            flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref)
-            warped_img_desired = apply_flow(flow.vecs, img, ref)
-            shape = [img.shape[1] - 90, img.shape[2] - 110]
-            padding = [50, 40, 30, 80]
-            cut_flow = Flow.from_transforms([['rotation', 0, 0, 30]], shape, ref)
-            # ... not cutting (target torch tensor)
-            warped_img_actual = cut_flow.apply(img, padding=padding, cut=False)
-            if ref != 's' or get_pure_pytorch():
-                self.assertIsNotNone(warped_img_actual.grad_fn)
-            self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img_actual[:, padding[0]:-padding[1],
-                                                                  padding[2]:-padding[3]]),
-                                                         to_numpy(warped_img_desired[:, padding[0]:-padding[1],
-                                                                  padding[2]:-padding[3]]),
-                                                         atol=1e-3))
-            # ... cutting (target torch tensor)
-            warped_img_actual = cut_flow.apply(img, padding=padding, cut=True)
-            if ref != 's' or get_pure_pytorch():
-                self.assertIsNotNone(warped_img_actual.grad_fn)
-            self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img_actual).astype('f'),
-                                                         to_numpy(warped_img_desired[:, padding[0]:-padding[1],
-                                                                  padding[2]:-padding[3]]).astype('f'),
-                                                         atol=1e-3))
-            # ... not cutting (target flow object)
-            target_flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref)
-            warped_flow_desired = apply_flow(flow.vecs, target_flow.vecs, ref)
-            warped_flow_actual = cut_flow.apply(target_flow, padding=padding, cut=False)
-            if ref != 's' or get_pure_pytorch():
-                self.assertIsNotNone(warped_img_actual.grad_fn)
-            self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_flow_actual.vecs[:, :, padding[0]:-padding[1],
-                                                                  padding[2]:-padding[3]]),
-                                                         to_numpy(warped_flow_desired[:, :, padding[0]:-padding[1],
-                                                                  padding[2]:-padding[3]]),
-                                                         atol=1e-1))
-            # ... cutting (target flow object)
-            warped_flow_actual = cut_flow.apply(target_flow, padding=padding, cut=True)
-            if ref != 's' or get_pure_pytorch():
-                self.assertIsNotNone(warped_img_actual.grad_fn)
-            self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_flow_actual.vecs),
-                                                         to_numpy(warped_flow_desired[:, :, padding[0]:-padding[1],
-                                                                  padding[2]:-padding[3]]),
-                                                         atol=1e-1))
+                if get_pure_pytorch():
+                    # Check whether a smaller flow field on larger target works same as full flow field on same target
+                    img = img_pt.to(torch.float).requires_grad_()
+                    flow = Flow.from_transforms([['rotation', 20, 5, 30]], img.shape[1:], ref)
+                    warped_img_desired = apply_flow(flow.vecs, img, ref)
+                    shape = [img.shape[1] - 20, img.shape[2] - 30]
+                    padding = [5, 15, 20, 10]
+                    cut_flow = Flow.from_transforms([['rotation', 0, 0, 30]], shape, ref)
+                    # ... not cutting (target torch tensor)
+                    warped_img_actual, mask = cut_flow.apply(img, padding=padding, cut=False, return_valid_area=True)
+                    if ref == 's':
+                        m = mask[0, padding[0]:-padding[1], padding[2]:-padding[3]]
+                        m[40:] = False
+                        m[:, :-40] = False
+                    else:
+                        m = torch.ones(shape)
+                    if ref != 's' or get_pure_pytorch():
+                        self.assertIsNotNone(warped_img_actual.grad_fn)
+                    self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img_actual[:, padding[0]:-padding[1],
+                                                                          padding[2]:-padding[3]] * m),
+                                                                 to_numpy(warped_img_desired[:, padding[0]:-padding[1],
+                                                                          padding[2]:-padding[3]] * m),
+                                                                 atol=5e-3))
+                    # ... cutting (target torch tensor)
+                    warped_img_actual = cut_flow.apply(img, padding=padding, cut=True)
+                    if ref != 's' or get_pure_pytorch():
+                        self.assertIsNotNone(warped_img_actual.grad_fn)
+                    self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img_actual * m).astype('f'),
+                                                                 to_numpy(warped_img_desired[:, padding[0]:-padding[1],
+                                                                          padding[2]:-padding[3]] * m).astype('f'),
+                                                                 atol=5e-3))
+                    # ... cutting (target torch tensor with larger batch size)
+                    warped_img_actual = cut_flow.apply(img.unsqueeze(0).expand(4, -1, -1, -1),
+                                                       padding=padding, cut=True, return_valid_area=True)[0]
+                    if ref != 's' or get_pure_pytorch():
+                        self.assertIsNotNone(warped_img_actual.grad_fn)
+                    self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_img_actual[0] * m).astype('f'),
+                                                                 to_numpy(warped_img_desired[:, padding[0]:-padding[1],
+                                                                          padding[2]:-padding[3]] * m).astype('f'),
+                                                                 atol=5e-3))
+                    # ... not cutting (target flow object)
+                    target_flow = Flow.from_transforms([['rotation', 30, 50, 30]], img.shape[1:], ref)
+                    warped_flow_desired = apply_flow(flow.vecs, target_flow.vecs, ref)
+                    warped_flow_actual = cut_flow.apply(target_flow, padding=padding, cut=False, return_valid_area=True)
+                    if ref != 's' or get_pure_pytorch():
+                        self.assertIsNotNone(warped_img_actual.grad_fn)
+                    self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_flow_actual.vecs[:, :,
+                                                                          padding[0]:-padding[1],
+                                                                          padding[2]:-padding[3]] * m),
+                                                                 to_numpy(warped_flow_desired[:, :,
+                                                                          padding[0]:-padding[1],
+                                                                          padding[2]:-padding[3]] * m),
+                                                                 atol=1e-1))
+                    # ... cutting (target flow object)
+                    warped_flow_actual = cut_flow.apply(target_flow, padding=padding, cut=True)
+                    if ref != 's' or get_pure_pytorch():
+                        self.assertIsNotNone(warped_img_actual.grad_fn)
+                    self.assertIsNone(np.testing.assert_allclose(to_numpy(warped_flow_actual.vecs * m),
+                                                                 to_numpy(warped_flow_desired[:, :,
+                                                                          padding[0]:-padding[1],
+                                                                          padding[2]:-padding[3]] * m),
+                                                                 atol=1e-1))
+
             # All combinations of differing batch sizes
             i_shape = img_pt.shape[-2:]
             i_chw = img_pt
@@ -1031,23 +1076,47 @@ class FlowTest(unittest.TestCase):
 
         # Non-valid padding values
         for ref in ['t', 's']:
+            shape = [100, 98]
+            padding = [5, 15, 20, 10]
             flow = Flow.from_transforms([['rotation', 0, 0, 30]], shape, ref)
-            with self.assertRaises(TypeError):
+            target_flow = flow.copy()
+            with self.assertRaises(TypeError):  # wrong target type
+                flow.apply('test')
+            with self.assertRaises(ValueError):  # wrong ndim of the target
+                flow.apply(i_1chw.unsqueeze(0))
+            with self.assertRaises(ValueError):  # wrong shape of the target
+                flow.apply(i_1chw[..., :50])
+
+            with self.assertRaises(TypeError):  # wrong type of the target_mask
+                flow.apply(i_chw, target_mask='test')
+            with self.assertRaises(TypeError):  # wrong type of the target_mask
+                flow.apply(i_chw, target_mask=i_chw[0])
+            with self.assertRaises(ValueError):  # wrong shape of the target_mask
+                flow.apply(i_chw, target_mask=i_1chw)
+
+            with self.assertRaises(TypeError):  # wrong type for return_valid_area
                 flow.apply(target_flow, return_valid_area='test')
-            with self.assertRaises(TypeError):
+
+            with self.assertRaises(TypeError):  # wrong type for consider_mask
                 flow.apply(target_flow, consider_mask='test')
-            with self.assertRaises(TypeError):
-                flow.apply(target_flow, padding=100, cut=True)
-            with self.assertRaises(ValueError):
-                flow.apply(target_flow, padding=[10, 20, 30, 40, 50], cut=True)
-            with self.assertRaises(ValueError):
-                flow.apply(target_flow, padding=[10., 20, 30, 40], cut=True)
-            with self.assertRaises(ValueError):
-                flow.apply(target_flow, padding=[-10, 10, 10, 10], cut=True)
-            with self.assertRaises(TypeError):
-                flow.apply(target_flow, padding=[10, 20, 30, 40, 50], cut=2)
-            with self.assertRaises(TypeError):
-                flow.apply(target_flow, padding=[10, 20, 30, 40, 50], cut='true')
+
+            with self.assertRaises(TypeError):  # wrong type for padding
+                flow.apply(target_flow, padding=100)
+
+            with self.assertRaises(ValueError):  # wrong length of padding list
+                flow.apply(target_flow, padding=[10, 20, 30, 40, 50])
+            with self.assertRaises(ValueError):  # wrong type inside of padding list
+                flow.apply(target_flow, padding=[10., 20, 30, 40])
+            with self.assertRaises(ValueError):  # wrong value inside of padding list
+                flow.apply(target_flow, padding=[-10, 10, 10, 10])
+            with self.assertRaises(ValueError):  # padding list values do not match difference between self and target
+                padding[0] = 0
+                flow.apply(target_flow, padding=padding)
+
+            with self.assertRaises(TypeError):  # wrong type for cut
+                flow.apply(target_flow, padding=padding, cut=2)
+            with self.assertRaises(TypeError):  # wrong type for cut
+                flow.apply(target_flow, padding=padding, cut='true')
 
     def test_switch_ref(self):
         shape = (200, 300)
@@ -1056,6 +1125,16 @@ class FlowTest(unittest.TestCase):
             flow = Flow.from_transforms([['rotation', 30, 50, 30]], shape, refs[0])
             flow = flow.switch_ref(mode='invalid')
             self.assertEqual(flow.ref, refs[1])
+
+        # Zero flow
+        f = Flow.zero(shape, 's')
+        f2 = f.switch_ref()
+        self.assertIsNone(np.testing.assert_equal(f.vecs_numpy, f2.vecs_numpy))
+        self.assertEqual(f2.ref, 't')
+        f = Flow.zero(shape, 't')
+        f2 = f.switch_ref()
+        self.assertIsNone(np.testing.assert_equal(f.vecs_numpy, f2.vecs_numpy))
+        self.assertEqual(f2.ref, 's')
 
         # Mode 'valid'
         transforms = [['rotation', 256, 256, 30]]
@@ -1227,7 +1306,8 @@ class FlowTest(unittest.TestCase):
         ], requires_grad=True)
         desired_valid_status = [False, False, True, True, False]
         set_pure_pytorch()
-        t_pts, tracked = f_t.track(pts, get_valid_status=True)
+        _, tracked = f_t.track(pts, get_valid_status=True)
+        t_pts = f_t.track(pts, get_valid_status=False)
         self.assertIsNotNone(t_pts.grad_fn)
         self.assertIsNone(np.testing.assert_equal(to_numpy(tracked), desired_valid_status))
         unset_pure_pytorch()
@@ -1396,6 +1476,10 @@ class FlowTest(unittest.TestCase):
         self.assertIsNone(np.testing.assert_equal(f_t_b.valid_target()[0], desired_area_t))
         self.assertIsNone(np.testing.assert_equal(f_t_b.valid_target()[1], desired_area_t_masked))
 
+        # consider_mask not boolean
+        with self.assertRaises(TypeError):
+            f_s.valid_target(consider_mask='test')
+
     def test_valid_source(self):
         transforms = [['rotation', 0, 0, 45]]
         shape = (7, 7)
@@ -1506,6 +1590,10 @@ class FlowTest(unittest.TestCase):
         self.assertIsNone(np.testing.assert_equal(f_t_b.valid_source()[0], desired_area_t))
         self.assertIsNone(np.testing.assert_equal(f_t_b.valid_source()[1], desired_area_t_masked_consider_mask))
 
+        # consider_mask not boolean
+        with self.assertRaises(TypeError):
+            f_s.valid_source(consider_mask='test')
+
     def test_get_padding(self):
         transforms = [['rotation', 0, 0, 45]]
         shape = (7, 7)
@@ -1566,6 +1654,12 @@ class FlowTest(unittest.TestCase):
 
     def test_visualise(self):
         # Correct values for the different modes
+        f = Flow.zero((200, 300))
+        f._vecs[0, 0, 0, 0] = 1
+        img = f.visualise('bgr')
+        img[0, :, 0, 0] = 255
+        self.assertIsNone(np.testing.assert_equal(img, np.full_like(img, 255)))
+
         # Horizontal flow towards the right is red
         flow = Flow.from_transforms([['translation', 1, 0]], [200, 300])
         desired_img = np.tile(np.array([0, 0, 255]).reshape((1, 1, 3)), (200, 300, 1))
@@ -1749,6 +1843,10 @@ class FlowTest(unittest.TestCase):
             flow1.visualise_arrows(10, img_np, None, True, True, colour=(0, 0))
         with self.assertRaises(TypeError):
             flow1.visualise_arrows(10, img_np, None, True, True, colour=(0, 0, 0), return_tensor='test')
+        with self.assertRaises(TypeError):
+            flow1.visualise_arrows(thickness=0.5)
+        with self.assertRaises(ValueError):
+            flow1.visualise_arrows(thickness=0)
 
     def test_show(self):
         flow = Flow.from_transforms([['translation', 10, -8]], (100, 150))
@@ -1772,9 +1870,9 @@ class FlowTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             flow.show_arrows(wait=-1)
         with self.assertRaises(TypeError):
-            flow.show(elem=.3)
+            flow.show_arrows(elem=.3)
         with self.assertRaises(ValueError):
-            flow.show(elem=1)
+            flow.show_arrows(elem=1)
 
     def test_matrix(self):
         # Partial affine transform, test reconstruction with all methods
@@ -1890,6 +1988,17 @@ class FlowTest(unittest.TestCase):
             ['rotation', 50, 70, -20],
             ['scaling', 20, 50, 0.9],
         ]
+        # Zero flows
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        fzero = Flow.zero(shape, 't', device=device)
+        f1 = Flow.from_transforms(transforms, shape, 't')
+        for m in [1, 2, 3]:
+            self.assertIsNone(np.testing.assert_equal(fzero.combine_with(f1, mode=m).vecs_numpy, f1.vecs_numpy))
+        for m in [1, 2]:
+            self.assertIsNone(np.testing.assert_equal(f1.combine_with(fzero, mode=m).vecs_numpy,
+                                                      f1.invert().vecs_numpy))
+        self.assertIsNone(np.testing.assert_equal(f1.combine_with(fzero, mode=3).vecs_numpy, f1.vecs_numpy))
+
         for f in [set_pure_pytorch, unset_pure_pytorch]:
             f()
             for ref in ['s', 't']:
