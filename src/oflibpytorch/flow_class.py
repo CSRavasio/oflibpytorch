@@ -1776,3 +1776,132 @@ class Flow(object):
                 result = flow + flow.apply(self)
 
         return result
+
+    def combine(self, other: FlowAlias, mode: int, ref: str = None) -> FlowAlias:
+        """Function that returns the result of the combination of two flow objects of the same shape :attr:`shape` in
+        whichever reference :attr:`ref` required.
+
+        If the toolbox-wide variable ``PURE_PYTORCH`` is set to ``True`` (default, see also
+        :meth:`~oflibpytorch.set_pure_pytorch`), the output flow field vectors are differentiable with respect to the
+        input flow fields.
+
+        .. tip::
+           All of the flow field combinations in this function rely on some combination of the
+           :meth:`~oflibnumpy.Flow.apply`, :meth:`~oflibnumpy.Flow.invert`, and :func:`~oflibnumpy.Flow.switch_ref`
+           methods. If ``PURE_PYTORCH`` is set to ``False``, some of these methods will call
+           :func:`scipy.interpolate.griddata`, which can be very slow (several seconds) - but the result will be
+           more accurate compared to using the PyTorch-only setting.
+
+        All formulas used in this function have been derived from first principles. The base formula is
+        :math:`flow_1 ⊕ flow_2 = flow_3`, where :math:`⊕` is a non-commutative flow composition operation.
+        This can be visualised with the start / end points of the flows as follows:
+
+        .. code-block::
+
+            S = Start point    S1 = S3 ─────── f3 ────────────┐
+            E = End point       │                             │
+            f = flow           f1                             v
+                                └───> E1 = S2 ── f2 ──> E2 = E3
+
+        The main difficulty in combining flow fields is that it would be incorrect to simply add up or subtract
+        flow vectors at one location in the flow field area :math:`H \\times W`. This appears to work given e.g.
+        a translation to the right, and a translation downwards: the result will be the linear combination of the
+        two vectors, or a translation towards the bottom right. However, looking more closely, it becomes evident
+        that this approach isn't actually correct: A pixel that has been moved from `S1` to `E1` by the first flow
+        field `f1` is then moved from that location by the flow vector of the flow field `f2` that corresponds to
+        the new pixel location `E1`, *not* the original location `S1`. If the flow vectors are the same everywhere
+        in the field, the difference will not be noticeable. However, if the flow vectors of `f2` vary throughout
+        the field, such as with a rotation around some point, it will!
+
+        In this case (corresponding to calling :func:`f1.combine_with(f2, mode=3)<combine_with>`), and if the
+        flow reference :attr:`ref` is ``s`` ("source"), the solution is to first apply the inverse of `f1` to `f2`,
+        essentially linking up each location `E1` back to `S1`, and *then* to add up the flow vectors. Analogous
+        observations apply for the other permutations of flow combinations and reference :attr:`ref` values.
+
+        .. note::
+           This is consistent with the observation that two translations are commutative in their application -
+           the order does not matter, and the vectors can simply be added up at every pixel location -, while a
+           translation followed by a rotation is not the same as a rotation followed by a translation: adding up
+           vectors at each pixel cannot be the correct solution as there wouldn't be a difference based on the
+           order of vector addition.
+
+        :param other: Flow object to combine with, shape (including batch size) needs to match
+        :param mode: Integer determining how the input flows are combined, where the number corresponds to the
+            position in the formula :math:`flow_1 ⊕ flow_2 = flow_3`:
+
+            - Mode ``1``: `self` corresponds to :math:`flow_2`, `flow` corresponds to :math:`flow_3`, the result will
+              be :math:`flow_1`
+            - Mode ``2``: `self` corresponds to :math:`flow_1`, `flow` corresponds to :math:`flow_3`, the result will
+              be :math:`flow_2`
+            - Mode ``3``: `self` corresponds to :math:`flow_1`, `flow` corresponds to :math:`flow_2`, the result will
+              be :math:`flow_3`
+        :param ref: Desired output flow reference, defaults to the reference of self
+        :return: New flow object
+        """
+
+        # Check input validity
+        if not isinstance(other, Flow):
+            raise TypeError("Error combining flows: Flow need to be of type 'Flow'")
+        if self.shape != other.shape:
+            raise ValueError("Error combining flows: Flow fields need to have the same shape, including batch size")
+        if self._device != other._device:
+            other = other.to_device(self._device)
+        if mode not in [1, 2, 3]:
+            raise ValueError("Error combining flows: Mode needs to be 1, 2 or 3")
+        ref = self._ref if ref is None else get_valid_ref(ref)
+
+        direction = [
+            [0, +1, +1],
+            [-1, 0, +1],
+            [-1, -1, 0]
+        ]
+        indices = [
+            [1, 2],
+            [0, 2],
+            [0, 1]
+        ]
+        timetable = [  # source - 1, target - 1 (for indexing)
+            [0, 1],
+            [1, 2],
+            [0, 2]
+        ]
+        r_time_list = [2, 0, 1]  # remaining time - 1 (for indexing)
+        mode -= 1                                           # correction for 0 indexing
+        s_time = timetable[mode][0]                         # source time reference
+        t_time = timetable[mode][1]                         # target time reference
+        g_time = timetable[mode][0 if ref == 's' else 1]    # goal time reference
+        r_time = r_time_list[mode]                          # remaining time reference
+        flow_ind = indices[mode]                            # flow_ind that self and other correspond to
+
+        if (mode == 0 and g_time == s_time) or (mode in [1, 2] and g_time == t_time):
+            close_input = other
+            far_input = self
+            flow_ind = [flow_ind[1], flow_ind[0]]  # reference for [close_input, far_input]
+        else:
+            close_input = self
+            far_input = other
+            # also flow_ind can be used as a reference for [close_input, far_input]
+        close_time = timetable[flow_ind[0]][0 if close_input.ref == 's' else 1]
+        far_time = timetable[flow_ind[1]][0 if far_input.ref == 's' else 1]
+
+        # Main algorithm
+        if far_time in timetable[mode]:  # far_input has time reference "around the corner"
+            far_input = far_input.switch_ref()  # far_input now has time adjacent to close_input
+        if close_time == g_time:  # far_time needs to be moved to g_time
+            if direction[r_time][g_time] == 1:
+                far_input = close_input.apply(far_input)
+            else:  # direction[far_time][close_time] == -1
+                far_input = close_input.invert().apply(far_input)
+        # far_input and close_input can now be combined linearly
+        if g_time == t_time:  # g_time is the target of the result flow
+            result = far_input * direction[s_time][r_time] + close_input * direction[r_time][t_time]
+        else:  # g_time is the source of the result flow
+            result = close_input * direction[s_time][r_time] + far_input * direction[r_time][t_time]
+        if close_time != g_time:  # the result is at r_time, needs to be moved to g_time
+            if direction[r_time][g_time] == 1:
+                result = close_input.apply(result)
+            else:  # direction[far_time][close_time] == -1
+                result = close_input.invert().apply(result)
+
+        result._ref = ref
+        return result

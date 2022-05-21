@@ -36,6 +36,7 @@ Manipulating the Flow
 .. automethod:: Flow.pad
 .. automethod:: Flow.invert
 .. automethod:: Flow.switch_ref
+.. automethod:: Flow.combine
 .. automethod:: Flow.combine_with
 .. autofunction:: oflibpytorch.batch_flows
 

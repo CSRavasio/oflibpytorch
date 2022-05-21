@@ -2004,6 +2004,97 @@ class FlowTest(unittest.TestCase):
         with self.assertRaises(TypeError):  # Thresholded not boolean
             fs.combine_with(fs, 1, thresholded='test')
 
+    def test_combine(self):
+        shape = [60, 64]
+        transforms = [
+            ['rotation', 60, 80, -30],
+            ['scaling', 40, 30, 0.8],
+        ]
+        transforms2 = [
+            ['rotation', 50, 70, -20],
+            ['scaling', 20, 50, 0.9],
+        ]
+
+        for f in [set_pure_pytorch, unset_pure_pytorch]:
+            f()
+            atol = 0.85 if get_pure_pytorch() else 1e-4
+            for result_ref in ['s', 't']:
+                for self_ref in ['s', 't']:
+                    for other_ref in ['s', 't']:
+                        # Mode 1
+                        f1 = Flow.from_transforms(transforms[0:1], shape, result_ref)
+                        f2 = Flow.from_transforms(transforms[1:2], shape, self_ref)
+                        f3 = Flow.from_transforms(transforms, shape, other_ref)
+                        f1_result = f2.combine(f3, mode=1, ref=result_ref)
+                        self.assertEqual(f1_result.ref, result_ref)
+                        comb_mask = f1_result.mask_numpy & f1.mask_numpy
+                        self.assertIsNone(np.testing.assert_allclose(f1_result.vecs_numpy[comb_mask],
+                                                                     f1.vecs_numpy[comb_mask],
+                                                                     atol=atol))
+                        bf1 = batch_flows((f1, Flow.from_transforms(transforms2[0:1], shape, result_ref)))
+                        bf2 = batch_flows((f2, Flow.from_transforms(transforms2[1:2], shape, self_ref)))
+                        if torch.cuda.is_available():
+                            bf2 = bf2.to_device('cuda')
+                        bf3 = batch_flows((f3, Flow.from_transforms(transforms2, shape, other_ref)))
+                        bf1_result = bf2.combine(bf3, mode=1, ref=result_ref)
+                        self.assertEqual(bf1_result.ref, result_ref)
+                        comb_mask = bf1_result.mask_numpy & bf1.mask_numpy
+                        self.assertIsNone(np.testing.assert_allclose(bf1_result.vecs_numpy[comb_mask],
+                                                                     bf1.vecs_numpy[comb_mask],
+                                                                     atol=atol))
+
+                        # Mode 2
+                        f1 = Flow.from_transforms(transforms[0:1], shape, self_ref)
+                        f2 = Flow.from_transforms(transforms[1:2], shape, result_ref)
+                        f3 = Flow.from_transforms(transforms, shape, other_ref)
+                        f2_result = f1.combine(f3, mode=2, ref=result_ref)
+                        self.assertEqual(f2_result.ref, result_ref)
+                        comb_mask = f2_result.mask_numpy & f2.mask_numpy
+                        self.assertIsNone(np.testing.assert_allclose(f2_result.vecs_numpy[comb_mask],
+                                                                     f2.vecs_numpy[comb_mask],
+                                                                     atol=atol))
+                        bf1 = batch_flows((f1, Flow.from_transforms(transforms2[0:1], shape, self_ref)))
+                        bf2 = batch_flows((f2, Flow.from_transforms(transforms2[1:2], shape, result_ref)))
+                        bf3 = batch_flows((f3, Flow.from_transforms(transforms2, shape, other_ref)))
+                        bf2_result = bf1.combine(bf3, mode=2, ref=result_ref)
+                        self.assertEqual(bf2_result.ref, result_ref)
+                        comb_mask = bf2_result.mask_numpy & bf2.mask_numpy
+                        self.assertIsNone(np.testing.assert_allclose(bf2_result.vecs_numpy[comb_mask],
+                                                                     bf2.vecs_numpy[comb_mask],
+                                                                     atol=atol))
+
+                        # Mode 3
+                        f1 = Flow.from_transforms(transforms[0:1], shape, self_ref)
+                        f2 = Flow.from_transforms(transforms[1:2], shape, other_ref)
+                        f3 = Flow.from_transforms(transforms, shape, result_ref)
+                        f3_result = f1.combine(f2, mode=3, ref=result_ref)
+                        self.assertEqual(f3_result.ref, result_ref)
+                        comb_mask = f3_result.mask_numpy & f3.mask_numpy
+                        self.assertIsNone(np.testing.assert_allclose(f3_result.vecs_numpy[comb_mask],
+                                                                     f3.vecs_numpy[comb_mask],
+                                                                     atol=atol))
+                        bf1 = batch_flows((f1, Flow.from_transforms(transforms2[0:1], shape, self_ref)))
+                        bf2 = batch_flows((f2, Flow.from_transforms(transforms2[1:2], shape, other_ref)))
+                        bf3 = batch_flows((f3, Flow.from_transforms(transforms2, shape, result_ref)))
+                        bf3_result = bf1.combine(bf2, mode=3, ref=result_ref)
+                        self.assertEqual(bf3_result.ref, result_ref)
+                        comb_mask = bf3_result.mask_numpy & bf3.mask_numpy
+                        self.assertIsNone(np.testing.assert_allclose(bf3_result.vecs_numpy[comb_mask],
+                                                                     bf3.vecs_numpy[comb_mask],
+                                                                     atol=atol))
+
+        # Invalid inputs
+        fs = Flow.from_transforms(transforms[0:1], [20, 20], 's')
+        fs2 = Flow.from_transforms(transforms[0:1], [20, 30], 's')
+        with self.assertRaises(TypeError):  # Flow not a Flow object
+            fs.combine(fs.vecs, 1)
+        with self.assertRaises(ValueError):  # Flow not the same shape
+            fs.combine(fs2, 1)
+        with self.assertRaises(ValueError):  # Mode not 1, 2 or 3
+            fs.combine(fs, mode=0)
+        with self.assertRaises(ValueError):  # Reference not valid
+            fs.combine(fs, mode=1, ref='test')
+
 
 if __name__ == '__main__':
     unittest.main()
