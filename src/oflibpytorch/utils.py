@@ -227,7 +227,7 @@ def get_valid_padding(padding: Any, error_string: str = None) -> list:
         raise ValueError(error_string + "Padding list needs to be a list of length 4 [top, bot, left, right]")
     if not all(isinstance(item, int) for item in padding):
         raise ValueError(error_string + "Padding list [top, bot, left, right] items need to be integers")
-    if not all(item > 0 for item in padding):
+    if not all(item >= 0 for item in padding):
         raise ValueError(error_string + "Padding list [top, bot, left, right] items need to be 0 or larger")
     return padding
 
