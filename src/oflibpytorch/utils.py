@@ -893,7 +893,7 @@ def resize_flow(flow: Union[np.ndarray, torch.Tensor], scale: Union[float, int, 
         raise ValueError("Error resizing flow: Scale values must be larger than 0")
 
     # Resize and adjust values
-    resized = f.interpolate(valid_flow, scale_factor=scale, mode='bilinear')
+    resized = f.interpolate(valid_flow, scale_factor=scale, mode='bilinear', align_corners=False)
     resized[:, 0] *= scale[1]
     resized[:, 1] *= scale[0]
 

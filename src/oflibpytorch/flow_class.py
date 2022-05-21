@@ -702,7 +702,8 @@ class Flow(object):
         if isinstance(scale, (float, int)):
             scale = [scale, scale]
         mask_to_resize = self._mask.float().unsqueeze(1)
-        resized_mask = f.interpolate(mask_to_resize, scale_factor=scale, mode='bilinear').squeeze(0).squeeze(0)
+        resized_mask = f.interpolate(mask_to_resize, scale_factor=scale,
+                                     mode='bilinear', align_corners=False).squeeze(0).squeeze(0)
         # Note: scale can be used with no validity checks because already validated in resize_flows
         return Flow(resized_flow, self._ref, torch.round(resized_mask), device=self._device)
 
