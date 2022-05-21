@@ -850,7 +850,7 @@ class Flow(object):
                 mask = target_mask.to(self._device)  # NHW
             return_dtype = target.dtype
         else:
-            raise ValueError("Error applying flow: Target needs to be either a flow object or a torch tensor")
+            raise TypeError("Error applying flow: Target needs to be either a flow object or a torch tensor")
 
         # Concatenate the flow vectors with the mask if required, so they are warped in one step
         if return_flow or return_valid_area:
