@@ -1,6 +1,17 @@
 Changelog
 =========
 
+2.1.0 [2022-06-21]
+------------------
+
+- :meth:`~oflibpytorch.Flow.combine` introduced: efficient, generalised combination of flows with any frame of
+  reference :attr:`ref`
+- :meth:`~oflibpytorch.Flow.combine_with` improvements, but will become deprecated in a future release in favour of
+  :meth:`~oflibpytorch.Flow.combine`
+- Test coverage improved
+- Documentation updated and extended
+
+
 2.0.0 [2022-05-13]
 ------------------
 
