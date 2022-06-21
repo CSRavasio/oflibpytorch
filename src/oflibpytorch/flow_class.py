@@ -1269,10 +1269,11 @@ class Flow(object):
         if range_max is None:
             range_max = []
             for i in range(self.shape[0]):
-                if np.percentile(mag[i], 99) > 0:  # Use 99th percentile to avoid extreme outliers skewing the scaling
-                    range_max.append(float(np.percentile(mag[i], 99)))
-                elif np.max(mag[i]) > 0:  # If the 99th percentile is 0, use the actual maximum instead
-                    range_max.append(float(np.max(mag)))
+                m = mag[i][self._mask[i]] if show_mask else mag[i]
+                if np.percentile(m, 99) > 0:  # Use 99th percentile to avoid extreme outliers skewing the scaling
+                    range_max.append(float(np.percentile(m, 99)))
+                elif np.max(m) > 0:  # If the 99th percentile is 0, use the actual maximum instead
+                    range_max.append(float(np.max(m)))
                 else:  # If the maximum is 0 too (i.e. the flow field is entirely 0)
                     range_max.append(1)
         if isinstance(range_max, (list, tuple)):
