@@ -69,8 +69,8 @@ with :meth:`~oflibpytorch.Flow.pad`, and sliced using square brackets ``[]`` ana
 :meth:`~oflibpytorch.Flow.__get_item__` internally. They can also be added with ``+``, subtracted with ``-``,
 multiplied with ``*``, divided with ``/``, exponentiated with ``**``, and negated by prepending ``-``. However, note
 that using the standard operator ``+`` is **not** the same as sequentially combining flow fields, and the same goes
-for a subtraction or a negation with ``-``. To do this correctly, use :meth:`~oflibpytorch.Flow.combine_with`
-(see the section ":ref:`Combining Flows`").
+for a subtraction or a negation with ``-``. To do this correctly, use :meth:`~oflibpytorch.Flow.combine` (see the
+section ":ref:`Combining Flows`").
 
 Additionally, single elements from the batch contained in a Flow object can be extracted as a new Flow object using
 :meth:`~oflibpytorch.Flow.select`. Similarly, different Flow objects of the same shape
@@ -276,7 +276,7 @@ section ":ref:`Combining Flows`"):
     flow_2 = of.Flow.from_transforms([['scaling', 100, 50, 0.7]], shape)
 
     # Combine the flow fields
-    result = flow_1.combine_with(flow_2, mode=3)
+    result = flow_1.combine(flow_2, mode=3)
 
 .. image:: ../docs/_static/usage_mask_flow1.png
     :width: 49%
@@ -668,14 +668,18 @@ point, this is due to the new location of the point being outside of the image a
 
 Combining Flows
 ---------------
-The :meth:`~oflibpytorch.Flow.combine_with` function was already used in the section ":ref:`The Flow Mask`" with
-``mode = 3`` to sequentially combine two different flow fields. This is a fast operation both for reference ``s``
-and ``t``. In the formula :math:`flow_1 ⊕ flow_2 = flow_3`, where :math:`⊕` corresponds to a flow combination
-operation, this is equivalent to inputting :math:`flow_1` and :math:`flow_2`, and obtaining :math:`flow_3`.
-However, it is also possible to obtain either :math:`flow_1` or :math:`flow_2` when the other flows in the equation
-are known, by setting ``mode = 1`` or ``mode = 2``, respectively. These operations are comparatively slow due to
-calls to SciPy's :func:`griddata`. The calculation will often lead to a flow field with some invalid areas, similar
-to the example in the section ":ref:`The Flow Mask`".
+The :meth:`~oflibpytorch.Flow.combine` function was already used in the section ":ref:`The Flow Mask`" with
+``mode = 3`` to sequentially combine two different flow fields. In the formula :math:`flow_1 ⊕ flow_2 = flow_3`,
+where :math:`⊕` corresponds to a flow combination operation, this is equivalent to inputting :math:`flow_1` and
+:math:`flow_2`, and obtaining :math:`flow_3`. However, it is also possible to obtain either :math:`flow_1` or
+:math:`flow_2` when the other flows in the equation are known, by setting ``mode = 1`` or ``mode = 2``, respectively.
+The calculation will often lead to a flow field with some invalid areas, similar to the example in the section
+":ref:`The Flow Mask`".
+
+This method makes extensive use of :meth:`~oflibpytorch.Flow.apply`, and the same observations with regards to speed
+and accuracy apply. It is worth mentioning that if both input flows have reference ``s``, or both have reference
+``t``, and ``mode = 3`` is used, the operation will always be fast and accurate regardless of the ``PURE_PYTORCH``
+setting used.
 
 .. code-block:: python
 
@@ -684,9 +688,9 @@ to the example in the section ":ref:`The Flow Mask`".
     flow_2 = of.Flow.from_transforms([['scaling', 100, 50, 1.2]], shape)
     flow_3 = of.Flow.from_transforms([['rotation', 200, 150, -30], ['scaling', 100, 50, 1.2]], shape)
 
-    flow_1_result = flow_2.combine_with(flow_3, mode=1)
-    flow_2_result = flow_1.combine_with(flow_3, mode=2)
-    flow_3_result = flow_1.combine_with(flow_2, mode=3)
+    flow_1_result = flow_2.combine(flow_3, mode=1)
+    flow_2_result = flow_1.combine(flow_3, mode=2)
+    flow_3_result = flow_1.combine(flow_2, mode=3)
 
 .. image:: ../docs/_static/usage_combining_1.png
     :width: 32%
@@ -708,8 +712,14 @@ to the example in the section ":ref:`The Flow Mask`".
     :alt: Calculated flow 3
 
 **Above:** *Top:* Flows 1 through 3. *Bottom:* Flows 1 through 3, as calculated using
-:func:`~oflibpytorch.Flow.combine_with`, matching the original flow fields. Note that some results may show some
+:func:`~oflibpytorch.Flow.combine`, matching the original flow fields. Note that some results may show some
 invalid areas.
+
+.. note::
+    There is also a previous version of this function called :meth:`~oflibpytorch.Flow.combine_with`. It offers
+    identical core functionality, but is limited to combining flow fields of the same flow references :attr:`ref`.
+    It will become deprecated in a future version, but continue to work as expected until then.
+
 
 Tensor-Based Functions
 ----------------------
@@ -749,8 +759,8 @@ flow reference :attr:`~oflibpytorch.Flow.ref` and spatial resolution :math:`(H, 
 have different batch sizes.
 
 Conversely, if single elements of a batched flow are required, they can be extracted using the
-:meth:`~oflibpytorch.Flow.select` method. As a more efficient alternative, some functions such as
-:meth:`~oflibpytorch.Flow.show` allow for the direct selection of a specific batch element.
+:meth:`~oflibpytorch.Flow.select` method. Some functions such as :meth:`~oflibpytorch.Flow.show` allow for the
+direct selection of a specific batch element, though they also use :meth:`~oflibpytorch.Flow.select` internally.
 
 
 .. code-block:: python

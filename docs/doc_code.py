@@ -262,9 +262,9 @@ from src.oflibpytorch.utils import to_numpy, to_tensor, show_masked_image, unset
 # flow_2 = of.Flow.from_transforms([['scaling', 100, 50, 1.2]], shape)
 # flow_3 = of.Flow.from_transforms([['rotation', 200, 150, -30], ['scaling', 100, 50, 1.2]], shape)
 #
-# flow_1_result = flow_2.combine_with(flow_3, mode=1)
-# flow_2_result = flow_1.combine_with(flow_3, mode=2)
-# flow_3_result = flow_1.combine_with(flow_2, mode=3)
+# flow_1_result = flow_2.combine(flow_3, mode=1)
+# flow_2_result = flow_1.combine(flow_3, mode=2)
+# flow_3_result = flow_1.combine(flow_2, mode=3)
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_combining_1.png',
 #             flow_1.visualise('bgr', True, True, return_tensor=False)[0])
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_combining_2.png',
@@ -278,7 +278,7 @@ from src.oflibpytorch.utils import to_numpy, to_tensor, show_masked_image, unset
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_combining_3_result.png',
 #             flow_3_result.visualise('bgr', True, True, return_tensor=False)[0])
 
-# # # # Usage / Combining
+# # # # Batching / selecting flows
 # # Define three flow objects
 # shape = (300, 400)
 # flow_1 = of.Flow.from_transforms([['rotation', 200, 150, -30]], shape)
