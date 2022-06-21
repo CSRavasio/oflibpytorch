@@ -278,6 +278,28 @@ from src.oflibpytorch.utils import to_numpy, to_tensor, show_masked_image, unset
 # cv2.imwrite('C:/Users/RVIM_Claudio/Downloads/usage_combining_3_result.png',
 #             flow_3_result.visualise('bgr', True, True, return_tensor=False)[0])
 
+# # # # Usage / Combining
+# # Define three flow objects
+# shape = (300, 400)
+# flow_1 = of.Flow.from_transforms([['rotation', 200, 150, -30]], shape)
+# flow_2 = of.Flow.from_transforms([['scaling', 100, 50, 1.2]], shape)
+# flow_3 = of.Flow.from_transforms([['translation', 10, 10]], shape)
+#
+# # Batch two flows of batch size 1
+# flow_batched = of.batch_flows((flow_1, flow_2))
+#
+# # Batch two flows of batch sizes 2 and 1
+# flow_batched = of.batch_flows((flow_batched, flow_3))
+#
+# # Using the show method without the elem argument automatically selects the first batch element
+# flow_batched.show()
+#
+# # Other batch elements can be indicated as an argument
+# flow_batched.show(elem=1)
+#
+# # Alternatively, a batch element can be selected first and then shown
+# flow_batched.select(2).show()
+
 
 # # # # Flow field for flow doc
 # shape = (200, 200)

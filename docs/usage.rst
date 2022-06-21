@@ -21,9 +21,9 @@ all operations.
 Pure PyTorch Setting
 --------------------
 PyTorch currently does not offer a built-in function for the interpolation of unstructured data on to a grid, which
-is necessary for a number of this module's functions. Therefore, an approximate solution was implemented (see
-:meth:`~oflibpytorch.grid_from_unstructured_data`). As a fallback option, the slower and CPU-only SciPy method
-:func:`griddata` can be used.
+is necessary for a number of this module's functions. Therefore, an approximate solution was implemented: inverse
+bilinear interpolation, see :meth:`~oflibpytorch.grid_from_unstructured_data`. As a fallback option, the slower and
+CPU-only SciPy method :func:`griddata` can be used.
 
 The module-wide variable ``PURE_PYTORCH``, retrieved by calling :meth:`~oflibpytorch.get_pure_pytorch`, determines
 whether the former, PyTorch-only, differentiable method is used (:meth:`~oflibpytorch.set_pure_pytorch`), or the
@@ -185,8 +185,9 @@ from unstructured points ("forward" warping). Conversely, the :meth:`~oflibpytor
 points (see the section ":ref:`Tracking Points`") is more accurate for a flow in ``s`` reference, as a flow in ``t``
 reference would again require interpolating from unstructured points.
 
-In both cases, this is due to being forced to use an approximate interpolation function (see
-:meth:`~oflibpytorch.grid_from_unstructured_data`) in PyTorch. Alternatively, it is possible to call the
+In both cases, the issue with interpolating from unstructured points on to a regular grid is the inherent difficulty
+of the operation. By default, :mod:`oflibpytorch` uses an inverse bilinear interpolation PyTorch-based function (see
+:meth:`~oflibpytorch.grid_from_unstructured_data`) as a good approximation. Alternatively, it is possible to call the
 more accurate, but at least an order of magnitude slower SciPy function :func:`griddata`. The user of
 :mod:`oflibpytorch: can make this choice via a module-wide variable called ``PURE_PYTORCH``. For more details, see
 the section :ref:`Pure PyTorch Setting`.
@@ -460,8 +461,8 @@ concave areas. In the latter case, the image content that should be superimposed
 only visible as single pixels here and there, while the black area that has not moved dominates.
 *Bottom:* Same as the middle row, but using the faster and differentiable PyTorch-only method
 :meth:`~oflibpytorch.grid_from_unstructured_data`. It becomes apparent that this implementation suffers much less
-from artefacts, though a comparison of the resulting image values would show it to be less accurate than the result
-of :func:`scipy.interpolate.griddata`.
+from artefacts, though a detailed comparison of the resulting image values would show it to be less accurate than
+the result of :func:`scipy.interpolate.griddata`.
 
 
 Flow Padding
@@ -734,3 +735,55 @@ for anything but the simplest flow operations.
 
     # Visualise Torch tensor flow field
     flow_3_vis = of.show_flow_arrows(flow_3, 't')
+
+Working with Batched Flows
+--------------------------
+The :class:`oflibpytorch.Flow` class stores flow vectors in the batched shape :math:`(N, 2, H, W)`. This is the case
+even if the optical flow passed to the constructor is just a single vector field, i.e. :math:`N = 1`. The shape is
+then :math:`(1, 2, H, W)`.
+
+Often, it is significantly more efficient to process flows in batches. :mod:`oflibpytorch` supports this in all
+operations on or with flow fields. If several existing flow objects are to be combined, this can be achieved with
+the method :meth:`~oflibpytorch.batch_flows`. For obvious reasons, this is limited to flow fields of the same
+flow reference :attr:`~oflibpytorch.Flow.ref` and spatial resolution :math:`(H, W)`, though input flow objects can
+have different batch sizes.
+
+Conversely, if single elements of a batched flow are required, they can be extracted using the
+:meth:`~oflibpytorch.Flow.select` method. As a more efficient alternative, some functions such as
+:meth:`~oflibpytorch.Flow.show` allow for the direct selection of a specific batch element.
+
+
+.. code-block:: python
+
+    # Define three flow objects
+    shape = (300, 400)
+    flow_1 = of.Flow.from_transforms([['rotation', 200, 150, -30]], shape)
+    flow_2 = of.Flow.from_transforms([['scaling', 100, 50, 1.2]], shape)
+    flow_3 = of.Flow.from_transforms([['translation', 10, 10]], shape)
+
+    # Batch two flows of batch size 1
+    flow_batched = of.batch_flows((flow_1, flow_2))
+
+    # Batch two flows of batch sizes 2 and 1
+    flow_batched = of.batch_flows((flow_batched, flow_3))
+
+    # Using the show method without the elem argument automatically selects the first batch element
+    flow_batched.show()
+
+    # Other batch elements can be indicated as an argument
+    flow_batched.show(elem=1)
+
+    # Alternatively, a batch element can be selected first and then shown
+    flow_batched.select(2).show()
+
+.. image:: ../docs/_static/usage_combining_1.png
+    :width: 32%
+    :alt: Flow 1
+.. image:: ../docs/_static/usage_combining_2.png
+    :width: 32%
+    :alt: Flow 2
+.. image:: ../docs/_static/batched_flows.png
+    :width: 32%
+    :alt: Flow 3
+
+**Above:** Flows 1 through 3, visualised from a single batched flow object
