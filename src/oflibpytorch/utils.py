@@ -1053,7 +1053,7 @@ def grid_from_unstructured_data(
     mask: torch.Tensor = None,
 ) -> tuple:
     """Returns unstructured input data interpolated (likely sparsely) on to a regular grid. Replacement for the
-    SciPy ``griddata`` function, but less accurate. Credit:
+    SciPy ``griddata`` function, but less accurate. Equivalent to inverse bilinear interpolation. Credit:
 
     - This is based on the algorithm suggested in: Sánchez, J., Salgado de la Nuez, A. J., & Monzón, N., "Direct
       estimation of the backward flow", 2013
@@ -1148,8 +1148,9 @@ def apply_s_flow(
     mask: torch.Tensor = None,
     occlude_zero_flow: bool = None
 ) -> torch.Tensor:
-    """Warp data with a given flow of :attr:`ref` ``s`` ("forward flow"), making use of
-    :meth:`~oflibpytorch.grid_from_unstructured_data` as a replacement for :func:`scipy.interpolate.griddata`.
+    """Warp data with a given flow of :attr:`ref` ``s`` ("forward flow"), making use of the inverse bilinear
+    interpolation function :meth:`~oflibpytorch.grid_from_unstructured_data` as a replacement for
+    :func:`scipy.interpolate.griddata`.
 
     The warped data output is differentiable wrt input flow and input data
 
