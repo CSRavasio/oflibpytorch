@@ -1227,7 +1227,7 @@ class Flow(object):
 
         .. note::
             This currently runs internally based on NumPy & OpenCV, due to a lack of easily accessible equivalent
-            functions for coordinate and colour space conversions. Therefore, even if the output is a tensor, it
+            functions for mask border detection and drawing. Therefore, even if the output is a tensor, it
             will not be differentiable with respect to the flow vector tensor.
 
         :param mode: Output mode, options: ``rgb``, ``bgr``, ``hsv``
@@ -1342,7 +1342,7 @@ class Flow(object):
 
         .. note::
             This currently runs internally based on NumPy & OpenCV, due to a lack of easily accessible equivalent
-            functions for coordinate and colour space conversions. Therefore, even if the output is a tensor, it
+            functions for arrow drawing and mask border detection. Therefore, even if the output is a tensor, it
             will not be differentiable with respect to the flow vector tensor.
 
         :param grid_dist: Integer of the distance of the flow points to be used for the visualisation, defaults to
@@ -1618,16 +1618,17 @@ class Flow(object):
 
     def combine_with(self, flow: FlowAlias, mode: int, thresholded: bool = None) -> FlowAlias:
         """Function that returns the result of the combination of two flow objects of the same shape :attr:`shape` and
-        reference :attr:`ref`. This method will in future be deprecated in favour of :meth:`~oflibnumpy.Flow.combine`,
-        using a more general algorithm that can both combine and output flow objects in any reference frame.
-
-        If the toolbox-wide variable ``PURE_PYTORCH`` is set to ``True`` (default, see also
+        reference :attr:`ref`. If the toolbox-wide variable ``PURE_PYTORCH`` is set to ``True`` (default, see also
         :meth:`~oflibpytorch.set_pure_pytorch`), the output flow field vectors are differentiable with respect to the
         input flow fields.
 
+        .. caution::
+            This method will in future be deprecated in favour of :meth:`~oflibpytorch.Flow.combine`, using a more
+            general algorithm that can both combine and output flow objects in any reference frame.
+
         .. tip::
            All of the flow field combinations in this function rely on some combination of the
-           :meth:`~oflibnumpy.Flow.apply`, :meth:`~oflibnumpy.Flow.invert`, and :func:`~oflibnumpy.Flow.combine_with`
+           :meth:`~oflibpytorch.Flow.apply` and :meth:`~oflibpytorch.Flow.invert`
            methods. If ``PURE_PYTORCH`` is set to ``False``, and ``mode`` is ``1`` or ``2``, these methods will call
            :func:`scipy.interpolate.griddata`, which can be very slow (several seconds) - but the result will be more
            accurate compared to using the PyTorch-only setting.
@@ -1676,7 +1677,7 @@ class Flow(object):
             - Mode ``3``: `self` corresponds to :math:`flow_1`, `flow` corresponds to :math:`flow_2`, the result will
               be :math:`flow_3`
         :param thresholded: Boolean determining whether flows are thresholded during an internal call to
-            :meth:`~oflibnumpy.Flow.is_zero`, defaults to ``False``
+            :meth:`~oflibpytorch.Flow.is_zero`, defaults to ``False``
         :return: New flow object
         """
 
@@ -1789,10 +1790,10 @@ class Flow(object):
 
         .. tip::
            All of the flow field combinations in this function rely on some combination of the
-           :meth:`~oflibnumpy.Flow.apply`, :meth:`~oflibnumpy.Flow.invert`, and :func:`~oflibnumpy.Flow.switch_ref`
-           methods. If ``PURE_PYTORCH`` is set to ``False``, some of these methods will call
-           :func:`scipy.interpolate.griddata`, which can be very slow (several seconds) - but the result will be
-           more accurate compared to using the PyTorch-only setting.
+           :meth:`~oflibpytorch.Flow.apply`, :meth:`~oflibpytorch.Flow.invert`, and
+           :func:`~oflibpytorch.Flow.switch_ref` methods. If ``PURE_PYTORCH`` is set to ``False``, some of these
+           methods will call :func:`scipy.interpolate.griddata`, which can be very slow (several seconds) - but the
+           result will be more accurate compared to using the PyTorch-only setting.
 
         All formulas used in this function have been derived from first principles. The base formula is
         :math:`flow_1 ⊕ flow_2 = flow_3`, where :math:`⊕` is a non-commutative flow composition operation.

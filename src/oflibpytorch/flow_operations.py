@@ -96,7 +96,7 @@ def combine_flows(
 
     .. tip::
        All of the flow field combinations in this function rely on some combination of the
-       :meth:`~oflibnumpy.Flow.apply`, :meth:`~oflibnumpy.Flow.invert`, and :func:`~oflibnumpy.Flow.combine_with`
+       :meth:`~oflibpytorch.Flow.apply`, :meth:`~oflibpytorch.Flow.invert`, and :func:`~oflibpytorch.Flow.combine_with`
        methods.
 
        If ``PURE_PYTORCH`` is set to ``False``, some of these methods will call :func:`scipy.interpolate.griddata`,
@@ -172,7 +172,7 @@ def combine_flows(
           be :math:`flow_3`
     :param ref: The reference of the input flow fields, either ``s`` or ``t``
     :param thresholded: Boolean determining whether flows are thresholded during an internal call to
-        :meth:`~oflibnumpy.Flow.is_zero`, defaults to ``False``
+        :meth:`~oflibpytorch.Flow.is_zero`, defaults to ``False``
     :return: Flow object if inputs are flow objects (deprecated in future, avoid), Torch tensor of shape
         :math:`(2, H, W)` or :math:`(N, 2, H, W)` as standard
     """
@@ -190,7 +190,7 @@ def combine_flows(
 
 def switch_flow_ref(flow: Union[np.ndarray, torch.Tensor], input_ref: str) -> torch.Tensor:
     """Recalculate flow vectors to correspond to a switched flow reference (see Flow reference
-    :attr:`~oflibnumpy.Flow.ref`)
+    :attr:`~oflibpytorch.Flow.ref`)
 
     The output flow field tensor is differentiable with respect to the input flow field, if given as a tensor.
 
@@ -256,7 +256,7 @@ def valid_target(flow: Union[np.ndarray, torch.Tensor], ref: str) -> torch.Tenso
 
 def valid_source(flow: Union[np.ndarray, torch.Tensor], ref: str) -> torch.Tensor:
     """Finds the area in the source domain that will end up being valid in the target domain (see
-    :meth:`~oflibnumpy.valid_target`) after warping
+    :meth:`~oflibpytorch.valid_target`) after warping
 
     Given a source image and a flow, both of shape :math:`(H, W)`, the target image is created by warping the source
     with the flow. The source area is then a boolean numpy array of shape :math:`(H, W)` that is ``True`` wherever
@@ -283,7 +283,7 @@ def get_flow_padding(flow: Union[np.ndarray, torch.Tensor], ref: str) -> list:
     - When the flow reference is ``t`` ("target"), this corresponds to the padding needed in a source image which
       ensures that every flow vector will find a value in the source domain to warp towards the target domain.
       I.e. any invalid locations in the area :math:`H \\times W` of the target domain (see
-      :func:`~oflibnumpy.valid_target`) are purely due to no valid flow vector being available to pull a
+      :func:`~oflibpytorch.valid_target`) are purely due to no valid flow vector being available to pull a
       source value to this target location, rather than no source value being available in the first place.
     - When the flow reference is ``s`` ("source"), this corresponds to the padding needed for
       the flow itself, so that applying it to a source image will result in no input image information being lost in
@@ -396,7 +396,7 @@ def visualise_flow_arrows(
     :param scaling: Float or int of the flow line scaling, defaults to scaling the 99th percentile of arrowed line
         lengths to be equal to twice the grid distance (empirical value)
     :param colour: Tuple of the flow arrow colour, defaults to hue based on flow direction as in
-        :func:`~oflibnumpy.visualise`
+        :func:`~oflibpytorch.visualise`
     :param thickness: Integer of the flow arrow thickness, larger than zero. Defaults to ``1``
     :param return_tensor: Boolean determining whether the result is returned as a tensor. Note that the result is
         originally a numpy array. Defaults to ``True``
@@ -410,7 +410,7 @@ def visualise_flow_arrows(
 
 
 def show_flow(flow: Union[np.ndarray, torch.Tensor], wait: int = None):
-    """Shows the flow in an OpenCV window using :func:`~oflibnumpy.visualise`
+    """Shows the flow in an OpenCV window using :func:`~oflibpytorch.visualise`
 
     :param flow: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as :math:`(2, H, W)`
         if possible, otherwise as :math:`(H, W, 2)`, throwing a ``ValueError`` if this isn't possible either. The
@@ -433,7 +433,7 @@ def show_flow_arrows(
     scaling: Union[float, int] = None,
     colour: tuple = None
 ):
-    """Shows the flow in an OpenCV window using :func:`~oflibnumpy.visualise_arrows`
+    """Shows the flow in an OpenCV window using :func:`~oflibpytorch.visualise_arrows`
 
     :param flow: Numpy array or pytorch tensor with 3 or 4 dimension. The shape is interpreted as :math:`(2, H, W)`
         if possible, otherwise as :math:`(H, W, 2)`, throwing a ``ValueError`` if this isn't possible either. The
@@ -449,7 +449,7 @@ def show_flow_arrows(
     :param scaling: Float or int of the flow line scaling, defaults to scaling the 99th percentile of arrowed line
         lengths to be equal to twice the grid distance (empirical value)
     :param colour: Tuple of the flow arrow colour, defaults to hue based on flow direction as in
-        :func:`~oflibnumpy.visualise`
+        :func:`~oflibpytorch.visualise`
     """
 
     return Flow(flow, ref).show_arrows(wait=wait, grid_dist=grid_dist, img=img, scaling=scaling, colour=colour)
@@ -461,7 +461,7 @@ def batch_flows(flows: Union[list, tuple]) -> FlowAlias:
     The output flow vectors are differentiable with respect to the input flow vectors.
 
     :param flows: Tuple or list of flow objects. Flow objects to have the same flow reference
-        :attr:`~oflibnumpy.Flow.ref`, as well as the same flow field heights and widths :math:`(H, W)`. They can have
+        :attr:`~oflibpytorch.Flow.ref`, as well as the same flow field heights and widths :math:`(H, W)`. They can have
         any batch size.
     :return: Single batched flow object, with a batch size equal to the sum of all individual input batch sizes
     """
