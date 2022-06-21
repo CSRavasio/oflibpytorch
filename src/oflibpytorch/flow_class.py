@@ -1816,7 +1816,7 @@ class Flow(object):
         in the field, the difference will not be noticeable. However, if the flow vectors of `f2` vary throughout
         the field, such as with a rotation around some point, it will!
 
-        In this case (corresponding to calling :func:`f1.combine_with(f2, mode=3)<combine_with>`), and if the
+        In this case (corresponding to calling :func:`f1.combine(f2, mode=3)<combine>`), and if the
         flow reference :attr:`ref` is ``s`` ("source"), the solution is to first apply the inverse of `f1` to `f2`,
         essentially linking up each location `E1` back to `S1`, and *then* to add up the flow vectors. Analogous
         observations apply for the other permutations of flow combinations and reference :attr:`ref` values.
