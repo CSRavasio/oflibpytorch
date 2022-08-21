@@ -715,6 +715,30 @@ class TestFromTransforms(unittest.TestCase):
         self.assertIsNone(np.testing.assert_equal(flow.shape[0], 1))
         self.assertIsNone(np.testing.assert_equal(flow.shape[2:], shape))
 
+    def test_from_transforms_padding(self):
+        shape = [100, 150]
+        padding = [5, 10, 10, 20]
+        padded_shape = [shape[0] + sum(padding[0:2]), shape[1] + sum(padding[2:4])]
+        transforms = [['rotation', 10, 50, -30], ['scaling', 20, 30, 2], ['translation', 20, 10]]
+        flow = from_transforms(transforms[0:1], shape, 's')
+        flow_padded = from_transforms(transforms[0:1], shape, 's', padding)
+        self.assertEqual(list(flow_padded.shape[2:]), padded_shape)
+        self.assertIsNone(np.testing.assert_allclose(to_numpy(flow[0]),
+                                                     to_numpy(flow_padded[0, :, padding[0]:-padding[1],
+                                                              padding[2]:-padding[3]]), atol=1e-4))
+        flow = from_transforms(transforms[1:2], shape, 't')
+        flow_padded = from_transforms(transforms[1:2], shape, 't', padding)
+        self.assertEqual(list(flow_padded.shape[2:]), padded_shape)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(flow[0]),
+                                                     to_numpy(flow_padded[0, :, padding[0]:-padding[1],
+                                                              padding[2]:-padding[3]])))
+        flow = from_transforms(transforms[2:3], shape, 't')
+        flow_padded = from_transforms(transforms[2:3], shape, 't', padding)
+        self.assertEqual(list(flow_padded.shape[2:]), padded_shape)
+        self.assertIsNone(np.testing.assert_equal(to_numpy(flow[0]),
+                                                  to_numpy(flow_padded[0, :, padding[0]:-padding[1],
+                                                           padding[2]:-padding[3]])))
+
     def test_from_transforms_multiple_s(self):
         shape = [200, 300]
         transforms = [

@@ -708,8 +708,10 @@ def from_transforms(
     transform_list: list,
     shape: Union[list, tuple],
     ref: str = None,
+    padding: list = None,
 ) -> torch.Tensor:
-    """Flow vectors calculated from a list of transforms
+    """Flow vectors calculated from a list of transforms. If padding values are given, the given shape is
+        padded accordingly. The transforms values are also adjusted, e.g. by shifting scaling and rotation centres.
 
     :param transform_list: List of transforms to be turned into a flow field, where each transform is expressed as
         a list of [``transform name``, ``transform value 1``, ... , ``transform value n``]. Supported options:
@@ -721,11 +723,15 @@ def from_transforms(
           ``scaling fraction``
     :param shape: List or tuple of the shape :math:`(H, W)` of the flow field
     :param ref: Flow reference, string of value ``t`` ("target") or ``s`` ("source"). Defaults to ``t``
+    :param padding: List or tuple of shape :math:`(4)` with padding values ``[top, bot, left, right]``
     :return: Flow vectors of shape :math:`(N, 2, H, W)`
     """
 
     # Get valid reference
     ref = get_valid_ref(ref)
+    if padding is not None:
+        padding = get_valid_padding(padding, "Error padding flow: ")
+        shape = [shape[0] + sum(padding[0:2]), shape[1] + sum(padding[2:4])]
     # Check transform_list validity
     if not isinstance(transform_list, list):
         raise TypeError("Error creating flow from transforms: Transform_list needs to be a list")
@@ -742,10 +748,16 @@ def from_transforms(
             if not len(t) == 4:
                 raise ValueError("Error creating flow from transforms: Not enough transform values passed for "
                                  "'rotation' - expected 3, got {}".format(len(t) - 1))
+            if padding is not None:
+                t[1] += padding[2]
+                t[2] += padding[0]
         elif t[0] == 'scaling':
             if not len(t) == 4:
                 raise ValueError("Error creating flow from transforms: Not enough transform values passed for "
                                  "'scaling' - expected 3, got {}".format(len(t) - 1))
+            if padding is not None:
+                t[1] += padding[2]
+                t[2] += padding[0]
         else:
             raise ValueError("Error creating flow from transforms: Transform '{}' not recognised".format(t[0]))
         if not all(isinstance(item, (float, int)) for item in t[1:]):
