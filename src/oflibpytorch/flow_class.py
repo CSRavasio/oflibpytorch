@@ -730,6 +730,23 @@ class Flow(object):
         padded_mask = f.pad(self._mask.unsqueeze(1), (*padding[2:], *padding[:2])).squeeze(1)
         return Flow(padded_vecs, self._ref, padded_mask)
 
+    def unpad(self, padding: list = None) -> FlowAlias:
+        """Cuts the flow according to the padding values, effectively undoing the effect of
+        :meth:`~oflibpytorch.Flow.pad`
+
+        The output flow vectors are differentiable with respect to the input flow vectors.
+
+        :param padding: List or tuple of shape :math:`(4)` with padding values ``[top, bot, left, right]``
+        :return: New flow object, cut according to the padding values
+        """
+
+        padding = get_valid_padding(padding, "Error padding flow: ")
+        h, w = self.shape[1:3]
+        if sum(padding[0:2]) > h - 1 or sum(padding[2:4]) > w - 1:
+            raise ValueError("Error unpadding flow: one or more dimensions cut to zero or less")
+
+        return self[padding[0]:h - padding[1], padding[2]:w - padding[3]]
+
     def apply(
         self,
         target: Union[torch.Tensor, FlowAlias],

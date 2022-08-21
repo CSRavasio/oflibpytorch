@@ -912,6 +912,24 @@ class FlowTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             flow.pad([10, 10, 20, 20], mode='test')
 
+    def test_unpad(self):
+        shape = [100, 80]
+        padding = [4, 5, 6, 7]
+        flow = Flow.from_transforms([['rotation', 30, 50, 30]], shape, 't')
+        flow.vecs.requires_grad_()
+        flow_padded = flow.pad(padding)
+        flow_unpadded = flow_padded.unpad(padding)
+        self.assertIsNotNone(flow_unpadded.vecs.grad_fn)
+        self.assertEqual(flow.shape, flow_unpadded.shape)
+        self.assertIsNone(np.testing.assert_equal(flow.vecs_numpy, flow_unpadded.vecs_numpy))
+        self.assertEqual(flow.unpad([29, 70, 0, 0]).shape[1], 1)
+
+        # Invalid padding size
+        with self.assertRaises(ValueError):
+            flow.unpad([30, 70, 0, 0])
+        with self.assertRaises(ValueError):
+            flow.unpad([0, 0, 79, 1])
+
     def test_apply(self):
         img_np = np.moveaxis(cv2.resize(cv2.imread('smudge.png'), None, fx=.25, fy=.25), -1, 0)
         img_pt = torch.tensor(img_np)
