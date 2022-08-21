@@ -1914,7 +1914,7 @@ class Flow(object):
             if direction[r_time][g_time] == 1:
                 far_input = close_input.apply(far_input)
             else:  # direction[far_time][close_time] == -1
-                far_input = close_input.invert().apply(far_input)
+                far_input = close_input.invert(ref='t').apply(far_input)
         # far_input and close_input can now be combined linearly
         if g_time == t_time:  # g_time is the target of the result flow
             result = far_input * direction[s_time][r_time] + close_input * direction[r_time][t_time]
@@ -1924,7 +1924,7 @@ class Flow(object):
             if direction[r_time][g_time] == 1:
                 result = close_input.apply(result)
             else:  # direction[far_time][close_time] == -1
-                result = close_input.invert().apply(result)
+                result = close_input.invert(ref='s').apply(result)
 
         result._ref = ref
         return result
