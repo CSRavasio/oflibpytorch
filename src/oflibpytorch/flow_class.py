@@ -300,8 +300,10 @@ class Flow(object):
         ref: str = None,
         mask: Union[np.ndarray, torch.Tensor] = None,
         device: Union[torch.device, int, str] = None,
+        padding: list = None,
     ) -> FlowAlias:
-        """Flow object constructor, based on list of transforms
+        """Flow object constructor, based on a list of transforms. If padding values are given, the given shape is
+        padded accordingly. The transforms values are also adjusted, e.g. by shifting scaling and rotation centres.
 
         :param transform_list: List of transforms to be turned into a flow field, where each transform is expressed as
             a list of [``transform name``, ``transform value 1``, ... , ``transform value n``]. Supported options:
@@ -318,10 +320,11 @@ class Flow(object):
         :param device: Tensor device, either a :class:`torch.device` or a valid input to ``torch.device()``,
             such as a string (``cpu`` or ``cuda``). For a device of type ``cuda``, the device index defaults to
             ``torch.cuda.current_device()``. If the input is ``None``, it defaults to ``torch.device('cpu')``
+        :param padding: List or tuple of shape :math:`(4)` with padding values ``[top, bot, left, right]``
         :return: Flow object
         """
 
-        flow_vectors = from_transforms(transform_list, shape, ref)
+        flow_vectors = from_transforms(transform_list, shape, ref, padding)
         return cls(flow_vectors, ref, mask=mask, device=device)
 
     @classmethod
