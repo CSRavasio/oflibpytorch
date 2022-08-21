@@ -34,6 +34,7 @@ Manipulating the Flow
 .. currentmodule:: oflibpytorch
 .. automethod:: Flow.resize
 .. automethod:: Flow.pad
+.. automethod:: Flow.unpad
 .. automethod:: Flow.invert
 .. automethod:: Flow.switch_ref
 .. automethod:: Flow.combine
