@@ -284,8 +284,8 @@ def to_tensor(
     :param switch_channels: String determining whether the channels are moved from the last to the first dimension
         (if 'single'), or from last to second dimension (if 'batched'). Defaults to ``None`` (no channels moved)
     :param device: Tensor device, either a :class:`torch.device` or a valid input to ``torch.device()``,
-            such as a string (``cpu`` or ``cuda``). For a device of type ``cuda``, the device index defaults to
-            ``torch.cuda.current_device()``. If the input is ``None``, it defaults to ``torch.device('cpu')``
+        such as a string (``cpu`` or ``cuda``). For a device of type ``cuda``, the device index defaults to
+        ``torch.cuda.current_device()``. If the input is ``None``, it defaults to ``torch.device('cpu')``
     :return: Torch tensor, with channels switched if required
     """
 
