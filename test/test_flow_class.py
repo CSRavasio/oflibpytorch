@@ -1640,6 +1640,8 @@ class FlowTest(unittest.TestCase):
         # batched
         f = batch_flows((f_s, f_s))
         self.assertIsNone(np.testing.assert_equal(f.get_padding(), [f_s_desired, f_s_desired]))
+        self.assertIsNone(np.testing.assert_equal(f.get_padding(0), f_s_desired))
+        self.assertIsNone(np.testing.assert_equal(f.get_padding(1), f_s_desired))
         f = Flow.zero(shape)
         f._vecs[0] = torch.rand(*shape) * 1e-4
         self.assertIsNone(np.testing.assert_equal(f.get_padding(), [[0, 0, 0, 0]]))
@@ -1652,6 +1654,8 @@ class FlowTest(unittest.TestCase):
         # batched
         f = batch_flows((f_s, f_s))
         self.assertIsNone(np.testing.assert_equal(f.get_padding(), [f_s_desired, f_s_desired]))
+        self.assertIsNone(np.testing.assert_equal(f.get_padding(0), f_s_desired))
+        self.assertIsNone(np.testing.assert_equal(f.get_padding(1), f_s_desired))
         f = Flow.zero(shape)
         f._vecs[0] = torch.rand(*shape) * 1e-4
         self.assertIsNone(np.testing.assert_equal(f.get_padding(), [[0, 0, 0, 0]]))

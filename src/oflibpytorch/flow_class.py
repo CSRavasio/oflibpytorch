@@ -415,7 +415,7 @@ class Flow(object):
 
         The output flow vectors are differentiable with respect to the input flow vectors.
 
-        :param item: Element in batch to be selected, as an integer. If ``None'', returns the whole flow object
+        :param item: Element in batch to be selected, as an integer. Defaults to ``None'', returns the whole flow object
         :return: Same flow object if input is ``None'', else new flow object with batch size :math:`N` of 1
         """
 
@@ -1171,7 +1171,7 @@ class Flow(object):
         # Note: alternative way of seeing this: self.valid_source() = self.invert(<other ref>).valid_target()
         return area
 
-    def get_padding(self) -> list:
+    def get_padding(self, item: int = None) -> list:
         """Determine necessary padding from the flow field:
 
         - When the flow reference :attr:`ref` has the value ``t`` ("target"), this corresponds to the padding needed in
@@ -1184,37 +1184,44 @@ class Flow(object):
           the flow itself, so that applying it to a source image will result in no input image information being lost in
           the warped output, i.e each input image pixel will come to lie inside the padded area.
 
-        :return: A list of shape :math:`(4)` with the values ``[top, bottom, left, right]``
+        :param item: Element in batch to be selected, as an integer. Defaults to ``None'', returns the whole flow object
+        :return: If no item is selected from the batch, this function returns a list of shape :math:`(N, 4)`, where
+            N is the batch size. If an item is selected, it returns a list of shape :math:`(4)`. Padding values
+            themselves are given in the following order: ``[top, bottom, left, right]``
         """
 
+        flow = self.select(item=item)
         # Threshold to avoid very small flow values (possible artefacts) triggering a need for padding
-        v = threshold_vectors(self._vecs)
-        if self._ref == 's':
+        v = threshold_vectors(flow._vecs)
+        if flow._ref == 's':
             v *= -1
 
         # Prepare grid
         torch_version = globals()['torch'].__version__
         if int(torch_version[0]) == 1 and float(torch_version[2:4]) <= 9:
-            grid_x, grid_y = torch.meshgrid(torch.arange(0, self.shape[1]), torch.arange(0, self.shape[2]))
+            grid_x, grid_y = torch.meshgrid(torch.arange(0, flow.shape[1]), torch.arange(0, flow.shape[2]))
         else:
-            grid_x, grid_y = torch.meshgrid(torch.arange(0, self.shape[1]), torch.arange(0, self.shape[2]),
+            grid_x, grid_y = torch.meshgrid(torch.arange(0, flow.shape[1]), torch.arange(0, flow.shape[2]),
                                             indexing='ij')
-        v[:, 0] -= grid_y.to(self._device)
-        v[:, 1] -= grid_x.to(self._device)
+        v[:, 0] -= grid_y.to(flow._device)
+        v[:, 1] -= grid_x.to(flow._device)
         v *= -1
 
         # Calculate padding
         padding = []
-        for i in range(self.shape[0]):
+        for i in range(flow.shape[0]):
             pad = [
-                max(-torch.min(v[i, 1, self._mask[i]]), 0),
-                max(torch.max(v[i, 1, self._mask[i]]) - (self.shape[1] - 1), 0),
-                max(-torch.min(v[i, 0, self._mask[i]]), 0),
-                max(torch.max(v[i, 0, self._mask[i]]) - (self.shape[2] - 1), 0)
+                max(-torch.min(v[i, 1, flow._mask[i]]), 0),
+                max(torch.max(v[i, 1, flow._mask[i]]) - (flow.shape[1] - 1), 0),
+                max(-torch.min(v[i, 0, flow._mask[i]]), 0),
+                max(torch.max(v[i, 0, flow._mask[i]]) - (flow.shape[2] - 1), 0)
             ]
             pad = [int(np.ceil(p)) for p in pad]
             padding.append(pad)
-        return padding
+        if item is not None:  # When specific batch item was selected, return list(
+            return padding[0]
+        else:
+            return padding
 
     def is_zero(self, thresholded: bool = None, masked: bool = None) -> bool:
         """Check whether all flow vectors (where :attr:`mask` is ``True``) are zero. Optionally, a threshold flow
