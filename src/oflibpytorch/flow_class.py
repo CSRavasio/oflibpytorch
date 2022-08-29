@@ -410,15 +410,17 @@ class Flow(object):
         info_string += self.__repr__()
         return info_string
 
-    def select(self, item: int) -> FlowAlias:
+    def select(self, item: int = None) -> FlowAlias:
         """Returns a single-item flow object from a batched flow object, e.g. for iterating through or visualising
 
         The output flow vectors are differentiable with respect to the input flow vectors.
 
-        :param item: Element in batch to be selected, as an integer
-        :return: New flow object with batch size :math:`N` of 1
+        :param item: Element in batch to be selected, as an integer. If ``None'', returns the whole flow object
+        :return: Same flow object if input is ``None'', else new flow object with batch size :math:`N` of 1
         """
 
+        if item is None:
+            return self
         if not isinstance(item, int):
             raise TypeError("Error selecting from flow object: item needs to be an integer")
         try:

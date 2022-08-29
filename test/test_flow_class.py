@@ -292,6 +292,10 @@ class FlowTest(unittest.TestCase):
         self.assertIsNotNone(flow.select(0).vecs.grad_fn)
         self.assertIsNotNone(flow.select(1).vecs.grad_fn)
 
+        # Test behaviour with input "None"
+        self.assertEqual(id(flow.select()), id(flow))
+        self.assertEqual(id(flow.select(None)), id(flow))
+
         with self.assertRaises(TypeError):  # item not an integer
             flow.select(0.5)
         with self.assertRaises(IndexError):  # item out of bounds
