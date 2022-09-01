@@ -1,6 +1,18 @@
 Changelog
 =========
 
+2.1.1 [2022-09-01]
+------------------
+
+- :meth:`~oflibpytorch.Flow.unpad` introduced: effectively a helper function to undo :meth:`~oflibpytorch.Flow.pad`
+- :meth:`~oflibpytorch.Flow.from_transforms` signature extended by a ``padding'' argument: convenience when creating
+  a padded flow field, automatically adjusting the shape and relevant transform parameters
+- :meth:`~oflibpytorch.Flow.select` parameter ``item'' can be ``None'', returning ``self''
+- :meth:`~oflibpytorch.Flow.get_padding` signature extended by an ``item'' argument, used to select an item in the
+  batched flow. Returns a simple list of padding values, rather than a list of lists.
+- Minor performance improvement in :meth:`~oflibpytorch.Flow.combine`
+
+
 2.1.0 [2022-06-21]
 ------------------
 
